@@ -606,6 +606,6 @@ Then:
 ```
 
 One ~105 MB exe with the game inside (the engine is most of it). Zip it with
-`build/README.txt` (how to run it, getting past SmartScreen, the controls) and
-attach the zip to a GitHub release. Check it boots before sending:
+`dist/README_players.txt`, renamed `README.txt` (how to run it, getting past
+SmartScreen, the controls), and attach the zip to a GitHub release. Check it boots before sending:
 `build/MobileTavern.exe --headless --quit-after 900` should print no errors.
