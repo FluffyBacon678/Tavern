@@ -15,7 +15,8 @@ const BRAIN_NUMBERS: Array[String] = ["_timer", "_patience", "_waited_for_order"
 static func capture(director: CustomerDirector) -> Dictionary:
 	var out: Dictionary = {"guests": [], "consumed": {}, "reviews": [],
 		"spawn_timer": director._spawn_timer, "rng_state": str(director._rng.state),
-		"rng_seed": str(director._rng.seed), "open": director.open_for_business}
+		"rng_seed": str(director._rng.seed), "open": director.open_for_business,
+		"bookings": director.bookings.capture()}
 	for key in COUNTERS:
 		out[key] = director.get(key)
 	for id in director.consumed:
@@ -35,6 +36,7 @@ static func capture(director: CustomerDirector) -> Dictionary:
 			row[key] = brain.get(key)
 		row["_waited_for_bill"] = brain._waited_for_bill
 		row["paid_at_door"] = brain._paid_at_door
+		row["booked"] = brain.booked
 		out["guests"].append(row)
 	for review in director.day_reviews:
 		var parts: Dictionary = {}
@@ -60,6 +62,9 @@ static func restore(director: CustomerDirector, data: Dictionary) -> void:
 	for id in data["consumed"]:
 		director.consumed[StringName(id)] = int(data["consumed"][id])
 	director._spawn_timer = float(data["spawn_timer"])
+	director.bookings = Bookings.new()
+	if data.get("bookings") is Dictionary:
+		director.bookings.restore(data["bookings"])
 	director.open_for_business = bool(data["open"])
 	director._rng.seed = int(data["rng_seed"])
 	director._rng.state = int(data["rng_state"])
@@ -78,6 +83,7 @@ static func restore(director: CustomerDirector, data: Dictionary) -> void:
 		brain.state = int(row["state"])
 		brain.greeted = row["greeted"]
 		brain._did_order = row["did_order"]
+		brain.booked = bool(row.get("booked", false))
 		brain.exit_tile = _vector(row["exit"])
 		brain.order = row["order"].duplicate(true)
 		for line in brain.order:

@@ -100,6 +100,18 @@ var _observe_timer: float = 0.0
 var _rng := RandomNumberGenerator.new()
 
 
+## Came on a booking: they have a table to come to, so they will wait for it.
+var booked: bool = false
+
+
+## A booked guest waits twice as long for their table, and the wait counts
+## half as much in their review (it is measured against the longer patience).
+func mark_booked() -> void:
+	booked = true
+	_patience *= 2.0
+	_seat_tolerance *= 2.0
+
+
 ## What kind of adventurer they are, and so what they want. See GuestType.
 var guest_type: GuestType = GuestType.of(-1)
 

@@ -385,4 +385,12 @@ headless for the simulation alone, `-- --profile` for cost per system.
 - The chaos fingerprint now sorts goods as text (StringNames sort by identity,
   so unrelated code moved the hash). Now: 81 `3e0ca0f5`, 90 `b6807bbe`,
   33 `f0fa2628`.
+- **Bookings** (phase 3, 2026-09-29, `src/world/customers/bookings.gd`): with a
+  host's stand and someone allowed to host, a "Take today's bookings" job runs
+  each morning until 11:00. Count = seats x 0.5 x standing (reputation 30 -> 0,
+  70 -> 1, capped 1.5, at most 12); times lean to the 15:00-16:00 lull. Booked
+  parties (1-2) arrive at their hour on top of footfall, with doubled seat
+  patience. Saved with the guests. The stand's card lists the day's book.
+  Tutorial steps host_stand / hire_host / bookings / booked_guest (51 steps).
+  Soak: 274 served, 3 lost to service, 1 for a seat.
 

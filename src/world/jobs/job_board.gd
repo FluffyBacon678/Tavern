@@ -240,3 +240,10 @@ func count_of_kind(kind: int) -> int:
 		if job.kind == kind:
 			n += 1
 	return n
+
+
+func job_with_key(key: String) -> Job:
+	for job in jobs:
+		if job.key == key:
+			return job
+	return null

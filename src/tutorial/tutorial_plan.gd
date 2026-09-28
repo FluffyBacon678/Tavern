@@ -29,6 +29,7 @@ const BASIN := Vector2i(5, 0)
 const COUNTER := Vector2i(5, 6)
 const SPARE_CHAIR := Vector2i(0, 6)
 const DOOR := Vector2i(4, 7)
+const HOST_STAND := Vector2i(3, 6)
 
 
 # --- layout ---------------------------------------------------------------------
@@ -567,6 +568,30 @@ static func _money() -> Array[TutorialStep]:
 		func(w, _ctx) -> bool: return w.clock.day >= 2 and not w.simulation_paused,
 		func(w, _ctx) -> void: PlayerActions.press(w.hud._day_summary, "Open tomorrow")
 	).pointing_at({"button": "Open tomorrow"}))
+	out.append(TutorialStep.make("host_stand", L,
+		"Place a Host's Stand on the marked spot, by the door.",
+		"A good name brings bookings, and bookings need someone to take them.",
+		func(w, _ctx) -> bool: return placed_in(w, [&"host_stand"], room(w)) >= 1,
+		func(w, _ctx) -> void:
+			PlayerActions.place_all(w, &"host_stand", [at(w, HOST_STAND)])
+			PlayerActions.stop_building(w)
+	).pointing_at(func(w) -> Dictionary: return {"tiles": area(w, HOST_STAND, Vector2i.ONE)}))
+	out.append(TutorialStep.make("hire_host", L,
+		"Hire a Host%s." % KeyBindings.hint("staff"),
+		"A host greets the queue, so guests wait longer, and takes the day's bookings each morning.",
+		func(w, _ctx) -> bool: return PlayerActions.staff(w, &"host") != null,
+		func(w, _ctx) -> void:
+			if not w.hud._priority_panel.visible:
+				w.hud._priority_panel.toggle()
+			PlayerActions.press(w.hud._priority_panel, "Host")
+			w.hud._priority_panel.toggle()
+	).pointing_at({"button": "Staff"}))
+	out.append(TutorialStep.make("bookings", L,
+		"Run time. Before 11:00 the host takes today's bookings at the stand.",
+		"The better your stars, the more tables are booked. Point at the stand to see who is coming when.",
+		func(w, _ctx) -> bool: return w.customers.bookings.taken_day == w.clock.day,
+		func(w, _ctx) -> void: w.sim.speed = 4
+	).running(400.0).pointing_at({"role": &"host"}))
 	return out
 
 
@@ -637,6 +662,12 @@ static func _growing() -> Array[TutorialStep]:
 			PlayerActions.place_all(w, &"well", [well_spot(w)])
 			PlayerActions.stop_building(w)
 	).pointing_at(func(w) -> Dictionary: return {"tiles": Rect2i(well_spot(w), Vector2i(2, 2))}))
+	out.append(TutorialStep.make("booked_guest", L,
+		"Watch for the first booked party. They come at their hour, on top of the walk-ins.",
+		"Booked guests wait twice as long for their table, and mind the wait less.",
+		func(w, _ctx) -> bool: return w.customers.bookings.arrived_guests() >= 1,
+		func(w, _ctx) -> void: w.sim.speed = 4
+	).running(700.0))
 	out.append(TutorialStep.make("save", L,
 		"Press Esc for the pause menu, and choose Save game.",
 		"The game also saves itself at every close of day. Settings are in the same menu.",

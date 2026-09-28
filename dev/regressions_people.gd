@@ -18,6 +18,7 @@ func run() -> void:
 	_check_service_loop(world)
 	_check_fish_menu(world)
 	_check_guest_types(world)
+	_check_bookings(world)
 
 
 ## A host has to be worth their wage, and has to stop existing when the stand
@@ -596,3 +597,60 @@ func _check_guest_types(world: TavernWorld) -> void:
 	for tile in world.items.tiles_with(&"grilled_fish", world.plot.position):
 		var n: int = world.items.take(tile, world.items.count_at(tile))
 		world.delivered[&"grilled_fish"] = int(world.delivered.get(&"grilled_fish", 0)) - n
+
+
+## Bookings (phase 3): a host takes them in the morning, a poor name gets
+## none, a better one more, and booked parties come at their hour, patient.
+func _check_bookings(world: TavernWorld) -> void:
+	check(Bookings.count_for(12, 20.0) == 0, "a tavern with a poor name gets no bookings")
+	check(Bookings.count_for(12, 90.0) > Bookings.count_for(12, 55.0) and Bookings.count_for(12, 55.0) > 0,
+		"a better name brings more bookings")
+	check(Bookings.count_for(40, 90.0) > Bookings.count_for(12, 90.0), "and more seats take more")
+	check(Bookings.count_for(0, 100.0) == 0, "no seats, no bookings")
+
+	var book := Bookings.new()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var n: int = book.take(3, rng, 12, 80.0)
+	check(n == Bookings.count_for(12, 80.0) and book.taken_day == 3, "taking the book fills today's bookings")
+	check(not book.wants_taking(3, 9.0) and book.wants_taking(4, 9.0) and not book.wants_taking(4, 12.0),
+		"once a day, and only in the morning")
+	var hours: Array = book.today.map(func(b) -> float: return b["hour"])
+	var sorted_hours: Array = hours.duplicate()
+	sorted_hours.sort()
+	check(hours == sorted_hours and book.due(8.0).is_empty() and not book.due(23.0).is_empty(),
+		"bookings are in hour order and fall due at their hour")
+	var copy := Bookings.new()
+	copy.restore(book.capture())
+	check(copy.taken_day == 3 and copy.today.size() == n and copy.describe() == book.describe(),
+		"the book survives a save")
+
+	# In the world: the job appears with a stand and a morning, and a booked
+	# guest waits twice as long.
+	var director: CustomerDirector = world.customers
+	var stand: Vector2i = director._host_stand()
+	if stand != Vector2i(-1, -1):
+		var day_before: int = director.bookings.taken_day
+		director.bookings.taken_day = 0
+		var fraction: float = world.clock.fraction
+		world.clock.fraction = 9.0 / 24.0
+		director._generate_booking_job()
+		check(world.board.has_key("host:book") and world.board.job_with_key("host:book").kind == WorkType.Kind.HOST,
+			"with a stand, a morning brings a host job to take the bookings")
+		world.clock.fraction = 14.0 / 24.0
+		director._generate_booking_job()
+		check(not world.board.has_key("host:book"), "and after 11:00 the book is closed")
+		world.clock.fraction = fraction
+		director.bookings.taken_day = day_before
+	var before: int = director.customers.size()
+	var walk_in: CustomerBrain = director._try_spawn()
+	var guest: CustomerBrain = director._try_spawn(true)
+	if walk_in != null and guest != null:
+		check(guest.booked and not walk_in.booked, "a booked guest is marked as booked")
+		check(is_equal_approx(guest._seat_tolerance, walk_in._seat_tolerance / walk_in.guest_type.patience * guest.guest_type.patience * 2.0),
+			"and will wait twice as long for a table")
+	for b in [walk_in, guest]:
+		if b != null:
+			director.remove_customer(b)
+	check(director.customers.size() == before, "the booking fixture leaves nobody behind")
+

@@ -154,6 +154,8 @@ static func _patron_rows(world, pawn: Pawn, brain: CustomerBrain) -> Array:
 	# And what that kind of adventurer wants, which is what to act on.
 	if not brain.guest_type.wants.is_empty():
 		rows.append(_stat(brain.guest_type.title, brain.guest_type.wants, TavernTheme.CANDLE, true))
+	if brain.booked:
+		rows.append(_stat("Booked", "came for a table booked this morning", TavernTheme.PARCHMENT, true))
 	rows.append(_stat("Now", _capitalise(brain.status_text()), TavernTheme.CANDLE, true))
 
 	var patience: float = brain.patience_fraction()
@@ -232,7 +234,7 @@ static func building_rows(world, index: int) -> Array:
 					builders += 1
 			rows.append(_stat("State", "Blueprint, waiting for a builder", TavernTheme.CANDLE, true))
 			if builders == 0:
-				rows.append(_line("Nobody on the staff can build. Hire a porter (Staff, K).", TavernTheme.DANGER, true))
+				rows.append(_line("Nobody on the staff can build. Hire a porter under Staff%s." % KeyBindings.hint("staff"), TavernTheme.DANGER, true))
 			else:
 				rows.append(_line("%d blueprint%s queued for %d builder%s. Another porter builds it sooner." % [
 					queued, "" if queued == 1 else "s", builders, "" if builders == 1 else "s"],
@@ -253,6 +255,25 @@ static func building_rows(world, index: int) -> Array:
 		var waiting: int = _dirty_tables(world)
 		rows.append(_stat("Tables to clear", str(waiting) if waiting > 0 else "none",
 			TavernTheme.DANGER if waiting > 0 else GOOD, true))
+	if def.id == &"host_stand" and world.customers != null and world.clock != null:
+		rows.append_array(_booking_rows(world))
+	return rows
+
+
+## The day's book, on the host's stand.
+static func _booking_rows(world) -> Array:
+	var book: Bookings = world.customers.bookings
+	var rows: Array = []
+	if book.taken_day == world.clock.day:
+		if book.today.is_empty():
+			rows.append(_stat("Bookings", "nobody booked today: a better name brings bookings", TavernTheme.PARCHMENT_DIM, true))
+		else:
+			rows.append(_stat("Bookings", "%d of %d guests here: %s" % [book.arrived_guests(), book.booked_guests(),
+				book.describe()], GOOD, true))
+	elif world.clock.hour() < Bookings.LAST_HOUR:
+		rows.append(_stat("Bookings", "a host takes today's bookings here before 11:00", TavernTheme.CANDLE, true))
+	else:
+		rows.append(_stat("Bookings", "none taken today: nobody was hosting this morning", TavernTheme.DANGER, true))
 	return rows
 
 
@@ -627,7 +648,7 @@ static func building_blurb(def: BuildingDef) -> String:
 		&"chair":
 			parts.append("a seat only when it stands beside a table")
 		&"host_stand":
-			parts.append("a host greets guests here, and greeted guests wait longer for a table")
+			parts.append("a host greets guests here, who then wait longer for a table, and takes the day's bookings each morning until 11:00")
 		&"door":
 			parts.append("the way in; walls round it make a room")
 		&"serving_counter":

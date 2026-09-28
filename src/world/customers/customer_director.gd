@@ -39,6 +39,8 @@ var clock: DayClock
 ## What the town thinks of the place. Owned here because every review starts
 ## with a customer leaving.
 var reputation := Reputation.new()
+## Today's booked tables, taken by a host each morning.
+var bookings := Bookings.new()
 
 var customers: Array[CustomerBrain] = []
 ## Running tallies, so the day can be judged rather than guessed at.
@@ -146,6 +148,8 @@ func sim_step(delta: float) -> void:
 	_service_timer = SERVICE_SCAN_INTERVAL
 	_generate_serve_jobs()
 	_generate_host_jobs()
+	_generate_booking_job()
+	_seat_bookings()
 
 
 const SERVICE_SCAN_INTERVAL: float = 0.25
@@ -399,24 +403,24 @@ func _road_tile() -> Vector2i:
 	return Vector2i(-1, -1)
 
 
-func _try_spawn() -> void:
+func _try_spawn(booked: bool = false) -> CustomerBrain:
 	if customers.size() >= max_customers():
-		return
+		return null
 	# Nobody comes to a tavern with nowhere to sit. Without this the road fills
 	# with people who walk in, wait, and trudge out again.
 	if seating.seats.is_empty():
-		return
+		return null
 	# Nor to one with nothing to sell. The same argument, and it matters most on
 	# the opening day: the kitchen starts empty by design, and without this the
 	# player spends their first morning collecting one-star reviews for a
 	# situation the rules gave them. A larder that empties mid-service still
 	# strands everybody already inside, which is the part that should hurt.
 	if items != null and menu_stock() <= 0:
-		return
+		return null
 
 	var start: Vector2i = _road_tile()
 	if start == Vector2i(-1, -1):
-		return
+		return null
 
 	var pawn := Pawn.new()
 	_holder.add_child(pawn)
@@ -426,6 +430,8 @@ func _try_spawn() -> void:
 	brain.name = "Brain"
 	pawn.add_child(brain)
 	brain.setup(pawn, self, seating, items, nav, _rng.randi())
+	if booked:
+		brain.mark_booked()
 	# Out the way they came, or on along the road the other way.
 	var onward: Vector2i = _road_tile()
 	brain.exit_tile = onward if onward.x >= 0 else start
@@ -439,6 +445,7 @@ func _try_spawn() -> void:
 		pawn.goto(inside)
 
 	customers.append(brain)
+	return brain
 
 
 ## Feet first, then the head: a patron's pawn steps before its brain decides,
@@ -624,6 +631,43 @@ func _host_stand() -> Vector2i:
 			continue
 		return entry["tiles"][0]
 	return Vector2i(-1, -1)
+
+
+## The morning's bookings: one job at the stand, for whoever may host, until
+## the book closes at 11:00. No host, no bookings -- that is what a host is for.
+func _generate_booking_job() -> void:
+	var key: String = "host:book"
+	var stand: Vector2i = _host_stand()
+	if stand == Vector2i(-1, -1) or clock == null or not clock.is_open() \
+			or not bookings.wants_taking(clock.day, clock.hour()):
+		if board.has_key(key) and board.job_with_key(key) != null and board.job_with_key(key).claimant == null:
+			board.cancel_key(key)
+		return
+	if board.has_key(key):
+		return
+	var job := Job.new()
+	job.kind = WorkType.Kind.HOST
+	job.target = stand
+	job.work_amount = Bookings.WORK
+	job.label = "Take today's bookings"
+	job.key = key
+	job.on_complete = func(_j: Job) -> void: take_bookings()
+	board.post(job)
+
+
+func take_bookings() -> int:
+	return bookings.take(clock.day if clock != null else 1, _rng, seating.seats.size(), reputation.score)
+
+
+## A booked party whose hour has come walks up the road, one guest a pass.
+func _seat_bookings() -> void:
+	if clock == null:
+		return
+	var due: Dictionary = bookings.due(clock.hour())
+	if due.is_empty():
+		return
+	if _try_spawn(true) != null:
+		due["arrived"] = int(due["arrived"]) + 1
 
 
 func _ungreeted_count() -> int:
