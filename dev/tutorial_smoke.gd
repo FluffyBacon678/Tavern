@@ -5,7 +5,11 @@ extends Node
 ## against the world, as the in-game tutorial checks it. A step that cannot be
 ## finished by the player's own actions is a bug in the game.
 ##
-##   godot --headless --path . res://dev/tutorial_smoke.tscn [-- --verbose]
+##   godot --headless --path . res://dev/tutorial_smoke.tscn [-- --verbose] [--days N]
+##
+## `--days N` keeps the finished tavern trading for N more days, ordering the
+## standard supplies each morning as a player would, one line a day: a soak of
+## everything the tutorial built, fishing included.
 ##
 ## Output is one line a step, and detail only for a step that fails:
 ##   TUT 07 wait_build      ok    96s  day 1 09:10  1182g
@@ -86,7 +90,72 @@ func _play(director: TutorialDirector) -> void:
 	print("TUTORIAL %d/%d ok%s  in %.0f game-s / %.0f real-s" % [
 		ok, steps.size(), "" if _failures.is_empty() else ", %d failed: %s" % [_failures.size(), ", ".join(_failures)],
 		world.sim.sim_time - sim_start, float(Time.get_ticks_msec() - real_start) / 1000.0])
+	var at: int = OS.get_cmdline_user_args().find("--days")
+	if at >= 0 and at + 1 < OS.get_cmdline_user_args().size():
+		if not await _trade_on(int(OS.get_cmdline_user_args()[at + 1])):
+			_failures.append("soak")
 	get_tree().quit(0 if _failures.is_empty() else 1)
+
+
+## After the lessons: trade on, as a player who has finished the tutorial would.
+func _trade_on(days: int) -> bool:
+	world.sim.speed = 4
+	var purse: int = GameState.gold
+	var served: int = 0
+	var lost_service: int = 0
+	var lost_seat: int = 0
+	var last: int = world.clock.day
+	var until: int = world.clock.day + days
+	# A script error in here would leave the run waiting forever.
+	get_tree().create_timer(60.0 * days).timeout.connect(func() -> void:
+		print("TRADE FAIL: day %d still open after %d real seconds" % [world.clock.day, 60 * days])
+		get_tree().quit(1))
+	var made_before: Dictionary = world.generator.produced.duplicate()
+	var eaten_before: Dictionary = world.customers.consumed.duplicate()
+	while world.clock.day < until:
+		await get_tree().process_frame
+		if not world.simulation_paused:
+			continue
+		# The summary is up: that day is done. Guest tallies are the day's own;
+		# they reset when the next day opens.
+		var line: PackedStringArray = PackedStringArray()
+		for id in [&"trout", &"perch", &"fillet", &"grilled_fish", &"fish_soup", &"bread", &"beer"]:
+			var made: int = int(world.generator.produced.get(id, 0)) - int(made_before.get(id, 0))
+			if made > 0:
+				line.append("%s %d" % [id, made])
+		var ate: PackedStringArray = PackedStringArray()
+		for id in CustomerDirector.menu_ids():
+			var n: int = int(world.customers.consumed.get(id, 0)) - int(eaten_before.get(id, 0))
+			if n > 0:
+				ate.append("%s %d" % [id, n])
+		var c: CustomerDirector = world.customers
+		if not TestOutput.brief:
+			print("DAY %d  %5dg  served %d, lost %d seat/%d service/%d menu  made: %s  sold: %s" % [
+				world.clock.day, GameState.gold, c.served_count, c.lost_no_seat, c.lost_no_service, c.lost_no_menu,
+				", ".join(line), ", ".join(ate)])
+			var trouble: String = Trouble.diagnose(world)
+			if not trouble.is_empty():
+				print("     trouble: %s" % trouble)
+		if verbose:
+			print("     pass: %s" % _pass_line())
+		served += c.served_count
+		lost_service += c.lost_no_service
+		lost_seat += c.lost_no_seat
+		made_before = world.generator.produced.duplicate()
+		eaten_before = world.customers.consumed.duplicate()
+		PlayerActions.press(world.hud._day_summary, "Open tomorrow")
+		PlayerActions.press(world.hud._day_summary, "Keep trading")
+		await get_tree().process_frame
+		if world.clock.day != last:
+			last = world.clock.day
+			if world.order_problem(TavernWorld.STANDARD_ORDER) == "":
+				world.order_supplies()
+	# Guests given up on for want of service are the thing to watch: a pass
+	# jammed with abandoned plates lost 15-27 a day before it was fixed.
+	var ok: bool = lost_service <= 3 * days and GameState.gold > purse
+	print("SOAK %s  %d days after the tutorial: served %d, lost %d to service, %d for a seat; purse %dg -> %dg" % [
+		"ok" if ok else "FAIL", days, served, lost_service, lost_seat, purse, GameState.gold])
+	return ok
 
 
 ## A day can close in the middle of the lessons -- building and hauling take a
@@ -156,3 +225,12 @@ func _kitchen_line() -> String:
 			parts.append("%s %s" % [recipe.display_name,
 				world.bills.status_text(recipe.id, world.generator._output_stock(recipe))])
 	return "; ".join(parts) if not parts.is_empty() else "no benches built"
+
+
+## What is standing on the serving counters: plates nobody collects block it.
+func _pass_line() -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for tile in world.customers.pass_tiles():
+		var def: ItemDef = world.items.def_at(tile)
+		parts.append("%s %d" % [def.id, world.items.count_at(tile)] if def != null else "empty")
+	return ", ".join(parts)

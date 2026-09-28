@@ -35,6 +35,7 @@ run layout hud_layout_smoke
 run atmosphere atmosphere_smoke
 run adventurers adventurer_mesh_smoke
 run tutorial tutorial_smoke
+run soak tutorial_smoke --days 6
 run smoke smoke_test
 run chaos81 chaos_test seed=81 seconds=1800
 run chaos90 chaos_test seed=90 seconds=1800 level=wayfarers_rest
@@ -49,14 +50,14 @@ for f in "$OUT"/*.txt; do
 	name=$(basename "$f" .txt)
 	[ "$name" = "import" ] && continue
 	read -r _ code secs <<< "$(grep '^EXIT' "$f" | tail -1)"
-	total=$(grep -E "REGRESSIONS|SMOKE|TUTORIAL [0-9]|CHAOS TEST|LEVEL SMOKE" "$f" | tail -1)
+	total=$(grep -E "REGRESSIONS|SMOKE|TUTORIAL [0-9]|CHAOS TEST|LEVEL SMOKE|^SOAK" "$f" | tail -1)
 	extra=$(grep -E "FINGERPRINT|Purse at the close" "$f" | sed 's/^ *//' | tr '\n' ' ')
 	if [ "$code" = "0" ]; then
 		printf "ok    %-12s %4ss  %s %s\n" "$name" "$secs" "$total" "$extra"
 	else
 		failed=1
 		printf "FAIL  %-12s %4ss  %s\n" "$name" "$secs" "$total"
-		grep -E "^FAIL|HOLE|SCRIPT ERROR|^TUT .*FAIL|^ {5}[a-z ]+: " "$f" | head -12 | sed 's/^/        /'
+		grep -E "^FAIL|^SOAK|HOLE|SCRIPT ERROR|^TUT .*FAIL|^ {5}[a-z ]+: " "$f" | head -12 | sed 's/^/        /'
 	fi
 done
 echo "logs: $OUT"

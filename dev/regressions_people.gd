@@ -506,8 +506,7 @@ func _check_fish_menu(world: TavernWorld) -> void:
 		"the menu is every dish with a price: %s" % ", ".join(menu))
 	var director: CustomerDirector = world.customers
 	var soup: ItemDef = ItemCatalog.get_def(&"fish_soup")
-	var left: int = world.items.place_near(soup, 4, world.plot.position + world.plot.size / 2)
-	var added: int = 4 - left
+	var added: int = world.items.place_near(soup, 4, world.plot.position + world.plot.size / 2)
 	world.delivered[&"fish_soup"] = int(world.delivered.get(&"fish_soup", 0)) + added
 	var before: int = director.customers.size()
 	director._try_spawn()

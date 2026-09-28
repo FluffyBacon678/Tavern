@@ -271,6 +271,7 @@ func _generate_plating(counter: Array[Vector2i], wanted: Dictionary) -> void:
 				target = tile
 				break
 		if target == Vector2i(-1, -1):
+			_clear_the_pass(here, demand, wanted)
 			continue
 		var source := Vector2i(-1, -1)
 		for tile in items.tiles_with(id, target):
@@ -291,6 +292,61 @@ func _generate_plating(counter: Array[Vector2i], wanted: Dictionary) -> void:
 		job.urgency = 1
 		job.key = job_key
 		board.post(job)
+
+
+## An order with nowhere on the counter to go: take off a plate that nobody
+## at these tables is waiting for. Guests who give up leave their order on
+## the pass, and with four dishes on the menu and two tiles to the counter,
+## a grilled fish and a loaf were enough to stop every beer in the house.
+func _clear_the_pass(here: Dictionary, demand: Dictionary, wanted: Dictionary) -> void:
+	for tile in here["tiles"]:
+		var def: ItemDef = items.def_at(tile)
+		if def == null or demand.has("%d:%s" % [int(here["index"]), def.id]):
+			continue
+		var key: String = "plate:clear:%d,%d" % [tile.x, tile.y]
+		wanted[key] = true
+		if board.has_key(key) or board.has_pickup(tile) or items.available_at(tile) <= 0:
+			return
+		var destination: Vector2i = _off_the_pass(def, tile, here["tiles"])
+		if destination == Vector2i(-1, -1):
+			continue
+		var job := Job.new()
+		job.kind = WorkType.Kind.COOK
+		job.pickup_tile = tile
+		job.target = destination
+		job.carry_def = def
+		job.carry_count = items.available_at(tile)
+		job.work_amount = 0.0
+		job.label = "Clear the pass"
+		job.urgency = 1
+		job.key = key
+		board.post(job)
+		return
+
+
+## Back to storage if any will take it, or else the nearest free floor.
+func _off_the_pass(def: ItemDef, from: Vector2i, counter: Array) -> Vector2i:
+	var best := Vector2i(-1, -1)
+	var best_distance: int = 1 << 30
+	for entry in build_grid.placements:
+		if entry == null or not entry["built"] or not entry["def"].is_storage:
+			continue
+		for tile in entry["tiles"]:
+			var d: int = ItemWorld._chebyshev(tile, from)
+			if d < best_distance and items.accepts(tile, def):
+				best = tile
+				best_distance = d
+	if best != Vector2i(-1, -1):
+		return best
+	for radius in range(1, 5):
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				var tile: Vector2i = from + Vector2i(dx, dy)
+				if maxi(absi(dx), absi(dy)) != radius or counter.has(tile):
+					continue
+				if nav != null and nav.is_walkable(tile) and not items.has_stack(tile) and items.accepts(tile, def):
+					return tile
+	return Vector2i(-1, -1)
 
 
 ## Every built serving counter: {index, tiles}.

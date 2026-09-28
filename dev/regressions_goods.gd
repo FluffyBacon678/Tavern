@@ -21,6 +21,7 @@ func run() -> void:
 	_check_hands_on(world, scenario)
 	_check_custom_orders(world, scenario)
 	_check_fishing(world, scenario)
+	_check_blocked_pass(world, scenario)
 
 
 ## The opening delivery: the unloading area refuses what it cannot hold,
@@ -836,3 +837,46 @@ func _check_fishing(world: TavernWorld, scenario: Node) -> void:
 func _output_counts_catch(world: TavernWorld, catch: Recipe) -> bool:
 	var both: int = world.items.total_of(&"trout") + world.items.total_of(&"perch")
 	return world.generator._output_stock(catch) == both
+
+
+## A counter full of plates nobody wants any more still has to take the next
+## order: a cook carries one off. Found by the tutorial soak -- guests who gave
+## up left bread and grilled fish on both tiles, and no beer was served again.
+func _check_blocked_pass(world: TavernWorld, scenario: Node) -> void:
+	var pass_tiles: Array[Vector2i] = world.customers.pass_tiles()
+	check(not pass_tiles.is_empty(), "the fixture has a serving counter")
+	if pass_tiles.is_empty():
+		return
+	var bread: ItemDef = ItemCatalog.get_def(&"bread")
+	var beer: ItemDef = ItemCatalog.get_def(&"beer")
+	for tile in pass_tiles:
+		world.items.add(bread, 1, tile)
+	world.delivered[&"bread"] = int(world.delivered.get(&"bread", 0)) + pass_tiles.size()
+	var mug: int = world.items.place_near(beer, 1, pass_tiles[0], 4)
+	world.delivered[&"beer"] = int(world.delivered.get(&"beer", 0)) + mug
+	var seating: Seating = world.customers.seating
+	seating.refresh()
+	var thirsty := CustomerBrain.new()
+	thirsty.seating = seating
+	thirsty.seat = seating.chair_of(0)
+	thirsty.state = CustomerBrain.State.WAITING_FOR_ORDER
+	thirsty.order = [{"id": &"beer", "count": 1, "served": 0}]
+	world.customers.customers.append(thirsty)
+	world.customers._generate_serve_jobs()
+	var clearing: Job = null
+	for job in world.board.jobs:
+		if job.key.begins_with("plate:clear:"):
+			clearing = job
+	check(clearing != null and clearing.kind == WorkType.Kind.COOK and clearing.carry_def == bread,
+		"with the pass full of bread nobody ordered, a cook is sent to clear a tile for the beer")
+	check(clearing != null and not pass_tiles.has(clearing.target), "and the bread goes somewhere off the counter")
+	for job in world.board.jobs.duplicate():
+		if job.key.begins_with("plate:"):
+			world.board.cancel_key(job.key)
+	world.customers.customers.clear()
+	thirsty.free()
+	for id in [&"bread", &"beer"]:
+		for tile in world.items.tiles_with(id, pass_tiles[0]):
+			var n: int = world.items.take(tile, world.items.count_at(tile))
+			world.delivered[id] = int(world.delivered.get(id, 0)) - n
+	check(scenario.reconcile(), "the blocked-pass test leaves the books straight")
