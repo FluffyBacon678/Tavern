@@ -1,0 +1,924 @@
+class_name WorldHUD
+extends Node
+
+## Owns controls and presentation; player actions delegate to the world.
+var world: TavernWorld
+var _hud: Control
+var _stats_label: Label
+var _mode_button: Button
+var _build_bar: BuildBar
+var _flash_label: Label
+var _day_summary: DaySummary
+var _hands_on: HandsOnPanel
+var _production_panel: ProductionPanel
+var _priority_panel: PriorityPanel
+var _title_label: Label
+var _clock_label: Label
+var _gold_label: Label
+var _bread_label: Label
+var _beer_label: Label
+var _staff_label: Label
+var _reputation_label: Label
+var _reputation_stars: StarRating
+var _walls_button: Button
+var _rooms_button: Button
+var _details_panel: PanelContainer
+var _land_panel: PanelContainer
+## The merchant's order form, behind the Supplies button.
+var _supply_panel: SupplyPanel
+## Esc with nothing else open, and the Menu button.
+var pause_menu: PauseMenu
+## The tutorial, when this run is one.
+var tutorial: TutorialDirector
+var _land_rows: VBoxContainer
+var _objectives_panel: ObjectivesPanel
+var _goal_label: Label
+## What is going wrong right now, from `Trouble`. Hidden when nothing is.
+var _trouble_panel: PanelContainer
+var _trouble_label: Label
+var _briefing_panel: PanelContainer
+## Public: the world drives selection through it.
+var inspector: InspectorPanel
+## Public: the world feeds it whatever the pointer rests on.
+var hover: HoverCard
+## The header chips, kept so their tooltips can carry live figures.
+var _gold_chip: Control
+## Pause and the three speeds, beside the clock; and the notice that says so.
+var _speed_buttons: Array[SpeedButton] = []
+var _paused_label: Label
+var _bread_chip: Control
+var _beer_chip: Control
+## The two strips across the top. Everything below them is placed from where
+## they actually end, not from a pixel count: their height changes with the
+## window, with the text scale, and when the bar wraps onto a second row.
+var _header: PanelContainer
+var _bar: HFlowContainer
+## Where the space under the header and bar begins, in canvas units.
+var _below_top: float = 134.0
+var _layout_queued: bool = false
+
+
+func _build_hud() -> void:
+	var layer := CanvasLayer.new()
+	add_child(layer)
+	_hud = Control.new()
+	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(_hud)
+	_hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_hud.theme = TavernTheme.build(TavernTheme.scale_for_control(_hud) * 0.8)
+	# Built once, the text scale kept whatever the window was when the game
+	# opened: drag the window smaller and the bar ran off the edge.
+	get_viewport().size_changed.connect(_apply_scale)
+	# Settings > Interface size, and the hints switch, while playing.
+	GameSettings.changed.connect(func() -> void:
+		_apply_scale()
+		refresh_stats()
+	)
+
+	var header := PanelContainer.new()
+	_header = header
+	_hud.add_child(header)
+	header.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	header.offset_left = 12
+	header.offset_right = -12
+	header.offset_top = 10
+	header.add_theme_stylebox_override("panel", _panel_style())
+	var header_row := HBoxContainer.new()
+	header_row.add_theme_constant_override("separation", 20)
+	header.add_child(header_row)
+	var crest := TextureRect.new()
+	crest.texture = load("res://assets/prototype/ui/game_icons/beer-stein.svg")
+	crest.custom_minimum_size = Vector2(38, 42)
+	crest.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	crest.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	crest.modulate = Color("d7b568")
+	crest.tooltip_text = "Beer stein: Lorc · Bread / Coins: Delapouite\ngame-icons.net · CC BY 3.0\nhttps://creativecommons.org/licenses/by/3.0/\nDisplayed in gold; original SVG geometry unchanged."
+	header_row.add_child(crest)
+	var title_box := VBoxContainer.new()
+	title_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_box.add_theme_constant_override("separation", 0)
+	header_row.add_child(title_box)
+	_title_label = Label.new()
+	_title_label.clip_text = true
+	_title_label.add_theme_font_size_override("font_size", 21)
+	_title_label.add_theme_color_override("font_color", Color("edcf90"))
+	title_box.add_child(_title_label)
+	# The clock and the speed controls on one line, as in Prison Architect:
+	# the question "how fast is time going" belongs beside "what time is it".
+	var clock_row := HBoxContainer.new()
+	clock_row.add_theme_constant_override("separation", 10)
+	title_box.add_child(clock_row)
+	_clock_label = Label.new()
+	_clock_label.add_theme_font_size_override("font_size", 12)
+	_clock_label.add_theme_color_override("font_color", Color("bdad8a"))
+	_clock_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	clock_row.add_child(_clock_label)
+	var speeds := HBoxContainer.new()
+	speeds.add_theme_constant_override("separation", 2)
+	clock_row.add_child(speeds)
+	var hints: Array[String] = ["Pause [Space]", "Normal speed [1]", "Fast, 2x [2]", "Faster, 3x [3]", "Fastest, 5x [4]"]
+	for i in range(SimClock.SPEEDS.size()):
+		var b := SpeedButton.new()
+		b.speed = i
+		b.tooltip_text = hints[i]
+		var chosen: int = i
+		b.pressed.connect(func() -> void:
+			AudioDirector.play("ui_click")
+			world.sim.speed = chosen
+			_show_speed(world.sim.speed)
+		)
+		speeds.add_child(b)
+		_speed_buttons.append(b)
+	world.sim.speed_changed.connect(_show_speed)
+	_show_speed(world.sim.speed)
+	_gold_label = _stock_chip(header_row, "coins", "Gold in the purse")
+	_bread_label = _stock_chip(header_row, "bread", "Bread, including carried stock")
+	_beer_label = _stock_chip(header_row, "beer-stein", "Beer, including carried stock")
+	_gold_chip = _gold_label.get_parent()
+	_bread_chip = _bread_label.get_parent()
+	_beer_chip = _beer_label.get_parent()
+	_staff_label = Label.new()
+	# Takes the mouse so it can carry a tooltip: who is doing what.
+	_staff_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_staff_label.add_theme_font_size_override("font_size", 14)
+	header_row.add_child(_staff_label)
+	# Standing sits in the header beside the purse, because it is the other
+	# number that decides tomorrow.
+	_reputation_stars = StarRating.new()
+	_reputation_stars.star_size = 15.0
+	_reputation_stars.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header_row.add_child(_reputation_stars)
+	_reputation_label = Label.new()
+	_reputation_label.add_theme_font_size_override("font_size", 14)
+	_reputation_label.add_theme_color_override("font_color", Color("edcf90"))
+	_reputation_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	header_row.add_child(_reputation_label)
+
+	# Two groups in a flow: what to do on the left, how to look on the right.
+	# On a 16:9 window they share one row; on anything squarer the right-hand
+	# group wraps onto a second row instead of running off the screen, which is
+	# where Save and Menu used to go at 1440x900 and 1024x768.
+	_bar = HFlowContainer.new()
+	var bar := _bar
+	_hud.add_child(bar)
+	bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	bar.offset_left = 12
+	bar.offset_right = -12
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_theme_constant_override("h_separation", 4)
+	bar.add_theme_constant_override("v_separation", 4)
+	var actions := HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 4)
+	actions.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(actions)
+	actions.add_child(_hud_button("Build [B]", _toggle_build_bar))
+	# Hiring is a choice of position now, made where the staff are listed.
+	var hire: Button = _hud_button("Hire", func() -> void:
+		if not _priority_panel.visible:
+			_priority_panel.toggle()
+	)
+	hire.tooltip_text = "Take somebody on: each position has a fee and a daily wage (Staff, K)"
+	actions.add_child(hire)
+	var supplies: Button = _hud_button("Supplies", func() -> void:
+		_land_panel.visible = false
+		_details_panel.visible = false
+		_supply_panel.toggle()
+	)
+	supplies.tooltip_text = "Choose what the merchant brings, then confirm the order"
+	actions.add_child(supplies)
+	actions.add_child(_hud_button("Production [P]", func() -> void: _production_panel.toggle()))
+	actions.add_child(_hud_button("Staff [K]", func() -> void: _priority_panel.toggle()))
+	actions.add_child(_hud_button("Buy land", func() -> void:
+		_land_panel.visible = not _land_panel.visible
+		_supply_panel.visible = false
+		_refresh_land_panel()
+	))
+	actions.add_child(_hud_button("Ledger", func() -> void:
+		_details_panel.visible = not _details_panel.visible
+		_supply_panel.visible = false
+		if _details_panel.visible and inspector != null:
+			inspector.clear()
+	))
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(spacer)
+	var view := HBoxContainer.new()
+	view.add_theme_constant_override("separation", 4)
+	view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(view)
+	# Glyphs rather than words to keep the bar inside 1280px, but drawn larger:
+	# at the bar's text size the arrows came out as specks nobody could read.
+	for turn in [[-1, "↶", "Turn the view left (Q)"], [1, "↷", "Turn the view right (E)"]]:
+		var step: int = turn[0]
+		var button: Button = _hud_button(turn[1], func() -> void: world.rig.rotate_step(step))
+		button.tooltip_text = turn[2]
+		button.add_theme_font_size_override("font_size", 22)
+		view.add_child(button)
+	# Through a lambda: the HUD is built before the world's input exists.
+	_mode_button = _hud_button("View: locked", func() -> void: world.input.toggle_camera_mode())
+	view.add_child(_mode_button)
+	_rooms_button = _hud_button("Rooms [O]", func() -> void: world.toggle_room_overlay())
+	_rooms_button.tooltip_text = "Show what the game counts as a room, and what each one is worth."
+	view.add_child(_rooms_button)
+	_walls_button = _hud_button("Cutaway", func() -> void:
+		world.cutaway.enabled = not world.cutaway.enabled
+		_walls_button.text = "Cutaway" if world.cutaway.enabled else "Full walls"
+	)
+	view.add_child(_walls_button)
+	view.add_child(_hud_button("Save", func() -> void:
+		if GameState.active_slot < 0:
+			flash("No slot to save to")
+		elif world.save_now():
+			flash("Saved")
+	))
+	var menu: Button = _hud_button("Menu", open_pause_menu)
+	menu.tooltip_text = "Pause, save, settings, or leave (Esc)"
+	view.add_child(menu)
+	header.resized.connect(_queue_layout)
+	bar.resized.connect(_queue_layout)
+
+	# Buying land: four sides, each with a price and a reason it cannot be had.
+	_land_panel = PanelContainer.new()
+	_hud.add_child(_land_panel)
+	_land_panel.position = Vector2(12, 134)
+	_land_panel.custom_minimum_size = Vector2(300, 0)
+	_land_panel.add_theme_stylebox_override("panel", _panel_style())
+	_land_panel.visible = false
+	_land_rows = VBoxContainer.new()
+	_land_rows.add_theme_constant_override("separation", 6)
+	_land_panel.add_child(_land_rows)
+
+	_supply_panel = SupplyPanel.new()
+	_supply_panel.name = "SupplyPanel"
+	_hud.add_child(_supply_panel)
+	_supply_panel.position = Vector2(12, 134)
+	_supply_panel.add_theme_stylebox_override("panel", _panel_style())
+	_supply_panel.setup(world)
+
+	# The working ledger is available without covering the kitchen by default.
+	_details_panel = PanelContainer.new()
+	_hud.add_child(_details_panel)
+	_details_panel.position = Vector2(12, 134)
+	_details_panel.custom_minimum_size = Vector2(325, 0)
+	_details_panel.add_theme_stylebox_override("panel", _panel_style())
+	_details_panel.visible = false
+	_stats_label = Label.new()
+	_stats_label.custom_minimum_size.x = 300
+	_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_stats_label.add_theme_font_size_override("font_size", 13)
+	_details_panel.add_child(_stats_label)
+
+	var help := Label.new()
+	_hud.add_child(help)
+	help.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	help.offset_left = -520
+	help.offset_right = -16
+	help.offset_top = -58
+	help.offset_bottom = -14
+	# Grows leftwards: at a larger text scale it is wider than its box, and
+	# growing the default way pushed the ends of both lines off the screen.
+	help.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	help.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	# Two lines: moving the view, then looking at things. The second is what
+	# made follow and the stack counts findable at all -- neither has a button
+	# of its own until something is selected.
+	help.text = "WASD move   ·   wheel zoom   ·   Q / E turn   ·   C change view" + char(10) + 		"click to inspect   ·   F follow   ·   Alt stack counts   ·   Space pause   ·   1-4 speed   ·   Esc close"
+	help.add_theme_color_override("font_color", Color("e4d4aa"))
+	help.add_theme_color_override("font_outline_color", TavernTheme.INK)
+	help.add_theme_constant_override("outline_size", 4)
+	help.add_theme_font_size_override("font_size", 12)
+
+	# RimWorld's cue: a paused world should say so where the eye already is,
+	# or a player who hit Space by accident waits for customers who never come.
+	_paused_label = Label.new()
+	_paused_label.text = "PAUSED  ·  Space to resume"
+	_paused_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_paused_label.offset_left = -160
+	_paused_label.offset_right = 160
+	_paused_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_paused_label.add_theme_font_size_override("font_size", 18)
+	_paused_label.add_theme_color_override("font_color", TavernTheme.CANDLE)
+	_paused_label.add_theme_color_override("font_outline_color", TavernTheme.INK)
+	_paused_label.add_theme_constant_override("outline_size", 6)
+	_paused_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_paused_label.visible = false
+	_hud.add_child(_paused_label)
+
+	_flash_label = Label.new()
+	_hud.add_child(_flash_label)
+	_flash_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_flash_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_flash_label.offset_top = -212
+	_flash_label.offset_bottom = -184
+	_flash_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_flash_label.add_theme_color_override("font_color", Color("f4d18e"))
+	_flash_label.add_theme_color_override("font_outline_color", TavernTheme.INK)
+	_flash_label.add_theme_constant_override("outline_size", 5)
+	_flash_label.modulate.a = 0.0
+
+	_production_panel = ProductionPanel.new()
+	_production_panel.name = "ProductionPanel"
+	_hud.add_child(_production_panel)
+	_production_panel.add_theme_stylebox_override("panel", _panel_style())
+
+	_priority_panel = PriorityPanel.new()
+	_priority_panel.name = "PriorityPanel"
+	_hud.add_child(_priority_panel)
+	_priority_panel.setup(world)
+	_objectives_panel = ObjectivesPanel.new()
+	_objectives_panel.name = "ObjectivesPanel"
+	_hud.add_child(_objectives_panel)
+	_objectives_panel.setup(world.objectives)
+	_objectives_panel.offset_top = 134
+
+	# The level's target, under the checklist. Its own label rather than a row
+	# inside the panel because it changes with every coin taken, and the panel
+	# rebuilds itself wholesale.
+	_goal_label = Label.new()
+	_goal_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_goal_label.offset_left = -330
+	_goal_label.offset_right = -16
+	_goal_label.offset_top = 260
+	_goal_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_goal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_goal_label.add_theme_font_size_override("font_size", 13)
+	_goal_label.add_theme_color_override("font_color", TavernTheme.CANDLE)
+	# Outlined like the flash line: it floats over grass and floorboards, and
+	# candle-yellow on sunlit timber was barely there.
+	_goal_label.add_theme_color_override("font_outline_color", TavernTheme.INK)
+	_goal_label.add_theme_constant_override("outline_size", 4)
+	_goal_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.add_child(_goal_label)
+
+	# Under the goal, on a panel of its own with a warning edge. It has to be
+	# noticed without being a modal: the whole point is the problem a player has
+	# not spotted, and a tavern quietly earning nothing does not look alarming.
+	_trouble_panel = PanelContainer.new()
+	_trouble_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_trouble_panel.offset_left = -330
+	_trouble_panel.offset_right = -16
+	_trouble_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_trouble_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	var trouble_style: StyleBoxFlat = _panel_style()
+	trouble_style.border_color = TavernTheme.DANGER
+	trouble_style.border_width_left = 5
+	trouble_style.content_margin_top = 8
+	trouble_style.content_margin_bottom = 8
+	_trouble_panel.add_theme_stylebox_override("panel", trouble_style)
+	_trouble_label = Label.new()
+	_trouble_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_trouble_label.custom_minimum_size = Vector2(280, 0)
+	_trouble_label.add_theme_font_size_override("font_size", 13)
+	_trouble_label.add_theme_color_override("font_color", TavernTheme.PARCHMENT)
+	_trouble_panel.add_child(_trouble_label)
+	_trouble_panel.visible = false
+	_hud.add_child(_trouble_panel)
+	_objectives_panel.add_theme_stylebox_override("panel", _panel_style())
+	_production_panel.visibility_changed.connect(func() -> void:
+		if is_instance_valid(_objectives_panel):
+			_objectives_panel.visible = not _production_panel.visible and not world.objectives.all_done()
+		if _production_panel.visible and _build_bar != null:
+			_build_bar.hide()
+			if world.build != null:
+				world.build.mode = BuildController.Mode.OFF
+	)
+	inspector = InspectorPanel.new()
+	inspector.name = "Inspector"
+	_hud.add_child(inspector)
+	inspector.setup(world)
+	inspector.add_theme_stylebox_override("panel", _panel_style())
+	inspector.visibility_changed.connect(func() -> void:
+		if inspector.visible:
+			_details_panel.hide()
+	)
+	_build_bar = BuildBar.new()
+	_build_bar.name = "BuildBar"
+	_build_bar.visible = false
+	_hud.add_child(_build_bar)
+	_build_bar.visibility_changed.connect(func() -> void: help.visible = not _build_bar.visible)
+	_build_bar.item_chosen.connect(func(def: BuildingDef) -> void: world.build.select(def))
+	_build_bar.demolish_toggled.connect(func(on: bool) -> void:
+		world.build.mode = BuildController.Mode.DEMOLISH if on else BuildController.Mode.OFF
+	)
+	# Doing it yourself. Added before the day summary so the reckoning still
+	# draws over the top of it if a day happens to end mid-bake.
+	_hands_on = HandsOnPanel.new()
+	_hands_on.name = "HandsOn"
+	_hands_on.finished.connect(func(_p: float) -> void: refresh_stats())
+	_hud.add_child(_hands_on)
+
+	_day_summary = DaySummary.new()
+	_day_summary.name = "DaySummary"
+	_day_summary.dismissed.connect(world._begin_next_day)
+	_day_summary.leave_requested.connect(world._go_back)
+	_hud.add_child(_day_summary)
+
+	# Last, so it draws over every panel it might sit beside.
+	hover = HoverCard.new()
+	hover.name = "HoverCard"
+	_hud.add_child(hover)
+	hover.setup(world)
+	# Over everything, day summary included.
+	pause_menu = PauseMenu.new()
+	pause_menu.name = "PauseMenu"
+	_hud.add_child(pause_menu)
+	pause_menu.setup(world)
+	_apply_scale()
+	_layout_top()
+
+
+## Text scale and click targets for the window as it is now. Run on building
+## and on every resize, so a window dragged to a new shape gets the same HUD a
+## game opened at that shape would have.
+func _apply_scale() -> void:
+	if _hud == null:
+		return
+	var ui_scale: float = TavernTheme.scale_for_control(_hud) * 0.8
+	var theme: Theme = TavernTheme.build(ui_scale)
+	# Narrower side padding than the menus use. Fourteen buttons share the bar,
+	# and at the menus' padding they were a few units wider than a 16:9 window:
+	# the old bar hid that by spilling past its own edge. Height is unchanged.
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var box: StyleBox = theme.get_stylebox(state, "Button")
+		if box != null:
+			box.content_margin_left = roundf(18.0 * ui_scale)
+			box.content_margin_right = roundf(18.0 * ui_scale)
+	_hud.theme = theme
+	# The speed buttons are drawn, not typed, so the theme does not size them.
+	# Sized in canvas units alone they came out 19 pixels tall on a 1024-wide
+	# window, under the 24 a mouse can reliably hit.
+	var window: Window = _hud.get_window()
+	var view: Vector2 = _hud.get_viewport_rect().size
+	var render_scale: float = float(window.size.x) / view.x if window != null and view.x > 0.0 else 1.0
+	var target: Vector2 = Vector2(40, 28) / maxf(render_scale, 0.01)
+	for b in _speed_buttons:
+		b.custom_minimum_size = Vector2(maxf(34.0, target.x), maxf(24.0, target.y))
+	_queue_layout()
+
+
+func _queue_layout() -> void:
+	if _layout_queued:
+		return
+	_layout_queued = true
+	_layout_top.call_deferred()
+
+
+## Stack the bar under the header, and everything that hangs from the top of
+## the screen under the bar -- from their real sizes. Hand-placed at 83 and
+## 134, the bar overlapped the header by a pixel at every size and the
+## checklist overlapped the bar whenever the text scale grew.
+func _layout_top() -> void:
+	_layout_queued = false
+	if _header == null or _bar == null:
+		return
+	var header_bottom: float = _header.offset_top + _header.get_combined_minimum_size().y
+	_bar.offset_top = header_bottom + 6.0
+	_bar.offset_bottom = _bar.offset_top + _bar.get_combined_minimum_size().y
+	_below_top = _bar.offset_bottom + 8.0
+	if _objectives_panel != null:
+		_objectives_panel.offset_top = _below_top
+	if _production_panel != null:
+		_production_panel.offset_top = _below_top
+	for panel in [_land_panel, _details_panel, _supply_panel]:
+		if panel != null:
+			panel.position.y = _below_top
+	if _paused_label != null:
+		_paused_label.offset_top = _below_top + 6.0
+		_paused_label.offset_bottom = _paused_label.offset_top
+	if _briefing_panel != null:
+		_briefing_panel.offset_top = _below_top + 40.0  # clear of the "PAUSED" notice
+	refresh_stats()
+
+
+func _panel_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("29271ff2")
+	style.border_color = Color("85704b")
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(2)
+	style.content_margin_left = 16
+	style.content_margin_right = 16
+	style.content_margin_top = 10
+	style.content_margin_bottom = 10
+	style.shadow_color = Color(0, 0, 0, 0.3)
+	style.shadow_size = 4
+	return style
+
+
+func _stock_chip(parent: HBoxContainer, icon: String, hint: String) -> Label:
+	var row := HBoxContainer.new()
+	row.tooltip_text = hint
+	row.custom_minimum_size.x = 82
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var picture := TextureRect.new()
+	picture.texture = load("res://assets/prototype/ui/game_icons/%s.svg" % icon)
+	picture.custom_minimum_size = Vector2(26, 26)
+	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	picture.modulate = Color("d7b568")
+	row.add_child(picture)
+	var label := Label.new()
+	label.add_theme_font_size_override("font_size", 20)
+	row.add_child(label)
+	return label
+
+
+func _show_speed(speed: int) -> void:
+	for b in _speed_buttons:
+		b.set_pressed_no_signal(b.speed == speed)
+		b.queue_redraw()
+	if _paused_label != null:
+		_paused_label.visible = speed == 0
+		# Above panels opened since (the level's briefing is added late), but
+		# still beneath the day summary, which is modal.
+		if _paused_label.visible and _day_summary != null:
+			_hud.move_child(_paused_label, _day_summary.get_index())
+
+
+func _hud_button(text: String, handler: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size.y = 38
+	b.focus_mode = Control.FOCUS_NONE
+	b.mouse_filter = Control.MOUSE_FILTER_STOP
+	b.pressed.connect(handler)
+	b.pressed.connect(func() -> void: AudioDirector.play("ui_click"))
+	return b
+
+
+func _on_camera_mode_changed(mode: int) -> void:
+	_mode_button.text = "View: locked" if mode == CameraRig.Mode.LOCKED else "View: free"
+
+
+## Take over a bench. Refuses quietly when the ingredients are not there, which
+## is also when the inspector will not be offering the button.
+func open_hands_on(placement_index: int, recipe: Recipe) -> bool:
+	if _hands_on == null:
+		return false
+	AudioDirector.play("ui_click")
+	return _hands_on.begin(world, placement_index, recipe)
+
+
+## The last few verdicts, so the reasons stay readable at any time rather than
+## only in the one second between days when the reckoning is up.
+## The level's target, if this run has one. Sits with the objectives because it
+## is the same kind of thing: something to do, checked against the world.
+## Close the most recently relevant open panel. Returns false when there was
+## nothing to close, so Escape can fall through to leaving the game -- which it
+## used to do even with a panel open, taking the player to the main menu when
+## they only meant to dismiss the inspector.
+func close_top_panel() -> bool:
+	# Swallowed rather than acted on: the hands-on bench has its own cancel,
+	# and neither closing it nor leaving the game mid-bake should be an accident.
+	if _hands_on != null and _hands_on.visible:
+		return true
+	for panel in [_supply_panel, _priority_panel, _production_panel, _land_panel, _details_panel]:
+		if panel != null and panel.visible:
+			if panel == _production_panel:
+				_production_panel.toggle()
+			else:
+				panel.visible = false
+			return true
+	if inspector != null and inspector.visible:
+		inspector.clear()
+		return true
+	if _build_bar != null and _build_bar.visible:
+		_toggle_build_bar()
+		return true
+	return false
+
+
+func _goal_line() -> String:
+	if world.level == null:
+		return ""
+	# The goal on one line and the running tally under it. Joined with a dash
+	# it wrapped wherever it happened to, and the dash ended up stranded.
+	return world.level.progress_text(world).replace(" — ", "\n")
+
+
+func _review_summary() -> String:
+	if world.customers == null:
+		return ""
+	var standing: Reputation = world.customers.reputation
+	var lines: PackedStringArray = PackedStringArray()
+	lines.append("Standing: %s" % standing.summary())
+	if standing.reviews.is_empty():
+		lines.append("Nobody has been in yet.")
+		return "\n".join(lines)
+	for review in standing.reviews.slice(0, 4):
+		lines.append("%s %s - \"%s\"" % [review.star_text(), review.patron, review.quote])
+	return "\n".join(lines)
+
+
+## One row per side, saying what it costs or why it cannot be bought.
+##
+## Four buttons rather than a map: the plot grows as strips off its sides, so
+## there is nothing to point at that a direction does not already say.
+func _refresh_land_panel() -> void:
+	if _land_panel == null or not _land_panel.visible:
+		return
+	for child in _land_rows.get_children():
+		child.queue_free()
+
+	var heading := Label.new()
+	heading.text = "Your land: %d x %d" % [world.plot.size.x, world.plot.size.y]
+	heading.add_theme_color_override("font_color", TavernTheme.CANDLE)
+	_land_rows.add_child(heading)
+
+	for side in [
+		[TavernWorld.SIDE_NORTH, "North, towards the river"],
+		[TavernWorld.SIDE_EAST, "East"],
+		[TavernWorld.SIDE_SOUTH, "South, towards the road"],
+		[TavernWorld.SIDE_WEST, "West"],
+	]:
+		var direction: int = side[0]
+		var problem: String = world.parcel_problem(direction)
+		var price: int = world.parcel_price(direction)
+		var button := Button.new()
+		button.text = "%s - %dg" % [side[1], price]
+		# Shown greyed with the reason rather than hidden: "why can I not build
+		# that way" is a question the player will otherwise ask the manual.
+		button.disabled = problem != ""
+		button.tooltip_text = problem if problem != "" else "Adds %d tiles" % [
+			world.parcel(direction).size.x * world.parcel(direction).size.y
+			- world.plot.size.x * world.plot.size.y
+		]
+		if problem != "":
+			button.text = "%s - %s" % [side[1], problem]
+		button.pressed.connect(func() -> void:
+			if world.buy_land(direction):
+				_refresh_land_panel()
+		)
+		_land_rows.add_child(button)
+
+
+## What the player has inherited, said once.
+##
+## Shown on opening a level and dismissed by hand. Not a tutorial and not a
+## hint: it says what the place *is*, and leaves working out what is wrong with
+## it as the game.
+func show_briefing(level: LevelDef) -> void:
+	if level == null or level.briefing.is_empty():
+		return
+	if _briefing_panel != null:
+		_briefing_panel.queue_free()
+
+	_briefing_panel = PanelContainer.new()
+	_briefing_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_briefing_panel.offset_left = -300
+	_briefing_panel.offset_right = 300
+	_briefing_panel.offset_top = _below_top + 40.0  # clear of the "PAUSED" notice
+	_briefing_panel.add_theme_stylebox_override("panel", _panel_style())
+	_hud.add_child(_briefing_panel)
+	# Beneath the day summary, not over it. Added last, it drew on top of the
+	# reckoning for any player who had not yet dismissed it at closing time.
+	if _day_summary != null:
+		_hud.move_child(_briefing_panel, _day_summary.get_index())
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	_briefing_panel.add_child(box)
+
+	var title := Label.new()
+	title.text = level.display_name.to_upper()
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", TavernTheme.CANDLE)
+	title.add_theme_font_size_override("font_size", 20)
+	box.add_child(title)
+
+	var body := Label.new()
+	body.text = level.briefing
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.add_theme_color_override("font_color", TavernTheme.PARCHMENT)
+	box.add_child(body)
+
+	if not level.goal_text.is_empty():
+		var goal := Label.new()
+		goal.text = level.goal_text
+		goal.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		goal.add_theme_color_override("font_color", TavernTheme.CANDLE)
+		box.add_child(goal)
+
+	var button := Button.new()
+	button.text = "Right you are"
+	button.pressed.connect(func() -> void:
+		AudioDirector.play("ui_click")
+		_briefing_panel.visible = false
+	)
+	box.add_child(button)
+	button.call_deferred("grab_focus")
+
+
+func refresh_stats() -> void:
+	if _title_label == null:
+		return
+	_title_label.text = _tavern_name()
+	_clock_label.text = _clock_summary()
+	_gold_label.text = "%dg" % GameState.gold
+	_bread_label.text = str(world.stock_of(&"bread"))
+	_beer_label.text = str(world.stock_of(&"beer"))
+	_staff_label.text = "%d staff  ·  %d guests" % [world.pawns.size(), world.customers.customers.size() if world.customers != null else 0]
+	# Live figures behind every number in the header. Refreshed with the header
+	# itself, which is often enough for a tooltip read at a glance.
+	# Only for the one under the pointer: the stock breakdowns walk every stack
+	# and bench, and in a big tavern building all four, four times a second,
+	# was a visible stutter for tooltips nobody was reading.
+	if _gold_chip != null and world.generator != null:
+		var at: Vector2 = _hud.get_global_mouse_position()
+		if _gold_chip.get_global_rect().has_point(at):
+			_gold_chip.tooltip_text = WorldStats.purse_breakdown(world)
+		if _bread_chip.get_global_rect().has_point(at):
+			_bread_chip.tooltip_text = WorldStats.stock_breakdown(world, &"bread")
+		if _beer_chip.get_global_rect().has_point(at):
+			_beer_chip.tooltip_text = WorldStats.stock_breakdown(world, &"beer")
+		if _staff_label.get_global_rect().has_point(at):
+			_staff_label.tooltip_text = WorldStats.people_breakdown(world)
+	if world.customers != null:
+		var standing: Reputation = world.customers.reputation
+		_reputation_label.text = standing.label()
+		_reputation_label.tooltip_text = "Reputation %d/100. Footfall x%.2f." % [
+			int(round(standing.score)), standing.footfall_multiplier()
+		]
+		if _reputation_stars != null:
+			_reputation_stars.stars = standing.stars()
+			_reputation_stars.tooltip_text = _reputation_label.tooltip_text
+	_stats_label.text = "%s\n\n%d built · %d jobs waiting · %d working\n\n%s\n\n%s\n\n%s" % [
+		_stock_summary(), _built_count(), world.board.open_count(), world.board.active_count(),
+		world.customers.summary() if world.customers != null else "", _worker_summary(),
+		_review_summary()]
+	# Settings > Tutorial hints: the checklist and the goal line, together. The
+	# tutorial replaces the checklist while it runs.
+	if is_instance_valid(_objectives_panel):
+		var hinting: bool = GameSettings.show_hints and not (_production_panel != null and _production_panel.visible) \
+			and tutorial == null
+		if _objectives_panel.visible != hinting:
+			_objectives_panel.visible = hinting
+	if _goal_label != null:
+		_goal_label.text = _goal_line() if GameSettings.show_hints else ""
+		# Follows the checklist rather than sitting at a fixed offset: the panel
+		# grows and shrinks as steps are ticked off, and a fixed position
+		# collided with it as soon as the list got long.
+		if _objectives_panel != null:
+			_goal_label.offset_top = _objectives_panel.offset_top + (
+				_objectives_panel.size.y + 10 if _objectives_panel.visible else 0.0)
+	# The production panel takes the right-hand column, as the checklist does
+	# when it steps aside for it; the goal and the warning go with it.
+	var column_free: bool = _production_panel == null or not _production_panel.visible
+	if _goal_label != null:
+		_goal_label.visible = column_free
+	if _trouble_panel != null:
+		var trouble: String = Trouble.diagnose(world)
+		_trouble_panel.visible = column_free and not trouble.is_empty()
+		_trouble_label.text = trouble
+		if _trouble_panel.visible:
+			var below: float = _objectives_panel.offset_top if is_instance_valid(_objectives_panel) else _below_top
+			if is_instance_valid(_objectives_panel) and _objectives_panel.visible:
+				below += _objectives_panel.size.y + 10
+			if _goal_label != null and not _goal_label.text.is_empty():
+				below = _goal_label.offset_top + _goal_label.get_minimum_size().y + 8
+			# Under the tutorial's panel, not on top of it.
+			if tutorial != null and tutorial._panel != null and tutorial._panel.visible:
+				below = maxf(below, tutorial._panel.offset_top + tutorial._panel.size.y + 10)
+			_trouble_panel.offset_top = below
+			_trouble_panel.offset_bottom = below
+	if OS.is_debug_build():
+		_stats_label.text += "\n\n%d fps · %d draw calls" % [Engine.get_frames_per_second(),
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)]
+
+
+## Transient message near the cursor's side of the screen. The build bar has its
+## own status line, so this only appears when the bar is closed.
+var _flash_tween: Tween
+
+
+## A line near the bottom of the screen that fades. `hold` for how long it stays
+## before fading: warnings worth reading get longer than "Saved".
+func flash(text: String, hold: float = 1.4) -> void:
+	if _flash_label == null:
+		return
+	# The previous message's fade must not cut this one short.
+	if _flash_tween != null and _flash_tween.is_valid():
+		_flash_tween.kill()
+	_flash_label.text = text
+	_flash_label.modulate.a = 1.0
+	_flash_tween = create_tween()
+	_flash_tween.tween_interval(hold)
+	_flash_tween.tween_property(_flash_label, "modulate:a", 0.0, 0.6)
+
+
+func _tavern_name() -> String:
+	return GameState.tavern_name if not GameState.tavern_name.is_empty() else "The Wayfarer’s Rest"
+
+
+func _built_count() -> int:
+	return world.build.grid.live_count() if world.build != null else 0
+
+
+## Day, clock and where the day's profit currently stands, so the player can see
+## trouble coming rather than only being told about it at closing time.
+func _clock_summary() -> String:
+	if world.clock == null:
+		return ""
+	var running: int = world.ledger.profit()
+	return "Day %d · %s · %s · day so far %s%dg" % [
+		world.clock.day, world.clock.clock_text(), world.clock.phase_text(),
+		"+" if running >= 0 else "", running
+	]
+
+
+## Everything physically present, so the economy is readable while it runs.
+## Zero-count kinds are omitted rather than listed as 0, which keeps the line
+## short and makes new goods appearing genuinely noticeable.
+func _stock_summary() -> String:
+	if world.items == null:
+		return ""
+	# Goods in a pawn's hands still belong to the tavern, so count them. Showing
+	# only what is on the ground makes stock visibly dip whenever anyone picks
+	# something up, which reads as a bug even though nothing is lost.
+	var carried: Dictionary = {}
+	for worker in world.workers:
+		var def: ItemDef = worker.carried_def()
+		if def != null:
+			carried[def.id] = carried.get(def.id, 0) + worker.carried_count()
+
+	var parts: PackedStringArray = PackedStringArray()
+	for def in ItemCatalog.all():
+		var n: int = world.items.total_of(def.id) + carried.get(def.id, 0)
+		if n > 0:
+			parts.append("%s %d" % [def.display_name.split(" ")[0].to_lower(), n])
+	return "stock: " + (", ".join(parts) if parts.size() > 0 else "empty")
+
+
+## What each pawn is up to, so the job system is legible while it runs rather
+## than only inspectable in a debugger.
+func _worker_summary() -> String:
+	var lines: PackedStringArray = PackedStringArray()
+	for i in range(mini(world.workers.size(), 4)):
+		lines.append("%s: %s" % [world.pawns[i].pawn_name, world.workers[i].status_text()])
+	# Patrons marked with a dot, so staff and customers are tellable apart in
+	# the readout as well as in the world.
+	if world.customers != null:
+		for i in range(mini(world.customers.customers.size(), 3)):
+			var brain: CustomerBrain = world.customers.customers[i]
+			if is_instance_valid(brain):
+				lines.append("· %s: %s" % [brain.pawn.pawn_name, brain.status_text()])
+	return "\n".join(lines)
+
+
+func _physics_process(_delta: float) -> void:
+	if _stats_label == null or Engine.get_physics_frames() % 15 != 0:
+		return
+	if _production_panel != null and _production_panel.visible:
+		_production_panel.refresh()
+	if world.objectives != null:
+		world.objectives.refresh(world)
+	refresh_stats()
+
+
+func _toggle_build_bar() -> void:
+	if _build_bar == null:
+		return
+	_build_bar.visible = not _build_bar.visible
+	if _build_bar.visible and _production_panel != null:
+		_production_panel.hide()
+	if not _build_bar.visible and world.build != null:
+		world.build.mode = BuildController.Mode.OFF
+
+
+func open_pause_menu() -> void:
+	if pause_menu != null:
+		close_top_panel()
+		pause_menu.open()
+
+
+func pause_menu_open() -> bool:
+	return pause_menu != null and pause_menu.is_open()
+
+
+## Before the day summary: close the working panels and leave build mode, so
+## nothing half-finished sits behind the reckoning.
+func close_for_summary() -> void:
+	for panel in [_supply_panel, _land_panel, _details_panel, _priority_panel]:
+		if panel != null:
+			panel.visible = false
+	if _production_panel != null and _production_panel.visible:
+		_production_panel.toggle()
+	if _build_bar != null and _build_bar.visible:
+		_toggle_build_bar()
+	if world.build != null:
+		world.build.mode = BuildController.Mode.OFF
+
+
+## Begin, or resume, the tutorial at `step`.
+func start_tutorial(step: int = 0) -> void:
+	if tutorial != null:
+		tutorial.queue_free()
+	tutorial = TutorialDirector.new()
+	tutorial.name = "Tutorial"
+	world.add_child(tutorial)
+	tutorial.setup(world, step)
+	refresh_stats()
+

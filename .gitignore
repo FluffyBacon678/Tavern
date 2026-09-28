@@ -1,0 +1,23 @@
+# Godot 4
+.godot/
+.verification/
+/android/
+export_presets.cfg
+
+# Exports
+/build/
+*.exe
+*.apk
+*.aab
+*.pck
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Local tool and editor folders
+.claude/
+/export_templates/
+/feature_profiles/
+/script_templates/
+/text_editor_themes/

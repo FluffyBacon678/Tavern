@@ -1,0 +1,1872 @@
+MEDIEVAL TAVERN / RESTAURANT MANAGEMENT GAME
+Working Design Notes / First Demo Plan
+
+==================================================
+1. CORE GAME IDEA
+==================================================
+
+The game is a combination of:
+
+- RimWorld
+- Prison Architect
+- Dwarf Fortress
+- Tavern / restaurant management games
+- Shop management games
+- Papa's Pizzeria-style active gameplay
+- Penguin Diner-style service flow
+
+Target platforms:
+- PC
+- Android
+
+The central idea is a medieval tavern / restaurant management game where the player can operate at two levels:
+
+1. MANAGEMENT / COLONY SIMULATION
+   - Build rooms
+   - Expand the tavern
+   - Hire workers
+   - Assign jobs
+   - Manage supplies
+   - Set work priorities
+   - Control production
+   - Manage money and wages
+   - Watch workers and customers behave autonomously
+
+2. ACTIVE PLAYER GAMEPLAY
+   - Personally cook
+   - Serve tables
+   - Seat customers
+   - Clean
+   - Take orders
+   - Step into a worker's role during busy periods
+
+Anything a worker can eventually automate should also be something the player can temporarily perform manually.
+
+The player should be able to run the game as:
+- an architect,
+- a manager,
+- an active worker,
+- or a mixture of all three.
+
+The game should eventually support a tavern that can run almost entirely by itself, while still allowing the player to jump in whenever desired.
+
+
+==================================================
+2. VISUAL / WORLD DIRECTION
+==================================================
+
+Overall atmosphere:
+
+- Medieval
+- Dwarf Fortress inspired
+- Rustic tavern
+- Prison Architect readability
+- Penguin Diner clarity
+- Small simulated people moving around a busy establishment
+
+Visual themes:
+- stone walls
+- timber
+- wooden furniture
+- barrels
+- crates
+- iron
+- candles
+- fireplaces
+- parchment
+- cloth banners
+- dirt roads
+- medieval market goods
+- sacks of grain
+- mugs
+- bread
+- brewery equipment
+
+The first demo should use TEMPORARY art.
+
+All:
+- textures
+- sprites
+- characters
+- UI
+- furniture graphics
+- sounds
+- animations
+- recipes
+- balance values
+
+should be designed so they can be replaced later without rewriting the underlying systems.
+
+Prototype assets should be disposable.
+
+Suggested folders:
+
+/assets/prototype/characters/
+/assets/prototype/furniture/
+/assets/prototype/food/
+/assets/prototype/ui/
+/assets/prototype/floors/
+/assets/prototype/audio/
+
+Later:
+
+/assets/final/
+
+Gameplay code should refer to data definitions and IDs rather than directly depending on specific image files.
+
+
+==================================================
+3. FIRST DEMO FANTASY
+==================================================
+
+The player begins with a tiny medieval roadside tavern.
+
+At first there may only be:
+
+- a small dining room
+- a small kitchen
+- several tables and chairs
+- storage
+- an oven
+- a brewing vat
+- one or two workers
+- a little starting gold
+
+Customers arrive from the road.
+
+They enter the tavern, wait for seating, order bread and beer, eat and drink, pay, tip, review the tavern, and leave.
+
+The player uses profits to:
+
+- buy more supplies
+- hire workers
+- expand the dining room
+- expand the kitchen
+- buy additional furniture
+- improve storage
+- improve production
+- serve more customers
+
+Eventually the small tavern can grow into a much larger medieval institution.
+
+
+==================================================
+4. THE ESTABLISHMENT IS THE COLONY
+==================================================
+
+The tavern should effectively function like the colony in RimWorld.
+
+The establishment is the player's main organism.
+
+The player watches:
+
+- people move,
+- resources move,
+- goods get processed,
+- jobs get generated,
+- workers claim jobs,
+- customers wait,
+- products get served,
+- money comes in,
+- problems develop.
+
+The tavern's purpose is serving outsiders.
+
+This gives the game a clearer identity than simply being another restaurant tycoon.
+
+
+==================================================
+5. DEMO ECONOMY: BREAD + BEER
+==================================================
+
+For the first demo, there are only two sellable products:
+
+- Bread
+- Beer
+
+This is enough to test:
+
+- purchasing
+- inventory
+- deliveries
+- hauling
+- storage
+- production
+- workstations
+- worker AI
+- orders
+- serving
+- prices
+- shortages
+- profit
+- customer satisfaction
+- tips
+- reviews
+
+
+==================================================
+6. BASIC ECONOMIC LOOP
+==================================================
+
+BUY INPUTS
+    ↓
+STORE INPUTS
+    ↓
+WORKER TAKES INPUTS
+    ↓
+PROCESS AT WORKSTATION
+    ↓
+CREATE PRODUCT
+    ↓
+STORE / SERVE PRODUCT
+    ↓
+CUSTOMER BUYS PRODUCT
+    ↓
+MONEY + TIPS + REPUTATION
+
+
+==================================================
+7. PROTOTYPE INGREDIENTS
+==================================================
+
+Initial purchased ingredients can include:
+
+- Flour
+- Yeast
+- Water
+- Malt
+- Hops
+
+Produced goods:
+
+- Dough
+- Bread
+- Beer
+
+Possible prototype inventory:
+
+Flour Sack     x10
+Yeast          x10
+Water          x20
+Malt Sack      x8
+Hops           x8
+
+Bread          x0
+Beer           x0
+
+Exact numbers are temporary.
+
+
+==================================================
+8. BREAD PRODUCTION
+==================================================
+
+Simplified demo recipe:
+
+1 Flour
+1 Water
+1 Yeast
+    ↓
+1 Dough
+
+1 Dough
+    ↓
+Oven
+    ↓
+2 Bread
+
+Physical production flow:
+
+Delivery
+    ↓
+Flour moved to storage
+    ↓
+Cook fetches ingredients
+    ↓
+Cook uses prep station
+    ↓
+Dough created
+    ↓
+Dough carried to oven
+    ↓
+Bread created
+    ↓
+Bread carried to storage / serving counter
+    ↓
+Waiter serves customer
+
+
+==================================================
+9. BEER PRODUCTION
+==================================================
+
+Simplified demo recipe:
+
+1 Malt
+1 Hops
+1 Water
+    ↓
+Brewing Vat
+    ↓
+4 Beer
+
+Prototype flow:
+
+Malt
+Hops
+Water
+    ↓
+Brewing Vat
+    ↓
+Beer Batch
+    ↓
+Storage / Barrel
+    ↓
+Mug
+    ↓
+Customer
+
+For Demo 1 the brewing process should remain simple.
+
+Later it can become:
+
+Barley
+    ↓
+Malting
+    ↓
+Malt
+    ↓
+Mash
+    ↓
+Wort
+    ↓
+Fermentation
+    ↓
+Beer Barrel
+    ↓
+Beer Mug
+
+
+==================================================
+10. BUYING GROCERIES
+==================================================
+
+At the beginning the tavern depends completely on merchants / suppliers.
+
+Prototype supplier screen:
+
+SUPPLIER
+
+Flour Sack       4g
+Yeast            1g
+Malt Sack        5g
+Hops             2g
+Water Barrel     2g
+
+Delivery Fee     5g
+
+[ PLACE ORDER ]
+
+Prices are temporary.
+
+Ideally goods do not magically appear.
+
+Possible flow:
+
+Player places order
+    ↓
+Merchant / delivery arrives
+    ↓
+Goods appear in delivery area
+    ↓
+Hauling jobs are created
+    ↓
+Workers carry supplies into storage
+
+This allows the same delivery system to later support:
+
+- caravans
+- farmers
+- wholesalers
+- contracts
+- traveling merchants
+- shortages
+- seasonal prices
+
+
+==================================================
+11. STORAGE SYSTEM
+==================================================
+
+Storage should use generic filters rather than special hardcoded furniture.
+
+Example shelf:
+
+Allowed:
+
+[x] Flour
+[x] Malt
+[x] Hops
+[ ] Bread
+[ ] Beer
+
+Early storage concepts:
+
+- General storage
+- Ingredient storage
+- Finished goods storage
+
+Later the same system can support:
+
+- Pantry
+- Cellar
+- Cold room
+- Beer cellar
+- Granary
+- Warehouse
+
+
+==================================================
+12. CUSTOMER LOOP
+==================================================
+
+Basic customer state machine:
+
+Spawn
+    ↓
+Approach Tavern
+    ↓
+Enter
+    ↓
+Wait for Host
+    ↓
+Receive Table
+    ↓
+Walk to Table
+    ↓
+Sit
+    ↓
+Browse Menu
+    ↓
+Place Order
+    ↓
+Wait
+    ↓
+Receive Food / Drink
+    ↓
+Eat / Drink
+    ↓
+Request Payment
+    ↓
+Pay
+    ↓
+Tip
+    ↓
+Review
+    ↓
+Leave
+
+Possible failure states:
+
+No seat
+    → wait
+    → lose patience
+    → leave
+
+No waiter
+    → patience decreases
+
+Food takes too long
+    → satisfaction decreases
+
+Dirty table
+    → customer may refuse to sit
+
+Wrong order
+    → complain / refuse / accept
+
+No stock
+    → unavailable product / substitution / lost satisfaction
+
+
+==================================================
+13. INITIAL MENU
+==================================================
+
+Example:
+
+THE DRUNKEN DWARF
+
+Bread ........ 10g
+Beer ......... 8g
+
+Bread + Beer . 16g
+
+A customer might order:
+
+1 Bread
+2 Beer
+
+This creates:
+
+ORDER #0037
+Table 2
+
+Bread x1
+Beer x2
+
+
+==================================================
+14. STAFF ROLES
+==================================================
+
+Initial roles:
+
+COOK
+- Prepare ingredients
+- Bake bread
+- Brew beer
+- Move prepared products to serving area
+
+WAITER
+- Take orders
+- Pick up food
+- Deliver food
+- Deliver drinks
+- Collect payment
+
+HOST / SEATER
+- Greet customers
+- Assign tables
+- Manage waiting customers
+
+CLEANER
+- Clear tables
+- Clean floors
+- Move dirty dishes
+- Wash dishes
+
+MANAGER
+- Later-game automation role
+- Scheduling
+- Work priorities
+- Policies
+- Staff oversight
+
+The player acts as a wildcard worker and can manually take over jobs.
+
+
+==================================================
+15. WORKER AI
+==================================================
+
+Workers should use a task / job priority system similar to RimWorld.
+
+Example waiter priorities:
+
+Priority 1:
+Deliver Meal #52 to Table 4
+
+Priority 2:
+Take Order from Table 7
+
+Priority 3:
+Clear Table 2
+
+Priority 4:
+Carry Dirty Dishes
+
+Priority 5:
+Idle
+
+Example cook process:
+
+Bread Order
+    ↓
+Need Flour
+    ↓
+Find Flour
+    ↓
+Walk to Storage
+    ↓
+Pick Up Flour
+    ↓
+Walk to Prep Station
+    ↓
+Make Dough
+    ↓
+Walk to Oven
+    ↓
+Bake
+    ↓
+Place Bread on Serving Counter
+
+
+==================================================
+16. WORK PRIORITY MATRIX
+==================================================
+
+Example:
+
+Worker   Cook   Serve   Clean   Haul   Host
+Anna       1      3       4       3     Off
+Borin     Off     1       3       2      2
+Erik       3     Off      1       2     Off
+
+Lower number = higher priority.
+
+This system should be generic and reusable.
+
+
+==================================================
+17. WORKER SKILLS
+==================================================
+
+Initial possible skills:
+
+- Cooking
+- Brewing
+- Serving
+- Cleaning
+- Social
+- Hauling
+- Speed
+- Management
+
+Later:
+
+- Baking
+- Butchering
+- Farming
+- Crafting
+- Medicine
+- Security
+- Animal Handling
+
+
+==================================================
+18. CUSTOMER ATTRIBUTES
+==================================================
+
+Customers can begin with a small number of attributes:
+
+- Hunger
+- Thirst
+- Patience
+- Money
+- Mood
+- Food preference
+- Cleanliness expectation
+- Service expectation
+
+Later different customer classes can care about different things.
+
+Example:
+
+Poor Traveler:
+- Low budget
+- High tolerance for dirt
+- High concern about price
+
+Merchant:
+- Medium/high budget
+- Moderate patience
+- Values good food
+
+Noble:
+- High budget
+- Low patience
+- High cleanliness expectations
+- High service expectations
+- Greater impact on reputation
+
+
+==================================================
+19. CUSTOMER REVIEWS
+==================================================
+
+Reviews should explain WHY a customer liked or disliked the visit.
+
+Example:
+
+Borin Ironhand — Miner
+
+Food: Excellent
+Service: Slow
+Cleanliness: Acceptable
+Price: Fair
+
+★★★★☆
+
+"Fine ale and good bread. The waiter took an age."
+
+Possible internal scoring:
+
+Food          +31
+Service       -12
+Wait Time      -8
+Cleanliness    +3
+Price          +5
+Atmosphere    +11
+
+Final Satisfaction = 73
+
+This helps the player diagnose problems.
+
+
+==================================================
+20. PHYSICAL LOGISTICS
+==================================================
+
+Items should exist physically in the world whenever practical.
+
+For example, bread should not simply become "+1 Bread" globally.
+
+Instead:
+
+- ingredients are delivered
+- ingredients sit in storage
+- a worker carries them
+- they are processed
+- products appear
+- products are moved
+- waiters pick them up
+- customers receive them
+
+Distance should matter.
+
+Example:
+
+Kitchen -------- 18 tiles -------- Pantry
+
+If the pantry is too far away, the cook wastes time walking.
+
+Good layout becomes a major gameplay mechanic.
+
+Important flows:
+
+Storage → Prep
+Prep → Oven
+Oven → Serving Counter
+Serving Counter → Tables
+Tables → Dirty Dish Area
+Dirty Dish Area → Sink
+Sink → Clean Storage
+
+
+==================================================
+21. PRODUCTION RULES
+==================================================
+
+Production should eventually support RimWorld-style bills.
+
+Example:
+
+BAKE BREAD
+
+Produce until:
+20 Bread
+
+Pause above:
+20
+
+Resume below:
+10
+
+Example:
+
+BREW BEER
+
+Maintain:
+30 Beer
+
+This means production happens before customers order.
+
+Players must prepare for rushes.
+
+
+==================================================
+22. MANUAL GAMEPLAY
+==================================================
+
+The player should be able to intervene directly.
+
+Example:
+
+A dinner rush begins.
+
+The cook has five bread orders queued.
+
+The player clicks the cooking station.
+
+A small Papa's-style interaction opens.
+
+Possible bread interaction:
+
+1. Select ingredients
+2. Mix
+3. Prepare dough
+4. Place in oven
+5. Watch cooking progress
+6. Remove at correct time
+
+Player result:
+
+Quality: Excellent
+Time: 22 seconds
+
+AI cook result:
+
+Quality: Good
+Time: 36 seconds
+
+The player can then immediately return to management mode.
+
+The same idea can later apply to:
+
+- Brewing
+- Serving
+- Seating
+- Cleaning
+- Taking orders
+- Other professions
+
+
+==================================================
+23. BUILDING / ROOM SYSTEM
+==================================================
+
+Do NOT hardcode "restaurant room".
+
+Use a generic room system.
+
+Room data can include:
+
+- boundaries
+- floor tiles
+- furniture
+- tags
+- cleanliness
+- beauty
+- temperature
+- value
+- capacity
+
+Possible room identities:
+
+Dining Hall
+Kitchen
+Pantry
+Storage
+Brewery
+Bedroom
+Staff Room
+Guest Room
+
+Example simple requirements:
+
+Kitchen:
+- 1 cooking workstation
+- 1 preparation surface
+
+Dining Room:
+- 1 table
+- 1 chair
+
+Requirements can become more complex later.
+
+
+==================================================
+24. FIRST DEMO FURNITURE / WORKSTATIONS
+==================================================
+
+Suggested minimum:
+
+- Table
+- Chair
+- Storage Shelf
+- Prep Table
+- Oven
+- Brewing Vat
+- Serving Counter
+- Sink
+- Trash / Waste Bin
+- Door
+- Wall
+- Floor
+- Host Stand (optional for first version)
+
+
+==================================================
+25. FIRST DEMO WORLD
+==================================================
+
+The first map can simply be a rectangular buildable property.
+
+The player can build and expand.
+
+Example:
+
+████████████████
+█              █
+█ DINING ROOM  █
+█  ○○    ○○    █
+█              █
+████ SERVICE ███
+█              █
+█ PREP   OVEN   █
+█              █
+█ BREW   STORE  █
+█    KITCHEN    █
+████████████████
+
+Expansion should physically increase the tavern.
+
+Later the player purchases neighboring land.
+
+
+==================================================
+26. CORE DATA-DRIVEN DESIGN
+==================================================
+
+Avoid hardcoding specific game content.
+
+The game should think in generic concepts:
+
+- Entity
+- Worker
+- Customer
+- Item
+- Room
+- Furniture
+- Workstation
+- Recipe
+- Ingredient
+- Product
+- Task
+- Order
+- Need
+- Skill
+- Trait
+- Zone
+
+
+==================================================
+27. GENERIC ITEM DATA
+==================================================
+
+Example structure:
+
+Item
+{
+    id
+    name
+    category
+    stackSize
+    purchasePrice
+    sellValue
+    weight
+    spoilageRate
+    tags
+    spriteID
+}
+
+Example:
+
+Flour
+
+Category: Ingredient
+Purchase Price: 4g
+Stack Size: 10
+Tags:
+- Grain
+- Baking
+
+
+==================================================
+28. GENERIC RECIPE SYSTEM
+==================================================
+
+Do not create separate functions such as:
+
+BakeBread()
+BrewBeer()
+
+Instead use:
+
+Recipe
+{
+    Inputs[]
+    Outputs[]
+    RequiredStation
+    WorkAmount
+    RequiredSkill
+    QualityFormula
+}
+
+Bread:
+
+Recipe: Bread
+
+Inputs:
+- Flour x1
+- Water x1
+- Yeast x1
+
+Required Station:
+- Prep Table
+- Oven
+
+Required Skill:
+- Cooking
+
+Output:
+- Bread x2
+
+Beer:
+
+Recipe: Beer
+
+Inputs:
+- Malt x1
+- Hops x1
+- Water x1
+
+Required Station:
+- Brewing Vat
+
+Required Skill:
+- Brewing
+
+Output:
+- Beer x4
+
+Later the same engine supports:
+
+- Stew
+- Cheese
+- Sausage
+- Pie
+- Mead
+- Wine
+- Soup
+- Roast meat
+- Potions
+- Crafted goods
+
+
+==================================================
+29. PRODUCT QUALITY
+==================================================
+
+Products can eventually carry quality information.
+
+Example:
+
+Bread
+
+Quality: 78%
+Made by: Hilda
+Freshness: 94%
+Recipe: Rustic Bread
+Value: 12g
+
+Beer:
+
+Amber Ale
+
+Quality: 91%
+Batch: #0052
+Brewer: Borin
+Age: 3 Days
+Value: 17g
+
+Customers can react to quality.
+
+Exceptional products can eventually create stories and reputation.
+
+Example:
+
+"Borin's Golden Ale"
+
+A particularly good batch might become famous and attract customers.
+
+
+==================================================
+30. FUTURE VERTICAL INTEGRATION
+==================================================
+
+The important long-term progression is that the player starts by BUYING processed ingredients and can later produce them internally.
+
+EARLY GAME:
+
+Buy Flour
+Buy Malt
+Buy Hops
+Buy Water
+    ↓
+Produce Bread + Beer
+    ↓
+Sell
+
+NEXT STAGE:
+
+Buy Wheat
+    ↓
+Mill Wheat
+    ↓
+Flour
+    ↓
+Bake Bread
+
+LATER:
+
+Grow Wheat
+    ↓
+Harvest Wheat
+    ↓
+Mill Wheat
+    ↓
+Flour
+    ↓
+Dough
+    ↓
+Bread
+
+Beer:
+
+Grow Barley
+    ↓
+Harvest
+    ↓
+Malt
+    ↓
+Brewing
+    ↓
+Beer
+
+Grow Hops
+    ↓
+Harvest
+    ↓
+Brewing
+
+Eventually a large tavern could own:
+
+- wheat fields
+- barley fields
+- hop fields
+- granary
+- mill
+- bakery
+- brewery
+- pantry
+- warehouse
+- cellar
+- tavern
+
+
+==================================================
+31. STRATEGIC CHOICE: BUY OR PRODUCE
+==================================================
+
+A major long-term management decision should be:
+
+Do I buy processed goods for convenience,
+or do I produce them myself for lower cost?
+
+Example:
+
+OPTION A:
+Buy Flour
+- More expensive
+- No mill needed
+- Less labor
+- Less space
+- Faster
+
+OPTION B:
+Buy Wheat and Mill It
+- Cheaper input
+- Requires mill
+- Requires worker time
+- Requires storage
+- Requires space
+
+OPTION C:
+Grow Wheat
+- Cheapest material cost
+- Requires land
+- Requires farmers
+- Requires seasons/time
+- Requires storage
+- Requires milling
+- Much larger operation
+
+This gives natural progression without forcing one playstyle.
+
+
+==================================================
+32. SPECIALIZATION
+==================================================
+
+Different taverns can specialize.
+
+One player might:
+
+- grow wheat
+- bake premium bread
+- buy cheap beer
+
+Another might:
+
+- operate a large brewery
+- grow barley
+- grow hops
+- import bread
+
+Another might:
+
+- buy almost everything
+- focus on premium customer service
+
+Eventually excess products could be sold externally.
+
+Example:
+
+Produced Today:
+Bread: 82
+
+Used by Tavern:
+41
+
+Surplus:
+41
+
+Sell Surplus?
+[YES]
+
+
+==================================================
+33. GENERIC PRODUCTION + SERVICE ENGINE
+==================================================
+
+Internally, the project should not be thought of only as a "restaurant system".
+
+A better concept is:
+
+PRODUCTION + SERVICE
+
+Because this same framework could eventually support:
+
+Tavern:
+Buy Flour
+    ↓
+Make Bread
+    ↓
+Sell Bread
+
+Blacksmith:
+Buy Ore
+    ↓
+Forge Sword
+    ↓
+Sell Sword
+
+Potion Shop:
+Buy Herbs
+    ↓
+Brew Potion
+    ↓
+Sell Potion
+
+Bakery:
+Buy Grain
+    ↓
+Bake Goods
+    ↓
+Sell Goods
+
+Inn:
+Prepare Rooms
+    ↓
+Serve Guests
+    ↓
+Earn Money
+
+The first game remains focused on the medieval tavern, but the architecture can later support a larger medieval economy.
+
+
+==================================================
+34. AUDIO / UI MODULARITY
+==================================================
+
+Sounds should use event IDs.
+
+Example:
+
+SoundEvent:
+cooking_chop
+
+Instead of code directly loading:
+
+chop_sound_03.wav
+
+This allows multiple final sounds to replace prototype sounds later.
+
+Prototype UI should be simple:
+
+- grey panels
+- plain buttons
+- debug text
+- simple icons
+
+Final UI can later become:
+
+- parchment
+- wood
+- iron
+- wax seals
+- medieval ledgers
+- hand-painted icons
+
+Do not spend large amounts of time polishing UI art before the simulation is fun.
+
+
+==================================================
+35. HIGH-LEVEL GAME ARCHITECTURE
+==================================================
+
+Game
+│
+├── World
+│   ├── Grid
+│   ├── Rooms
+│   ├── Navigation
+│   └── Construction
+│
+├── Entities
+│   ├── Workers
+│   ├── Customers
+│   └── Items
+│
+├── Simulation
+│   ├── Needs
+│   ├── Jobs
+│   ├── Orders
+│   ├── Recipes
+│   └── Economy
+│
+├── AI
+│   ├── Job Selection
+│   ├── Pathfinding
+│   └── Customer States
+│
+├── Production + Service
+│   ├── Seating
+│   ├── Menu
+│   ├── Kitchen Queue
+│   ├── Storage
+│   └── Reviews
+│
+├── Player
+│   ├── Building
+│   ├── Management
+│   └── Manual Actions
+│
+└── Content
+    ├── Furniture Data
+    ├── Recipe Data
+    ├── Worker Data
+    ├── Customer Data
+    └── Item Data
+
+
+==================================================
+36. DEVELOPMENT ROADMAP
+==================================================
+
+M0 — EMPTY WORLD
+
+Goal:
+Create the basic simulation environment.
+
+Features:
+- Grid
+- Camera pan
+- Zoom
+- Mouse selection
+- Basic debug UI
+- One pawn
+- Pawn walks to clicked tile
+
+
+M1 — CONSTRUCTION
+
+Features:
+- Place walls
+- Remove walls
+- Place floors
+- Doors
+- Tables
+- Chairs
+- Basic kitchen furniture
+- Save/load map
+
+
+M2 — PAWN FRAMEWORK
+
+Features:
+- Generic pawn entity
+- Navigation
+- Walking
+- Idle behavior
+- Carrying items
+- Basic animation states
+
+
+M3 — JOB SYSTEM
+
+Features:
+- Global task queue
+- Worker priorities
+- Worker reserves task
+- Move to task
+- Perform work
+- Finish task
+- Release impossible task
+- Reassign work
+
+
+M4 — BASIC PRODUCTION PROOF
+
+Goal:
+Prove the game's most important physical economy.
+
+Required result:
+
+One pawn can haul purchased flour to storage.
+
+Another task converts flour into bread at a workstation.
+
+The resulting bread exists physically in the world.
+
+This is a major foundational milestone.
+
+
+M5 — CUSTOMER LOOP
+
+Features:
+- Customers arrive
+- Enter tavern
+- Wait
+- Get seated
+- Sit
+- Order
+- Wait
+- Eat/drink
+- Pay
+- Leave
+
+
+M6 — KITCHEN / BREWING LOOP
+
+Features:
+- Ingredients
+- Storage
+- Bread recipe
+- Beer recipe
+- Workstations
+- Cook jobs
+- Prepared products
+- Serving counter
+- Order tickets
+
+
+M7 — STAFF ROLES
+
+Features:
+- Cook
+- Waiter
+- Host
+- Cleaner
+- Job priorities
+- Hiring
+- Firing
+
+
+M8 — ECONOMY
+
+Features:
+- Starting gold
+- Ingredient costs
+- Product prices
+- Salaries
+- Customer payments
+- Tips
+- Daily profit/loss
+
+
+M9 — SATISFACTION
+
+Features:
+- Patience
+- Food quality
+- Beer quality
+- Cleanliness
+- Waiting time
+- Reviews
+- Tavern reputation
+
+
+M10 — MANUAL GAMEPLAY
+
+Features:
+- Player can manually cook
+- Player can manually serve
+- Player can seat customers
+- Player can clean
+- Start with one polished cooking interaction
+
+
+M11 — EXPANSION
+
+Features:
+- Buy neighboring land
+- Increase dining room
+- Increase kitchen
+- Increased customer capacity
+- Increased staffing pressure
+
+
+M12 — MANAGEMENT LAYER
+
+Features:
+- Work priorities
+- Shifts
+- Wages
+- Menu configuration
+- Storage filters
+- Stock limits
+- Production rules
+- Policies
+
+
+M13 — FIRST VERTICAL SLICE
+
+A complete playable tavern session lasting roughly 20–30 minutes.
+
+Player journey:
+
+Start with nearly empty tavern
+    ↓
+Buy supplies
+    ↓
+Build basic kitchen
+    ↓
+Build seating
+    ↓
+Produce bread and beer
+    ↓
+Open tavern
+    ↓
+Serve first customers
+    ↓
+Earn money
+    ↓
+Hire workers
+    ↓
+Handle rush
+    ↓
+Expand
+    ↓
+Finish day with profit or loss
+
+
+M14 — REPLACE PROTOTYPE CONTENT
+
+Only after the core gameplay is fun:
+
+- establish final art direction
+- replace temporary sprites
+- replace temporary furniture
+- improve animations
+- create final sounds
+- create proper medieval UI
+- improve characters
+- improve world-building
+
+
+==================================================
+37. DEMO 1 CONTENT LOCK
+==================================================
+
+RESOURCES:
+
+- Gold
+- Flour
+- Yeast
+- Water
+- Malt
+- Hops
+- Dough
+- Bread
+- Beer
+- Dirty Dishes
+
+
+WORKSTATIONS / OBJECTS:
+
+- Storage Shelf
+- Prep Table
+- Oven
+- Brewing Vat
+- Serving Counter
+- Table
+- Chair
+- Sink
+- Trash Bin
+- Door
+- Wall
+- Floor
+
+
+STAFF:
+
+- Cook
+- Waiter
+- Host
+- Cleaner
+
+
+CUSTOMERS:
+
+Customers:
+
+Arrive
+    ↓
+Get Seated
+    ↓
+Order Bread / Beer
+    ↓
+Wait
+    ↓
+Receive Order
+    ↓
+Eat / Drink
+    ↓
+Pay
+    ↓
+Tip
+    ↓
+Review
+    ↓
+Leave
+
+
+ECONOMY:
+
+Buy Ingredients
+    ↓
+Pay Wages
+    ↓
+Produce Goods
+    ↓
+Sell Goods
+    ↓
+Receive Tips
+    ↓
+Profit / Loss
+
+
+==================================================
+38. THINGS NOT NEEDED FOR THE FIRST DEMO
+==================================================
+
+Do NOT initially build:
+
+- giant procedural world
+- combat
+- dwarven kingdoms
+- politics
+- hundreds of recipes
+- hotel systems
+- guilds
+- detailed farming
+- seasons
+- livestock
+- complex alcohol aging
+- dozens of customer races
+- advanced weather
+- elaborate final art
+- large story systems
+
+The first demo should be small enough to finish but built on systems that can later expand.
+
+
+==================================================
+39. LONG-TERM POSSIBILITIES
+==================================================
+
+Once the first tavern simulation works, the game can gradually expand into:
+
+- farming
+- mills
+- bakeries
+- breweries
+- cellars
+- inns
+- guest rooms
+- butchers
+- markets
+- blacksmiths
+- caravans
+- merchant contracts
+- seasonal shortages
+- different social classes
+- dwarves
+- adventurers
+- nobles
+- travelers
+- town reputation
+- staff housing
+- premium food
+- specialized beer
+- trade
+- external product sales
+- larger medieval settlements
+
+
+==================================================
+40. CORE DESIGN PRINCIPLES
+==================================================
+
+1. EVERYTHING IMPORTANT SHOULD BE PHYSICAL WHEN PRACTICAL
+
+Resources, products and workers should move through the world.
+
+2. DISTANCE IS GAMEPLAY
+
+Bad layouts create wasted walking and slower service.
+
+3. AUTOMATION AND MANUAL PLAY SHOULD COEXIST
+
+The player can automate a task or personally perform it.
+
+4. CONTENT SHOULD BE DATA-DRIVEN
+
+Recipes, furniture, workers, customers and items should be replaceable or expandable without rewriting core systems.
+
+5. PROTOTYPE ART IS DISPOSABLE
+
+Do not design the engine around temporary textures or sprites.
+
+6. START SMALL
+
+Bread + Beer are enough to prove most major systems.
+
+7. BUILD FOR EXPANSION
+
+The demo is a tavern, but the architecture should be capable of supporting a much larger medieval production/service economy.
+
+8. THE TAVERN IS THE COLONY
+
+The establishment itself is the main evolving system the player builds, manages and watches.
+
+
+==================================================
+41. FIRST MAJOR PLAYABLE TARGET
+==================================================
+
+The first truly playable version should allow this:
+
+The player starts with a nearly empty medieval tavern and a limited amount of gold.
+
+They buy flour, yeast, malt, hops and water.
+
+A delivery arrives.
+
+Workers haul the supplies into storage.
+
+The player places an oven and brewing vat.
+
+Bread and beer are produced as physical items.
+
+Tables and chairs are placed.
+
+Customers enter.
+
+A host seats them.
+
+They order bread and beer.
+
+A waiter delivers the products.
+
+Customers eat and drink.
+
+They pay.
+
+They leave tips.
+
+They generate satisfaction and reviews.
+
+The player receives money.
+
+The player buys more supplies.
+
+The tavern grows.
+
+The player can hire more workers and expand the kitchen or dining room.
+
+During a rush, the player can personally step in and perform jobs.
+
+At the end of the day the tavern has either made a profit or suffered a loss.
+
+That is the first complete game loop.
+
+
+==================================================
+42. LONG-TERM ECONOMIC VISION
+==================================================
+
+The player's progression should move naturally from:
+
+BUYING EVERYTHING
+    ↓
+PROCESSING PURCHASED MATERIALS
+    ↓
+PROCESSING LESS-REFINED MATERIALS
+    ↓
+PRODUCING RAW MATERIALS
+    ↓
+VERTICAL INTEGRATION
+    ↓
+SPECIALIZATION / TRADE
+
+Example bread evolution:
+
+Buy Bread
+    ↓
+Buy Flour → Bake Bread
+    ↓
+Buy Wheat → Mill Flour → Bake Bread
+    ↓
+Grow Wheat → Mill Flour → Bake Bread
+
+Example beer evolution:
+
+Buy Beer
+    ↓
+Buy Malt + Hops → Brew Beer
+    ↓
+Buy Barley → Produce Malt → Brew Beer
+    ↓
+Grow Barley + Grow Hops → Brew Beer
+
+The player should never be forced to produce everything personally.
+
+Buying, producing, specializing and trading should all remain valid strategies.
+
+==================================================
+END OF CURRENT DESIGN NOTES
+==================================================
