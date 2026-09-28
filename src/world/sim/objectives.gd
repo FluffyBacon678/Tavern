@@ -40,7 +40,7 @@ func _init() -> void:
 	list = [
 		Objective.new(
 			"floor", "Lay some flooring",
-			"Press B, pick Wood Floor, then drag a room about 10 x 8 inside the gold boundary. Watch the cost in the build bar: keep enough for a kitchen, supplies and tonight's wages.",
+			"Press " + KeyBindings.first("build") + ", pick Wood Floor, then drag a room about 10 x 8 inside the gold boundary. Watch the cost in the build bar: keep enough for a kitchen, supplies and tonight's wages.",
 			func(w) -> bool: return w.build.grid.count_built([&"wood_floor", &"stone_floor"]) >= 4
 		),
 		Objective.new(

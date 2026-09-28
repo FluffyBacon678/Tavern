@@ -22,7 +22,7 @@ var lesson: String = ""
 var text: String = ""
 var why: String = ""
 ## What to point at. Any of:
-##   {"button": "Build [B]"}      a HUD button, by its text
+##   {"button": "Build"}          a HUD button, by the start of its text
 ##   {"tiles": Rect2i}            ground to outline
 ##   {"role": &"porter"}          a person, by position
 ## A Callable returning one of those is resolved when the step begins.

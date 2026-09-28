@@ -116,11 +116,18 @@ func _build_hud() -> void:
 	var speeds := HBoxContainer.new()
 	speeds.add_theme_constant_override("separation", 2)
 	clock_row.add_child(speeds)
-	var hints: Array[String] = ["Pause [Space]", "Normal speed [1]", "Fast, 2x [2]", "Faster, 3x [3]", "Fastest, 5x [4]"]
+	var hints: Array[String] = ["Pause", "Normal speed", "Fast, 2x", "Faster, 3x", "Fastest, 5x"]
+	var speed_keys: Array[String] = ["pause", "speed_1", "speed_2", "speed_3", "speed_4"]
 	for i in range(SimClock.SPEEDS.size()):
 		var b := SpeedButton.new()
 		b.speed = i
-		b.tooltip_text = hints[i]
+		# Tooltip and key through the same path as the other shortcut buttons.
+		b.set_meta("base", "")
+		b.set_meta("tip", hints[i])
+		b.set_meta("action", speed_keys[i])
+		b.set_meta("in_label", false)
+		_keyed.append(b)
+		_label_keyed(b)
 		var chosen: int = i
 		b.pressed.connect(func() -> void:
 			AudioDirector.play("ui_click")
@@ -171,34 +178,21 @@ func _build_hud() -> void:
 	actions.add_theme_constant_override("separation", 4)
 	actions.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bar.add_child(actions)
-	actions.add_child(_hud_button("Build [B]", _toggle_build_bar))
+	actions.add_child(_keyed_button("Build", "build", _toggle_build_bar))
 	# Hiring is a choice of position now, made where the staff are listed.
 	var hire: Button = _hud_button("Hire", func() -> void:
 		if not _priority_panel.visible:
 			_priority_panel.toggle()
 	)
-	hire.tooltip_text = "Take somebody on: each position has a fee and a daily wage (Staff, K)"
+	hire.tooltip_text = "Take somebody on: each position has a fee and a daily wage (Staff%s)" % KeyBindings.hint("staff")
 	actions.add_child(hire)
-	var supplies: Button = _hud_button("Supplies", func() -> void:
-		_land_panel.visible = false
-		_details_panel.visible = false
-		_supply_panel.toggle()
-	)
-	supplies.tooltip_text = "Choose what the merchant brings, then confirm the order"
+	var supplies: Button = _keyed_button("Supplies", "supplies", toggle_supplies, false)
+	supplies.set_meta("tip", "Choose what the merchant brings, then confirm the order")
 	actions.add_child(supplies)
-	actions.add_child(_hud_button("Production [P]", func() -> void: _production_panel.toggle()))
-	actions.add_child(_hud_button("Staff [K]", func() -> void: _priority_panel.toggle()))
-	actions.add_child(_hud_button("Buy land", func() -> void:
-		_land_panel.visible = not _land_panel.visible
-		_supply_panel.visible = false
-		_refresh_land_panel()
-	))
-	actions.add_child(_hud_button("Ledger", func() -> void:
-		_details_panel.visible = not _details_panel.visible
-		_supply_panel.visible = false
-		if _details_panel.visible and inspector != null:
-			inspector.clear()
-	))
+	actions.add_child(_keyed_button("Production", "production", func() -> void: _production_panel.toggle()))
+	actions.add_child(_keyed_button("Staff", "staff", func() -> void: _priority_panel.toggle()))
+	actions.add_child(_keyed_button("Buy land", "land", toggle_land, false))
+	actions.add_child(_keyed_button("Ledger", "ledger", toggle_ledger, false))
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -209,29 +203,20 @@ func _build_hud() -> void:
 	bar.add_child(view)
 	# Glyphs rather than words to keep the bar inside 1280px, but drawn larger:
 	# at the bar's text size the arrows came out as specks nobody could read.
-	for turn in [[-1, "↶", "Turn the view left (Q)"], [1, "↷", "Turn the view right (E)"]]:
+	for turn in [[-1, "↶", "cam_turn_left"], [1, "↷", "cam_turn_right"]]:
 		var step: int = turn[0]
-		var button: Button = _hud_button(turn[1], func() -> void: world.rig.rotate_step(step))
-		button.tooltip_text = turn[2]
+		var button: Button = _keyed_button(turn[1], turn[2], func() -> void: world.rig.rotate_step(step), false)
 		button.add_theme_font_size_override("font_size", 22)
 		view.add_child(button)
 	# Through a lambda: the HUD is built before the world's input exists.
 	_mode_button = _hud_button("View: locked", func() -> void: world.input.toggle_camera_mode())
 	view.add_child(_mode_button)
-	_rooms_button = _hud_button("Rooms [O]", func() -> void: world.toggle_room_overlay())
-	_rooms_button.tooltip_text = "Show what the game counts as a room, and what each one is worth."
+	_rooms_button = _keyed_button("Rooms", "rooms", func() -> void: world.toggle_room_overlay())
+	_rooms_button.set_meta("tip", "Show what the game counts as a room, and what each one is worth.")
 	view.add_child(_rooms_button)
-	_walls_button = _hud_button("Cutaway", func() -> void:
-		world.cutaway.enabled = not world.cutaway.enabled
-		_walls_button.text = "Cutaway" if world.cutaway.enabled else "Full walls"
-	)
+	_walls_button = _keyed_button("Cutaway", "cutaway", toggle_cutaway, false)
 	view.add_child(_walls_button)
-	view.add_child(_hud_button("Save", func() -> void:
-		if GameState.active_slot < 0:
-			flash("No slot to save to")
-		elif world.save_now():
-			flash("Saved")
-	))
+	view.add_child(_keyed_button("Save", "quicksave", quick_save, false))
 	var menu: Button = _hud_button("Menu", open_pause_menu)
 	menu.tooltip_text = "Pause, save, settings, or leave (Esc)"
 	view.add_child(menu)
@@ -284,7 +269,9 @@ func _build_hud() -> void:
 	# Two lines: moving the view, then looking at things. The second is what
 	# made follow and the stack counts findable at all -- neither has a button
 	# of its own until something is selected.
-	help.text = "WASD move   ·   wheel zoom   ·   Q / E turn   ·   C change view" + char(10) + 		"click to inspect   ·   F follow   ·   Alt stack counts   ·   Space pause   ·   1-4 speed   ·   Esc close"
+	_help = help
+	_write_help()
+	GameSettings.bindings_changed.connect(_on_bindings_changed)
 	help.add_theme_color_override("font_color", Color("e4d4aa"))
 	help.add_theme_color_override("font_outline_color", TavernTheme.INK)
 	help.add_theme_constant_override("outline_size", 4)
@@ -293,7 +280,7 @@ func _build_hud() -> void:
 	# RimWorld's cue: a paused world should say so where the eye already is,
 	# or a player who hit Space by accident waits for customers who never come.
 	_paused_label = Label.new()
-	_paused_label.text = "PAUSED  ·  Space to resume"
+	_paused_label.text = "PAUSED  ·  %s to resume" % KeyBindings.first("pause")
 	_paused_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_paused_label.offset_left = -160
 	_paused_label.offset_right = 160
@@ -538,6 +525,112 @@ func _show_speed(speed: int) -> void:
 			_hud.move_child(_paused_label, _day_summary.get_index())
 
 
+## A HUD button with a shortcut. `in_label` puts the key on the button itself
+## ("Build [B]"); otherwise it goes in the tooltip, which keeps the bar inside
+## 1280 pixels. Either way it follows a rebinding.
+func _keyed_button(text: String, action: String, handler: Callable, in_label: bool = true) -> Button:
+	var b: Button = _hud_button(text, handler)
+	b.set_meta("base", text)
+	b.set_meta("action", action)
+	b.set_meta("in_label", in_label)
+	_keyed.append(b)
+	_label_keyed(b)
+	return b
+
+
+func _label_keyed(b: Button) -> void:
+	var action: String = b.get_meta("action")
+	var base: String = b.get_meta("base")
+	if b.get_meta("in_label"):
+		b.text = base + KeyBindings.tag(action)
+	var tip: String = String(b.get_meta("tip", KeyBindings.label_of(action)))
+	var key: String = KeyBindings.text_for(action)
+	b.tooltip_text = tip + ("  (%s)" % key if not key.is_empty() else "")
+
+
+func _on_bindings_changed() -> void:
+	for b in _keyed:
+		if is_instance_valid(b):
+			_label_keyed(b)
+	_write_help()
+	_paused_label.text = "PAUSED  ·  %s to resume" % KeyBindings.first("pause")
+	# The rooms button says "Rooms: on" while the overlay is up.
+	if world.room_overlay != null and world.room_overlay.visible:
+		_rooms_button.text = "Rooms: on"
+
+
+## The two lines of controls in the corner, from the player's own keys.
+func _write_help() -> void:
+	if _help == null:
+		return
+	var move: String = KeyBindings.move_keys(0)
+	if move.is_empty():
+		move = KeyBindings.move_keys(1)
+	_help.text = "%s move   ·   wheel zoom   ·   %s / %s turn   ·   %s change view" % [
+		move, _first("cam_turn_left"), _first("cam_turn_right"), _first("cam_mode")] + char(10) + \
+		"click to inspect   ·   %s follow   ·   Alt stack counts   ·   %s pause   ·   %s-%s speed   ·   Esc close" % [
+		_first("cam_follow"), _first("pause"), _first("speed_1"), _first("speed_4")]
+
+
+func _first(id: String) -> String:
+	var keys: Array = KeyBindings.keys_of(id)
+	return KeyBindings.key_name(int(keys[0])) if int(keys[0]) != 0 else "-"
+
+
+func toggle_supplies() -> void:
+	_land_panel.visible = false
+	_details_panel.visible = false
+	_supply_panel.toggle()
+
+
+func toggle_land() -> void:
+	_land_panel.visible = not _land_panel.visible
+	_supply_panel.visible = false
+	_refresh_land_panel()
+
+
+func toggle_ledger() -> void:
+	_details_panel.visible = not _details_panel.visible
+	_supply_panel.visible = false
+	if _details_panel.visible and inspector != null:
+		inspector.clear()
+
+
+func toggle_cutaway() -> void:
+	world.cutaway.enabled = not world.cutaway.enabled
+	_walls_button.set_meta("base", "Cutaway" if world.cutaway.enabled else "Full walls")
+	_walls_button.text = _walls_button.get_meta("base")
+
+
+func quick_save() -> void:
+	if GameState.active_slot < 0:
+		flash("No slot to save to")
+	elif world.save_now():
+		flash("Saved")
+
+
+## Demolish mode, from a key: opens the build bar if it is shut, and presses
+## the same toggle the player would.
+func toggle_demolish() -> void:
+	if _build_bar == null:
+		return
+	if not _build_bar.visible:
+		_toggle_build_bar()
+	_build_bar._demolish_button.button_pressed = not _build_bar._demolish_button.button_pressed
+
+
+## A picture of the screen, into the game's own folder.
+func take_screenshot() -> void:
+	var dir: String = "user://screenshots"
+	DirAccess.make_dir_recursive_absolute(dir)
+	var stamp: String = Time.get_datetime_string_from_system().replace(":", "-")
+	var path: String = dir.path_join("tavern_%s.png" % stamp)
+	var image: Image = get_viewport().get_texture().get_image()
+	if image != null and image.save_png(path) == OK:
+		flash("Screenshot saved: %s" % ProjectSettings.globalize_path(path))
+		AudioDirector.play("ui_click")
+
+
 func _hud_button(text: String, handler: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
@@ -547,6 +640,10 @@ func _hud_button(text: String, handler: Callable) -> Button:
 	b.pressed.connect(handler)
 	b.pressed.connect(func() -> void: AudioDirector.play("ui_click"))
 	return b
+
+
+var _keyed: Array[Button] = []
+var _help: Label
 
 
 func _on_camera_mode_changed(mode: int) -> void:

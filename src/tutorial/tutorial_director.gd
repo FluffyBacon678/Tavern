@@ -135,7 +135,7 @@ func _begin() -> void:
 		world.sim.speed = 0
 	elif world.sim.speed == 0:
 		world.sim.speed = 1
-		world.hud.flash("Time is running. Press 4 for 5x, Space to pause.", 3.0)
+		world.hud.flash("Time is running. Press %s for 5x, %s to pause." % [KeyBindings.text_for("speed_4").split(" / ")[0], KeyBindings.text_for("pause").split(" / ")[0]], 3.0)
 	_highlight(step.resolved_highlight(world))
 	_show.visible = not step.resolved_highlight(world).is_empty()
 

@@ -374,4 +374,15 @@ headless for the simulation alone, `-- --profile` for cost per system.
   pilgrim rarely drinks, weighs cleanliness double. The hover card names the
   kind and what it wants; tutorial step `guest_type` (47 steps). Level 1900 /
   1328 / -127g. Chaos: 81 `ba221835`, 90 `266b307e`, 33 `7b6b6f68`.
+- **Key bindings** (2026-09-29, `src/core/key_bindings.gd`): every shortcut is a
+  named action with two slots, installed into the InputMap at startup and
+  rebound in Settings > Controls (click a slot, press a key; Esc cancels,
+  Backspace clears; a key in use moves and the page says what lost it). Only
+  changes are saved, in the settings file's `controls` section. Buttons, the
+  hint strip, tutorial and advice text all name the player's keys. New keys:
+  +/- zoom, H home, X demolish, U supplies, L ledger, V cutaway, F5 save,
+  F12 screenshot. Fixed: Esc, Alt, mouse.
+- The chaos fingerprint now sorts goods as text (StringNames sort by identity,
+  so unrelated code moved the hash). Now: 81 `3e0ca0f5`, 90 `b6807bbe`,
+  33 `f0fa2628`.
 

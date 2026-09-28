@@ -641,11 +641,14 @@ func _hole(message: String) -> void:
 ## unseeded random number, and the run cannot be replayed.
 func _fingerprint() -> String:
 	var goods: Dictionary = _goods_everywhere(world)
-	var ids: Array = goods.keys()
+	# Sorted as text. StringNames sort by identity, not by spelling, so any new
+	# name anywhere in the code could reorder this and move the hash while the
+	# run itself played out exactly the same.
+	var ids: Array = goods.keys().map(func(id) -> String: return String(id))
 	ids.sort()
 	var parts: PackedStringArray = PackedStringArray()
 	for id in ids:
-		parts.append("%s=%d" % [id, goods[id]])
+		parts.append("%s=%d" % [id, goods[StringName(id)]])
 	var served: int = world.customers.served_count
 	for entry in world.ledger.history:
 		served += int(entry.get("served", 0))

@@ -150,15 +150,12 @@ func _handle_keyboard_pan(delta: float) -> void:
 	var focus: Control = get_viewport().gui_get_focus_owner()
 	if focus is LineEdit or focus is TextEdit:
 		return
-	# Polled directly rather than through input actions: the ui_* actions drive
-	# Control focus navigation, so binding camera panning to them would move the
-	# view every time the player arrows around a menu.
+	# The game's own cam_* actions (KeyBindings), never the ui_* ones: those
+	# drive Control focus navigation, and would move the view every time the
+	# player arrows around a menu.
 	var input := Vector2(
-		float(Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT))
-		- float(Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT)),
-		float(Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN))
-		- float(Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP))
-	)
+		Input.get_action_strength("cam_right") - Input.get_action_strength("cam_left"),
+		Input.get_action_strength("cam_down") - Input.get_action_strength("cam_up"))
 	if input == Vector2.ZERO and GameSettings.edge_scroll:
 		input = _edge_input()
 	if input == Vector2.ZERO:
@@ -238,9 +235,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventScreenDrag:
 		_handle_drag(event)
 	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_Q:
+		if event.is_action_pressed("cam_turn_left"):
 			rotate_step(-1)
-		elif event.keycode == KEY_E:
+		elif event.is_action_pressed("cam_turn_right"):
 			rotate_step(1)
 
 

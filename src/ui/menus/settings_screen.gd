@@ -12,30 +12,15 @@ extends Control
 signal closed
 
 const TABS: Array[String] = ["Gameplay", "Video", "Audio", "Controls"]
-const SECTIONS: Array[String] = ["gameplay", "video", "audio", ""]
-## What each key does, for the Controls tab. Fixed for now; rebinding is a
-## later job, and a list that is true beats a rebinding screen that is not.
-const CONTROLS: Array = [
-	["Camera", ""],
-	["Move the view", "W A S D  or  arrow keys"],
+const SECTIONS: Array[String] = ["gameplay", "video", "audio", "controls"]
+## Controls that cannot be rebound, listed on the Controls tab under the
+## ones that can (KeyBindings.ACTIONS).
+const FIXED_CONTROLS: Array = [
 	["Zoom", "Mouse wheel"],
-	["Turn the view", "Q / E, or drag with the right mouse button"],
-	["Free or locked camera", "C"],
-	["Follow the selected person", "F"],
-	["Time", ""],
-	["Pause and resume", "Space"],
-	["Game speed 1x / 2x / 3x / 5x", "1 / 2 / 3 / 4"],
-	["Tavern", ""],
-	["Build", "B"],
-	["Rotate what you are placing", "R"],
-	["Staff and hiring", "K"],
-	["Production", "P"],
-	["Show rooms", "O"],
-	["Show every stack's count", "Hold Alt"],
+	["Turn the view (free camera)", "Right mouse drag"],
 	["Inspect", "Left click"],
-	["Windows", ""],
+	["Show every stack's count", "Hold Alt"],
 	["Close a panel, or open the pause menu", "Esc"],
-	["Fullscreen", "F11"],
 ]
 
 var _s: float = 1.0
@@ -46,6 +31,10 @@ var _description: Label
 var _reset: Button
 var _back: Button
 var _scale_timer: Timer
+## [action id, slot, button] while waiting for the key to bind; empty otherwise.
+var _capture: Array = []
+## id -> [primary button, spare button] on the Controls page.
+var _slot_buttons: Dictionary = {}
 
 
 ## Open over `host`. Await `closed` to know when the player is done.
@@ -162,6 +151,9 @@ func close() -> void:
 
 func _input(event: InputEvent) -> void:
 	if not is_visible_in_tree():
+		return
+	if not _capture.is_empty():
+		_capture_key(event)
 		return
 	# An open dropdown answers Esc itself.
 	if event.is_action_pressed("ui_cancel"):
@@ -297,15 +289,83 @@ func _page_audio() -> void:
 
 
 func _page_controls() -> void:
-	for entry in CONTROLS:
-		if String(entry[1]).is_empty():
-			_group(String(entry[0]))
-			continue
+	_slot_buttons.clear()
+	var group: String = ""
+	for entry in KeyBindings.ACTIONS:
+		if entry[1] != group:
+			group = entry[1]
+			_group(group)
+		var id: String = entry[0]
+		var slots := HBoxContainer.new()
+		slots.add_theme_constant_override("separation", int(6.0 * _s))
+		for slot in range(2):
+			var b := UiKit.button(_slot_text(id, slot), _s)
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			b.custom_minimum_size.x = 140.0 * _s
+			b.custom_minimum_size.y = 32.0 * _s
+			var which: int = slot
+			b.pressed.connect(func() -> void: _begin_capture(id, which, b))
+			slots.add_child(b)
+			if not _slot_buttons.has(id):
+				_slot_buttons[id] = []
+			_slot_buttons[id].append(b)
+		_add_row(entry[2], slots, "Click a key, then press the new one. Esc cancels; Backspace clears it.")
+	_group("Fixed")
+	for entry in FIXED_CONTROLS:
 		var keys := Label.new()
 		keys.text = String(entry[1])
 		keys.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		keys.add_theme_color_override("font_color", TavernTheme.CANDLE)
+		keys.add_theme_color_override("font_color", TavernTheme.PARCHMENT_DIM)
 		_add_row(String(entry[0]), keys, "")
+
+
+func _slot_text(id: String, slot: int) -> String:
+	var k: int = int(KeyBindings.keys_of(id)[slot])
+	return KeyBindings.key_name(k) if k != 0 else "—"
+
+
+func _begin_capture(id: String, slot: int, button: Button) -> void:
+	if not _capture.is_empty() and is_instance_valid(_capture[2]):
+		_capture[2].text = _slot_text(_capture[0], _capture[1])
+	_capture = [id, slot, button]
+	button.text = "Press a key…"
+	_describe("Press the key for “%s”. Esc cancels; Backspace clears the slot." % KeyBindings.label_of(id))
+
+
+## The key the player pressed while a slot was waiting for one.
+func _capture_key(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		# Clicks still reach the page; only keys are taken.
+		return
+	get_viewport().set_input_as_handled()
+	var id: String = _capture[0]
+	var slot: int = _capture[1]
+	var button: Button = _capture[2]
+	_capture = []
+	var key: int = event.keycode
+	if key == KEY_ESCAPE:
+		button.text = _slot_text(id, slot)
+		_describe("")
+		return
+	if key in [KEY_BACKSPACE, KEY_DELETE]:
+		key = 0
+	elif KeyBindings.RESERVED.has(key):
+		button.text = _slot_text(id, slot)
+		_describe("%s is kept for something else and cannot be bound." % KeyBindings.key_name(key))
+		AudioDirector.play("ui_back")
+		return
+	var lost: String = GameSettings.bind_key(id, slot, key)
+	AudioDirector.play("ui_click")
+	# In place: rebuilding the page would scroll back to the top.
+	for action in _slot_buttons:
+		for i in range(_slot_buttons[action].size()):
+			if is_instance_valid(_slot_buttons[action][i]):
+				_slot_buttons[action][i].text = _slot_text(action, i)
+	if not lost.is_empty() and lost != id:
+		_describe("%s now does “%s”; “%s” has lost it." % [
+			KeyBindings.key_name(key), KeyBindings.label_of(id), KeyBindings.label_of(lost)])
+	elif key == 0:
+		_describe("“%s” slot cleared." % KeyBindings.label_of(id))
 
 
 # --- rows -----------------------------------------------------------------------

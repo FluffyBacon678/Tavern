@@ -126,7 +126,7 @@ func _on_selection_changed(def: BuildingDef) -> void:
 		_item_buttons[id].button_pressed = def != null and def.id == id
 	if def != null:
 		_demolish_button.button_pressed = false
-		var how: String = "Click to place, R to rotate."
+		var how: String = "Click to place, %s to rotate." % KeyBindings.first("rotate")
 		match _controller.drag_shape():
 			BuildController.DragShape.FILL:
 				how = "Drag to fill a rectangle."

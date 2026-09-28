@@ -79,36 +79,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-	if event is InputEventKey and event.pressed and not event.echo:
-		match event.keycode:
-			KEY_SPACE:
-				world.sim.toggle_pause()
-				get_viewport().set_input_as_handled()
-			KEY_1, KEY_KP_1:
-				world.sim.speed = 1
-			KEY_2, KEY_KP_2:
-				world.sim.speed = 2
-			KEY_3, KEY_KP_3:
-				world.sim.speed = 3
-			KEY_4, KEY_KP_4:
-				world.sim.speed = 4
-			KEY_C:
-				toggle_camera_mode()
-			KEY_R:
-				if build != null:
-					build.rotate_selection()
-			KEY_B:
-				hud._toggle_build_bar()
-			KEY_K:
-				if hud._priority_panel != null:
-					hud._priority_panel.toggle()
-			KEY_P:
-				if hud._production_panel != null:
-					hud._production_panel.toggle()
-			KEY_O:
-				world.toggle_room_overlay()
-			KEY_F:
-				toggle_follow()
+	if event is InputEventKey and event.pressed:
+		# Zoom keys repeat while held, like the wheel; everything else fires once.
+		if event.is_action_pressed("cam_zoom_in", true):
+			world.rig.zoom_by(-1.0)
+		elif event.is_action_pressed("cam_zoom_out", true):
+			world.rig.zoom_by(1.0)
+		elif not event.echo:
+			for action in _SHORTCUTS:
+				if event.is_action_pressed(action):
+					_shortcut(action)
+					get_viewport().set_input_as_handled()
+					break
 		return
 
 	if not (event is InputEventMouseButton):
@@ -341,3 +323,44 @@ func pawn_near(point: Vector3, radius: float = 0.75) -> Pawn:
 			best_distance = distance
 			best = candidate
 	return best
+
+
+## Shortcuts the world answers, by KeyBindings action. Camera turning is the
+## rig's own, fullscreen is GameSettings', and Esc is handled above.
+const _SHORTCUTS: Array[String] = ["pause", "speed_1", "speed_2", "speed_3", "speed_4",
+	"cam_mode", "cam_follow", "cam_home", "rotate", "build", "demolish", "staff", "production",
+	"supplies", "ledger", "land", "rooms", "cutaway", "quicksave", "screenshot"]
+
+
+func _shortcut(action: String) -> void:
+	var hud = world.hud
+	match action:
+		"pause": world.sim.toggle_pause()
+		"speed_1": world.sim.speed = 1
+		"speed_2": world.sim.speed = 2
+		"speed_3": world.sim.speed = 3
+		"speed_4": world.sim.speed = 4
+		"cam_mode": toggle_camera_mode()
+		"cam_follow": toggle_follow()
+		"cam_home":
+			world.rig.follow = null
+			var middle: Vector2 = Vector2(world.plot.position) + Vector2(world.plot.size) * 0.5
+			world.rig.focus_on(Vector3(middle.x, world.terrain.plot_height, middle.y))
+		"rotate":
+			if world.build != null:
+				world.build.rotate_selection()
+		"build": hud._toggle_build_bar()
+		"demolish": hud.toggle_demolish()
+		"staff":
+			if hud._priority_panel != null:
+				hud._priority_panel.toggle()
+		"production":
+			if hud._production_panel != null:
+				hud._production_panel.toggle()
+		"supplies": hud.toggle_supplies()
+		"ledger": hud.toggle_ledger()
+		"land": hud.toggle_land()
+		"rooms": world.toggle_room_overlay()
+		"cutaway": hud.toggle_cutaway()
+		"quicksave": hud.quick_save()
+		"screenshot": hud.take_screenshot()

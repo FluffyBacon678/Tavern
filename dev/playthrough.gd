@@ -67,7 +67,7 @@ func _play() -> void:
 	await _shot("arrival", "First look at the plot.")
 
 	# The checklist says: floors first.
-	_press(world.hud._hud, "Build [B]")
+	_press(world.hud._hud, "Build")
 	await _frames(10)
 	await _shot("build_bar", "The build bar is open.")
 	var o: Vector2i = world.plot.position + Vector2i(3, world.plot.size.y - 14)

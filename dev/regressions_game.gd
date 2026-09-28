@@ -14,6 +14,7 @@ func run() -> void:
 	_check_level_outcome(world)
 	_check_sim_clock(world)
 	await _check_menus(world)
+	await _check_key_bindings(world)
 	_check_save_round_trip(world)
 	await _check_continue_loads(world)
 
@@ -637,4 +638,66 @@ func _check_menus(world: TavernWorld) -> void:
 	screen.close()
 	await get_tree().process_frame
 	check(not is_instance_valid(screen), "Back closes it")
+
+
+## Every shortcut can be rebound, a key does one thing, and whatever names a
+## key follows the player's choice: the shortcut, the button label, the advice.
+func _check_key_bindings(world: TavernWorld) -> void:
+	GameSettings.reset_section("controls")
+	check(InputMap.has_action("build") and KeyBindings.keys_of("build")[0] == KEY_B,
+		"shortcuts start on their default keys")
+	for entry in KeyBindings.ACTIONS:
+		check(InputMap.has_action(entry[0]), "the %s shortcut exists" % entry[0])
+
+	# Taking a key moves it: K goes from Staff to Build.
+	var lost: String = GameSettings.bind_key("build", 0, KEY_K)
+	check(lost == "staff" and KeyBindings.keys_of("staff")[0] == 0,
+		"binding a key already in use takes it from the other action")
+	var press := InputEventKey.new()
+	press.keycode = KEY_K
+	press.pressed = true
+	check(press.is_action_pressed("build") and not press.is_action_pressed("staff"), "and the key now does the new thing")
+	var labelled: bool = false
+	for b in world.hud._keyed:
+		labelled = labelled or b.text == "Build [K]"
+	check(labelled, "the Build button's label follows the new key")
+	check(Trouble._hire_advice(WorkType.Kind.COOK).find("(K)") < 0, "advice stops naming a key Staff no longer has")
+	check(KeyBindings.bind("build", 0, KEY_ESCAPE) == "" and KeyBindings.keys_of("build")[0] == KEY_K,
+		"Esc cannot be bound")
+
+	# Kept across a restart: only the changes are written, and read back.
+	var kept: Dictionary = KeyBindings.overrides()
+	check(kept.has("build") and kept.has("staff") and not kept.has("pause"), "only changed shortcuts are saved")
+	KeyBindings.install()
+	check(KeyBindings.keys_of("build")[0] == KEY_B, "(a fresh start is back on the defaults)")
+	KeyBindings.install(kept)
+	check(KeyBindings.keys_of("build")[0] == KEY_K, "and the saved changes come back")
+
+	# Rebinding through the Controls page, as the player does it.
+	var screen := SettingsScreen.open(world.hud.pause_menu)
+	screen._show_tab(3)
+	var slot: Button = screen._slot_buttons["ledger"][0]
+	screen._begin_capture("ledger", 0, slot)
+	check(slot.text == "Press a key…", "a slot waits for the key")
+	var key := InputEventKey.new()
+	key.keycode = KEY_N
+	key.pressed = true
+	screen._capture_key(key)
+	check(KeyBindings.keys_of("ledger")[0] == KEY_N and slot.text == "N", "pressing a key binds it there")
+	screen._begin_capture("ledger", 1, screen._slot_buttons["ledger"][1])
+	var clear := InputEventKey.new()
+	clear.keycode = KEY_BACKSPACE
+	clear.pressed = true
+	screen._capture_key(clear)
+	check(KeyBindings.keys_of("ledger")[1] == 0, "Backspace clears a slot")
+	screen.close()
+	await get_tree().process_frame
+
+	GameSettings.reset_section("controls")
+	check(KeyBindings.keys_of("staff")[0] == KEY_K and KeyBindings.keys_of("ledger")[0] == KEY_L,
+		"resetting controls puts every key back")
+	var restored: bool = false
+	for b in world.hud._keyed:
+		restored = restored or b.text == "Build [B]"
+	check(restored, "and the labels with them")
 

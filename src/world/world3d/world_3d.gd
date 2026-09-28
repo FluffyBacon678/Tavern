@@ -151,7 +151,7 @@ func _ready() -> void:
 	if GameState.start_paused:
 		GameState.start_paused = false
 		sim.speed = 0
-		hud.flash("Paused while you plan. Press Space or 1 when you are ready to open.", 6.0)
+		hud.flash("Paused while you plan. Press %s or %s when you are ready to open." % [KeyBindings.first("pause"), KeyBindings.first("speed_1")], 6.0)
 
 
 func generate(world_seed: int) -> void:
@@ -678,7 +678,7 @@ func toggle_room_overlay() -> void:
 	AudioDirector.play("ui_click")
 	var shown: bool = room_overlay.toggle(rooms, terrain.plot_height)
 	if hud._rooms_button != null:
-		hud._rooms_button.text = "Rooms: on" if shown else "Rooms [O]"
+		hud._rooms_button.text = "Rooms: on" if shown else "Rooms" + KeyBindings.tag("rooms")
 	if shown and rooms.current().is_empty():
 		hud.flash("No enclosed rooms yet — finish a wall around one")
 

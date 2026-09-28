@@ -201,7 +201,7 @@ func _rebuild_extras() -> void:
 			_extras.add_child(_follow_button())
 			if is_instance_valid(pawn) and pawn.get_node_or_null("Worker") != null:
 				var staff := Button.new()
-				staff.text = "Change what they work on [K]"
+				staff.text = "Change what they work on" + KeyBindings.tag("staff")
 				staff.pressed.connect(func() -> void:
 					if world.hud != null and world.hud._priority_panel != null:
 						world.hud._priority_panel.toggle()

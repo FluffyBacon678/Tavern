@@ -44,7 +44,7 @@ static func diagnose(world) -> String:
 				if not _anyone_allowed(world, WorkType.Kind.CLEAR):
 					return "Dirty plates are blocking %d seats and nobody on the staff clears tables. %s" % [
 						blocked, _hire_advice(WorkType.Kind.CLEAR)]
-				return "Dirty plates are blocking %d seats and nobody is set to Clear. Change it under Staff (K)." % blocked
+				return ("Dirty plates are blocking %d seats and nobody is set to Clear. Change it under Staff" + KeyBindings.hint("staff") + ".") % blocked
 
 	# Work waiting that no position on the books is allowed to do. The cause
 	# behind "nothing to sell" when there is no cook, and behind deliveries left
@@ -85,12 +85,12 @@ static func diagnose(world) -> String:
 	# Last, because debt is where the other problems end up: anything above it
 	# is a cause worth fixing first.
 	if GameState.gold < 0:
-		return "In debt by %dg, and wages still come out at close: %d staff, %dg a day. Let staff go under Staff (K), or demolish what you do not need: unbuilt blueprints refund in full." % [
+		return ("In debt by %dg, and wages still come out at close: %d staff, %dg a day. Let staff go under Staff" + KeyBindings.hint("staff") + ", or demolish what you do not need: unbuilt blueprints refund in full.") % [
 			-GameState.gold, world.workers.size(), world.wage_bill()]
 	# Before the debt, not after it: the first morning's overbuilt tavern said
 	# nothing at all until midnight had already put it in the red.
 	if GameState.gold < world.wage_bill():
-		return "Tonight's wages are %dg and the purse holds %dg. Takings before close have to cover it, or let staff go under Staff (K)." % [
+		return ("Tonight's wages are %dg and the purse holds %dg. Takings before close have to cover it, or let staff go under Staff" + KeyBindings.hint("staff") + ".") % [
 			world.wage_bill(), GameState.gold]
 	return ""
 
@@ -133,7 +133,7 @@ static func _hire_advice(kind: int) -> String:
 	var role: StaffRole = StaffRole.for_kind(kind)
 	if role == null:
 		return ""
-	return "Hire a %s under Staff (K): %dg, then %dg a day." % [role.title.to_lower(), role.fee, role.wage]
+	return ("Hire a %s under Staff" + KeyBindings.hint("staff") + ": %dg, then %dg a day.") % [role.title.to_lower(), role.fee, role.wage]
 
 
 static func _verb(kind: int) -> String:

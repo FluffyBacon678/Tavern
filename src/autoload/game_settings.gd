@@ -31,6 +31,8 @@ signal quality_changed(level: int)
 signal audio_changed
 ## Anything else changed: UI scale, camera, hints. Listeners re-read what they use.
 signal changed
+## A key was rebound: labels that name keys should read them again.
+signal bindings_changed
 
 # --- gameplay ---------------------------------------------------------------
 ## Save at every close of business. Off, the game saves only when asked.
@@ -112,6 +114,7 @@ func load_settings() -> void:
 	if cfg.load(SAVE_PATH) != OK:
 		# No file yet: keep defaults, but pick a sensible quality for the device.
 		quality = Quality.MEDIUM if OS.has_feature("mobile") else Quality.HIGH
+		KeyBindings.install()
 		_apply_all()
 		return
 
@@ -135,6 +138,11 @@ func load_settings() -> void:
 	sfx_volume = cfg.get_value("audio", "sfx", sfx_volume)
 	interface_volume = cfg.get_value("audio", "interface", interface_volume)
 	mute_unfocused = cfg.get_value("audio", "mute_unfocused", mute_unfocused)
+	var bound: Dictionary = {}
+	if cfg.has_section("controls"):
+		for id in cfg.get_section_keys("controls"):
+			bound[id] = cfg.get_value("controls", id, [])
+	KeyBindings.install(bound)
 	_loading = false
 
 	_apply_all()
@@ -167,6 +175,9 @@ func save_settings() -> void:
 	cfg.set_value("audio", "sfx", sfx_volume)
 	cfg.set_value("audio", "interface", interface_volume)
 	cfg.set_value("audio", "mute_unfocused", mute_unfocused)
+	var bound: Dictionary = KeyBindings.overrides()
+	for id in bound:
+		cfg.set_value("controls", id, bound[id])
 	cfg.save(settings_path())
 
 
@@ -258,6 +269,9 @@ func reset_section(section: String) -> void:
 			sfx_volume = 0.9
 			interface_volume = 0.8
 			mute_unfocused = true
+		"controls":
+			KeyBindings.install()
+			bindings_changed.emit()
 	_loading = false
 	_apply_all()
 	save_settings()
@@ -319,3 +333,11 @@ func apply_quality_to_forest(config: ForestConfig) -> void:
 			config.cell_size = 10
 			config.world_scale = 1.5
 			config.tree_density = 0.46
+
+
+## Rebind one slot and keep it. Returns the action that lost the key, if any.
+func bind_key(id: String, slot: int, keycode: int) -> String:
+	var taken_from: String = KeyBindings.bind(id, slot, keycode)
+	save_settings()
+	bindings_changed.emit()
+	return taken_from

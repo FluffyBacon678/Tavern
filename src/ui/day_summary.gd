@@ -131,7 +131,7 @@ func show_day(entry: Dictionary, tavern_name: String, standing: Reputation = nul
 	if entry["purse"] < 0:
 		var warning := Label.new()
 		# Things that can actually be done: there is nothing to sell up.
-		warning.text = "You are in debt. Let staff go under Staff (K), cancel unbuilt blueprints for a full refund, or demolish for half back."
+		warning.text = "You are in debt. Let staff go under Staff" + KeyBindings.hint("staff") + ", cancel unbuilt blueprints for a full refund, or demolish for half back."
 		warning.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		warning.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		warning.add_theme_color_override("font_color", TavernTheme.DANGER)

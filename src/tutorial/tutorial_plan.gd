@@ -189,7 +189,7 @@ static func _looking_around() -> Array[TutorialStep]:
 	var L: String = LESSONS[0]
 	var out: Array[TutorialStep] = []
 	out.append(TutorialStep.make("cam_move", L,
-		"Move the view with W A S D or the arrow keys.",
+		"Move the view with %s." % (KeyBindings.move_keys(0) + (" or " + KeyBindings.move_keys(1) if not KeyBindings.move_keys(1).is_empty() else "")),
 		"Time is paused. Nothing happens in the tavern until you run it.",
 		func(w, ctx) -> bool: return w.rig._focus_target.distance_to(ctx["focus"]) >= 4.0,
 		func(w, _ctx) -> void: w.rig.focus_on(w.rig._focus_target + Vector3(6, 0, 0))
@@ -201,13 +201,13 @@ static func _looking_around() -> Array[TutorialStep]:
 		func(w, _ctx) -> void: w.rig.zoom_by(3.0)
 	).starting(func(w, ctx) -> void: ctx["distance"] = w.rig._distance_target))
 	out.append(TutorialStep.make("cam_turn", L,
-		"Turn the view with Q and E, or the arrow buttons at the top.",
+		"Turn the view with %s and %s, or the arrow buttons at the top." % [KeyBindings.first("cam_turn_left"), KeyBindings.first("cam_turn_right")],
 		"Walls between you and the room fade so you can see inside.",
 		func(w, ctx) -> bool: return absf(w.rig._yaw_target - ctx["yaw"]) >= 10.0,
 		func(w, _ctx) -> void: w.rig.rotate_step(1)
 	).starting(func(w, ctx) -> void: ctx["yaw"] = w.rig._yaw_target).pointing_at({"button": "↷"}))
 	out.append(TutorialStep.make("time_speed", L,
-		"Run time with 1, speed it up with 2, 3 or 4 (5x), then pause again with Space.",
+		"Run time with %s, speed it up with %s, %s or %s (5x), then pause again with %s." % [KeyBindings.first("speed_1"), KeyBindings.first("speed_2"), KeyBindings.first("speed_3"), KeyBindings.first("speed_4"), KeyBindings.first("pause")],
 		"The clock and speed buttons are at the top left. Pause whenever you want to plan.",
 		func(w, ctx) -> bool: return ctx.get("ran", false) and w.sim.speed == 0,
 		func(w, _ctx) -> void:
@@ -245,13 +245,13 @@ static func _building_a_room() -> Array[TutorialStep]:
 	var L: String = LESSONS[1]
 	var out: Array[TutorialStep] = []
 	out.append(TutorialStep.make("build_open", L,
-		"Press B, or the Build button, to open the build bar.",
+		"Press %s, or the Build button, to open the build bar." % KeyBindings.first("build"),
 		"Everything you build is paid for when you place it.",
 		func(w, _ctx) -> bool: return w.hud._build_bar.visible,
 		func(w, _ctx) -> void:
 			if not w.hud._build_bar.visible:
 				w.hud._toggle_build_bar()
-	).pointing_at({"button": "Build [B]"}))
+	).pointing_at({"button": "Build"}))
 	out.append(TutorialStep.make("floor", L,
 		"Pick Wood Floor and drag across the outlined ground to lay the floor.",
 		"The build bar shows what a drag costs, and what it leaves in the purse.",
@@ -300,7 +300,7 @@ static func _building_a_room() -> Array[TutorialStep]:
 	).starting(func(w, ctx) -> void: ctx["refunds"] = int(w.ledger.today.get(Ledger.Line.REFUNDS, 0))
 	).pointing_at(func(w) -> Dictionary: return {"tiles": Rect2i(at(w, SPARE_CHAIR), Vector2i.ONE)}))
 	out.append(TutorialStep.make("rooms", L,
-		"Press O, or Rooms, to see what the game counts as a room.",
+		"Press %s, or Rooms, to see what the game counts as a room." % KeyBindings.first("rooms"),
 		"Walls all the way round and a door make a room. Rooms are what the kitchen and hall bonuses read.",
 		func(w, _ctx) -> bool:
 			return w.room_overlay != null and w.room_overlay.visible and not w.rooms.current().is_empty(),
@@ -404,7 +404,7 @@ static func _supplies_and_production() -> Array[TutorialStep]:
 		func(w, _ctx) -> void: w.sim.speed = 4
 	).running(360.0).pointing_at({"role": &"porter"}))
 	out.append(TutorialStep.make("production", L,
-		"Open Production (P) and set Bake Bread to keep 6 in stock.",
+		"Open Production%s and set Bake Bread to keep 6 in stock." % KeyBindings.hint("production"),
 		"Each recipe keeps a number in stock, and starts again when it falls below the lower number.",
 		func(w, _ctx) -> bool:
 			return w.hud._production_panel.visible and int(w.bills.get_bill(&"bake_bread").get("target", 0)) == 6,
@@ -443,13 +443,13 @@ static func _staff() -> Array[TutorialStep]:
 	var L: String = LESSONS[4]
 	var out: Array[TutorialStep] = []
 	out.append(TutorialStep.make("staff_open", L,
-		"Open Staff (K).",
+		"Open Staff%s." % KeyBindings.hint("staff"),
 		"Each person has a position: it decides what work they may do and what they cost.",
 		func(w, _ctx) -> bool: return w.hud._priority_panel.visible,
 		func(w, _ctx) -> void:
 			if not w.hud._priority_panel.visible:
 				w.hud._priority_panel.toggle()
-	).pointing_at({"button": "Staff [K]"}))
+	).pointing_at({"button": "Staff"}))
 	out.append(TutorialStep.make("hire", L,
 		"Hire a Busser.",
 		"The fee is paid now, the wage every evening. Bussers clear tables, bring bills and carry goods.",
@@ -574,7 +574,7 @@ static func _fishing() -> Array[TutorialStep]:
 	var L: String = LESSONS[7]
 	var out: Array[TutorialStep] = []
 	out.append(TutorialStep.make("hire_fisher", L,
-		"Open Staff (K) and hire a Fisherman. The position opens on day 2.",
+		"Open Staff%s and hire a Fisherman. The position opens on day 2." % KeyBindings.hint("staff"),
 		"Fish costs nothing to buy: the first food the tavern brings in for itself.",
 		func(w, _ctx) -> bool: return PlayerActions.staff(w, &"fisherman") != null,
 		func(w, _ctx) -> void:
@@ -582,7 +582,7 @@ static func _fishing() -> Array[TutorialStep]:
 				w.hud._priority_panel.toggle()
 			PlayerActions.press(w.hud._priority_panel, "Fisherman")
 			w.hud._priority_panel.toggle()
-	).pointing_at({"button": "Staff [K]"}))
+	).pointing_at({"button": "Staff"}))
 	out.append(TutorialStep.make("fishing_spot", L,
 		"Build a Fishing Spot on the marked stretch of river bank.",
 		"It has to stand at the water's edge. A porter builds it; the fisherman works it.",

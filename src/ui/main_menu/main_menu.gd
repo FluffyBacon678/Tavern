@@ -21,7 +21,7 @@ const BACKDROP := "res://assets/final/ui/title_backdrop.png"
 const GAME_TITLE := "MOBILE TAVERN"
 const GAME_SUBTITLE := "a medieval tavern simulation"
 ## Shown in the corner, so screenshots and bug reports say which build.
-const BUILD_LABEL := "demo build 0.6 — guests with tastes"
+const BUILD_LABEL := "demo build 0.7 — your own controls"
 
 enum Page { NONE, NEW, LOAD, CREDITS }
 
