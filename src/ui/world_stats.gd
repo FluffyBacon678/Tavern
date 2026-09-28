@@ -171,7 +171,8 @@ static func _patron_rows(world, pawn: Pawn, brain: CustomerBrain) -> Array:
 		rows.append(_stat("Order", " · ".join(lines), TavernTheme.PARCHMENT, true))
 		var bill: int = brain.bill_so_far()
 		if bill > 0:
-			rows.append(_stat("Bill so far", "%dg, tip %dg if they left now" % [bill, brain.tip_so_far()]))
+			rows.append(_stat("Bill so far", "%dg%s, tip %dg if they left now" % [bill,
+				" +2% for the booking" if brain.booked else "", brain.tip_so_far()]))
 
 	# The review they would write this minute. Read from the same scoring as the
 	# real one, so the mood can never promise what the review then denies.

@@ -2,6 +2,7 @@ class_name Bookings
 extends RefCounted
 
 ## Tables booked for today, taken by a host at the stand each morning.
+## Booked guests pay PREMIUM over the menu, booked under Ledger.Line.BOOKINGS.
 ##
 ## The user's design: a host lets people reserve, which keeps the place fuller
 ## at all hours, and a low rating means fewer people bother to book. So the
@@ -17,6 +18,12 @@ const WORK: float = 3.0
 ## Hours people book for: lunch, the afternoon lull (twice as likely), evening.
 const SLOTS: Array[float] = [12.5, 13.5, 15.0, 15.0, 16.0, 16.0, 19.0, 20.5]
 const MOST: int = 12
+## Booked guests pay this much over the menu price.
+const PREMIUM: float = 0.02
+
+## The premium's fraction of a coin not yet paid. 2% of a 20g bill is 0.4g:
+## rounded per guest it would never be paid, so it adds up across guests.
+var carry: float = 0.0
 
 ## {hour, party, arrived} for each booking today.
 var today: Array = []
@@ -53,6 +60,14 @@ func due(hour: float) -> Dictionary:
 	return {}
 
 
+## The premium on a booked guest's bill, in whole coins, carrying the rest.
+func premium_on(bill: int) -> int:
+	carry += float(maxi(bill, 0)) * PREMIUM
+	var coins: int = int(floor(carry + 0.000001))
+	carry -= float(coins)
+	return coins
+
+
 func booked_guests() -> int:
 	var n: int = 0
 	for b in today:
@@ -78,11 +93,12 @@ func describe() -> String:
 
 
 func capture() -> Dictionary:
-	return {"taken_day": taken_day, "today": today.duplicate(true)}
+	return {"taken_day": taken_day, "today": today.duplicate(true), "carry": carry}
 
 
 func restore(data: Dictionary) -> void:
 	taken_day = int(data.get("taken_day", 0))
+	carry = clampf(float(data.get("carry", 0.0)), 0.0, 1.0)
 	today.clear()
 	for b in data.get("today", []):
 		if b is Dictionary and b.has("hour") and b.has("party"):

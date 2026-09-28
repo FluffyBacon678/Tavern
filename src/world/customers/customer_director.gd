@@ -53,6 +53,8 @@ var lost_count: int = 0
 var lost_no_seat: int = 0
 var lost_no_service: int = 0
 var lost_no_menu: int = 0
+## Today's takings from booked guests, premium included (also in `takings`).
+var booked_takings: int = 0
 var takings: int = 0
 ## Includes partial meals even when a patron subsequently leaves dissatisfied.
 var consumed: Dictionary = {}
@@ -480,9 +482,15 @@ func _on_customer_left(_brain: CustomerBrain, satisfied: bool, bill: int, tip: i
 		return
 
 	served_count += 1
+	# A booked guest's meal is the host's book, 2% dearer, on its own line; a
+	# walk-in's is ordinary takings.
+	var booked: bool = is_instance_valid(_brain) and _brain.booked
+	if booked:
+		bill += bookings.premium_on(bill)
+		booked_takings += bill
 	takings += bill + tip
 	if ledger != null:
-		ledger.earn(Ledger.Line.TAKINGS, bill)
+		ledger.earn(Ledger.Line.BOOKINGS if booked else Ledger.Line.TAKINGS, bill)
 		ledger.earn(Ledger.Line.TIPS, tip)
 	else:
 		GameState.gold += bill + tip
@@ -498,6 +506,7 @@ func reset_day_tallies() -> void:
 	lost_no_service = 0
 	lost_no_menu = 0
 	takings = 0
+	booked_takings = 0
 	day_reviews.clear()
 
 

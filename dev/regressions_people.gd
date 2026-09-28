@@ -654,3 +654,43 @@ func _check_bookings(world: TavernWorld) -> void:
 			director.remove_customer(b)
 	check(director.customers.size() == before, "the booking fixture leaves nobody behind")
 
+	# 2% over the menu, paid in whole coins as it adds up: five 20g bills make
+	# 100g, whose 2% is 2g, though no single bill's 0.4g rounds to a coin.
+	var purse := Bookings.new()
+	var extra: int = 0
+	for i in range(5):
+		extra += purse.premium_on(20)
+	check(extra == 2 and purse.carry < 0.01, "booked guests pay 2%% over the menu, to the coin (%dg on 100g)" % extra)
+
+	# Booked money is its own line in the books; walk-ins' stays under Takings.
+	var takings: int = int(world.ledger.today.get(Ledger.Line.TAKINGS, 0))
+	var booked_line: int = int(world.ledger.today.get(Ledger.Line.BOOKINGS, 0))
+	var gold: int = GameState.gold
+	var diner: CustomerBrain = director._try_spawn(true)
+	if diner != null:
+		director.bookings.carry = 0.0
+		director._on_customer_left(diner, true, 50, 0)
+		check(int(world.ledger.today.get(Ledger.Line.BOOKINGS, 0)) == booked_line + 51
+			and int(world.ledger.today.get(Ledger.Line.TAKINGS, 0)) == takings and GameState.gold == gold + 51,
+			"a booked guest's 50g bill is booked as 51g under Bookings, not Takings")
+		director.remove_customer(diner)
+	var walker: CustomerBrain = director._try_spawn()
+	if walker != null:
+		gold = GameState.gold
+		director._on_customer_left(walker, true, 50, 0)
+		check(int(world.ledger.today.get(Ledger.Line.TAKINGS, 0)) == takings + 50 and GameState.gold == gold + 50,
+			"a walk-in pays the menu price, under Takings")
+		director.remove_customer(walker)
+	check(Ledger.is_income(Ledger.Line.BOOKINGS) and Ledger.ORDER.has(Ledger.Line.BOOKINGS),
+		"Bookings is income, and on the day's books")
+	world.ledger.today[Ledger.Line.TAKINGS] = takings
+	world.ledger.today[Ledger.Line.BOOKINGS] = booked_line
+	GameState.gold -= 101
+
+	# No stand, no host: the street still sends people in.
+	check(Bookings.count_for(director.seating.seats.size(), 0.0) == 0 and director._try_spawn() != null,
+		"with no bookings at all, walk-ins still come in from the street")
+	for b in director.customers.duplicate():
+		if is_instance_valid(b):
+			director.remove_customer(b)
+

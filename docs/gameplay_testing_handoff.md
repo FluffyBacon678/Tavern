@@ -393,4 +393,9 @@ headless for the simulation alone, `-- --profile` for cost per system.
   patience. Saved with the guests. The stand's card lists the day's book.
   Tutorial steps host_stand / hire_host / bookings / booked_guest (51 steps).
   Soak: 274 served, 3 lost to service, 1 for a seat.
+- **Booking premium** (2026-09-29, user's rule): booked guests pay 2% over the
+  menu, booked under the new ledger line Bookings (income, shown after
+  Takings); walk-ins stay under Takings and keep coming whether or not anyone
+  books. The 2% carries fractions across guests (`Bookings.carry`), so it is
+  exact overall though one 20g bill's 0.4g never rounds to a coin.
 

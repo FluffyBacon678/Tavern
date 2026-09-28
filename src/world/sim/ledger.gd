@@ -28,10 +28,14 @@ enum Line {
 	## started, half of a finished piece. Income, so a day of tearing down a
 	## mistake reads as money recovered rather than as negative building.
 	REFUNDS,
+	## What booked guests paid, 2% over the menu price. Kept apart from the
+	## walk-ins' takings so the player can see what the host's book is worth.
+	## Appended last: saved books store lines by number.
+	BOOKINGS,
 }
 
 ## Every line, in the order a day's books are read.
-const ORDER: Array[int] = [Line.TAKINGS, Line.TIPS, Line.REFUNDS, Line.SUPPLIES,
+const ORDER: Array[int] = [Line.TAKINGS, Line.BOOKINGS, Line.TIPS, Line.REFUNDS, Line.SUPPLIES,
 	Line.WAGES, Line.CONSTRUCTION, Line.LAND, Line.HIRING]
 
 ## Daily wage per member of staff, charged at close of business.
@@ -60,6 +64,7 @@ func reset_day() -> void:
 		Line.CONSTRUCTION: 0,
 		Line.HIRING: 0,
 		Line.REFUNDS: 0,
+		Line.BOOKINGS: 0,
 	}
 
 
@@ -73,11 +78,12 @@ static func line_name(line: int) -> String:
 		Line.CONSTRUCTION: return "Building"
 		Line.HIRING: return "Hiring"
 		Line.REFUNDS: return "Refunds"
+		Line.BOOKINGS: return "Bookings"
 		_: return "Other"
 
 
 static func is_income(line: int) -> bool:
-	return line == Line.TAKINGS or line == Line.TIPS or line == Line.REFUNDS
+	return line == Line.TAKINGS or line == Line.TIPS or line == Line.REFUNDS or line == Line.BOOKINGS
 
 
 ## Money in. Returns the amount, for convenience at call sites.
@@ -113,7 +119,8 @@ func charge_wages(owed: int) -> int:
 
 
 func income() -> int:
-	return today.get(Line.TAKINGS, 0) + today.get(Line.TIPS, 0) + today.get(Line.REFUNDS, 0)
+	return today.get(Line.TAKINGS, 0) + today.get(Line.TIPS, 0) + today.get(Line.REFUNDS, 0) \
+		+ today.get(Line.BOOKINGS, 0)
 
 
 func outgoings() -> int:
