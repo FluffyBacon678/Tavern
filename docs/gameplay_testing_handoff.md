@@ -359,4 +359,19 @@ headless for the simulation alone, `-- --profile` for cost per system.
 - Chaos fingerprints now: seed 81 `4a0a210e`, seed 90 `9d91141f`, seed 33
   `7b6b6f68` (they moved because chaos can now build fishing spots and hire
   fishermen; a repeat run matches).
+- **The pass is kept clear** (2026-09-29, found by the new soak): guests who
+  gave up left plates on the serving counter and nothing moved them; with four
+  dishes and two counter tiles, leftovers stopped every other order (15-27
+  guests a day lost to service). When an order has nowhere to go, a cook now
+  carries off a plate nobody is waiting for (`CustomerDirector._clear_the_pass`).
+- **Soak** (`tutorial_smoke --days N`, suite `soak` at 6 days): trades on after
+  the tutorial, ordering the standard supplies each morning; fails when service
+  losses pass 3 a day. Now 272 served, 5 lost to service, 962g -> 4131g.
+- **Guest types** (phase 3, 2026-09-29, `src/world/customers/guest_type.gd`):
+  the outfit decides the kind. Warrior drinks up to 3, tips 0.8; wizard weighs
+  menu choice double, tips 1.3; ranger 0.75 patience, service weighs 1.5;
+  delver up to 2 plates, tips 0.7; duelist orders the dearest dish, tips 1.5;
+  pilgrim rarely drinks, weighs cleanliness double. The hover card names the
+  kind and what it wants; tutorial step `guest_type` (47 steps). Level 1900 /
+  1328 / -127g. Chaos: 81 `ba221835`, 90 `266b307e`, 33 `7b6b6f68`.
 

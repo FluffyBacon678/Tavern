@@ -1,4 +1,4 @@
-MOBILE TAVERN - demo build 0.5 (Windows)
+MOBILE TAVERN - demo build 0.6 (Windows)
 ========================================
 
 A medieval tavern management game: build rooms, stock the kitchen, hire staff,

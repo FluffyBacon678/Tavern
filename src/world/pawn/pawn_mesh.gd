@@ -95,6 +95,8 @@ class Rig:
 	var carry_anchor: Node3D
 	## In words, for the inspector: "a steel-clad warrior", "in the house uniform".
 	var description: String = ""
+	## Look.*: which kind of adventurer, for GuestType. STAFF for staff.
+	var kind: int = 0
 
 	func sync_pose() -> void:
 		for i in range(joints.size()):
@@ -118,6 +120,7 @@ static func build(rng: RandomNumberGenerator, material: Material, is_customer: b
 
 	var rig := Rig.new()
 	rig.description = outfit["description"]
+	rig.kind = int(outfit.get("look", Look.STAFF))
 	rig.root = Node3D.new()
 	rig.root.name = "Pawn"
 

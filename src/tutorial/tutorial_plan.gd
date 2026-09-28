@@ -517,6 +517,27 @@ static func _service() -> Array[TutorialStep]:
 					w.hud.hover.pin_at(Vector2(200, 200))
 					return
 	).running(300.0))
+	out.append(TutorialStep.make("guest_type", L,
+		"Every kind of adventurer wants something different. Point at guests to see who they are.",
+		"Warriors drink hard, rangers hate waiting, wizards want a long menu, pilgrims a clean table.",
+		func(w, _ctx) -> bool:
+			var subject: Dictionary = w.hud.hover._subject
+			if not w.hud.hover.visible or not is_instance_valid(subject.get("pawn")):
+				return false
+			var brain = subject["pawn"].get_node_or_null("Brain")
+			if brain == null or brain.guest_type.wants.is_empty():
+				return false
+			for row in WorldStats._patron_rows(w, subject["pawn"], brain):
+				if String(row.get("label", "")) == brain.guest_type.title:
+					return true
+			return false,
+		func(w, _ctx) -> void:
+			for brain in w.customers.customers:
+				if is_instance_valid(brain) and not brain.guest_type.wants.is_empty():
+					w.hud.hover.show_subject({"kind": WorldStats.Kind.PAWN, "pawn": brain.pawn})
+					w.hud.hover.pin_at(Vector2(200, 200))
+					return
+	).running(300.0))
 	return out
 
 

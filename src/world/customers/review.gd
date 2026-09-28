@@ -68,7 +68,8 @@ static func write(
 	order_wait: float,
 	menu: int,
 	dirt: float,
-	food_quality: float = -1.0
+	food_quality: float = -1.0,
+	cares: Dictionary = {}
 ) -> Review:
 	var r := Review.new()
 	r.patron = p_patron
@@ -93,6 +94,8 @@ static func write(
 	else:
 		# A third dish is worth a little more again: fish, in the demo.
 		var breadth: int = -4 if menu == 1 else (4 if menu == 2 else 6)
+		# A guest who cares for choice feels a short menu, and a long one, more.
+		breadth = int(round(float(breadth) * float(cares.get(Part.FOOD, 1.0))))
 		var cooking: int = 0
 		if food_quality >= 0.0:
 			# BASE_QUALITY -- ordinary work by an ordinary cook -- is exactly
@@ -103,6 +106,11 @@ static func write(
 			r.food_reason = "menu" if cooking > breadth else "cooking"
 	if menu <= 0:
 		r.food_reason = "menu"
+
+	# What this kind of guest cares about counts for more, good or bad.
+	for part in [Part.SERVICE, Part.SEATING, Part.CLEANLINESS]:
+		if cares.has(part):
+			r.parts[part] = int(round(float(r.parts[part]) * float(cares[part])))
 
 	var total: int = BASE
 	for part in r.parts:

@@ -100,6 +100,10 @@ var _observe_timer: float = 0.0
 var _rng := RandomNumberGenerator.new()
 
 
+## What kind of adventurer they are, and so what they want. See GuestType.
+var guest_type: GuestType = GuestType.of(-1)
+
+
 func setup(p_pawn: Pawn, p_director: Object, p_seating: Seating, p_items: ItemWorld, p_nav: NavGrid, rng_seed: int) -> void:
 	pawn = p_pawn
 	director = p_director
@@ -109,8 +113,9 @@ func setup(p_pawn: Pawn, p_director: Object, p_seating: Seating, p_items: ItemWo
 	_rng.seed = rng_seed
 	# Customers never wander off on their own; their state machine owns the body.
 	pawn.autonomous_idle = false
-	_patience = PATIENCE_FOR_SEAT
-	_seat_tolerance = PATIENCE_FOR_SEAT
+	guest_type = GuestType.of(pawn.adventurer if pawn != null else -1)
+	_patience = PATIENCE_FOR_SEAT * guest_type.patience
+	_seat_tolerance = PATIENCE_FOR_SEAT * guest_type.patience
 
 
 ## Met at the door. Tops up patience once, and only once.
@@ -227,7 +232,7 @@ func _process_ordering(delta: float) -> void:
 		_give_up()
 		return
 	state = State.READY_TO_ORDER
-	_patience = PATIENCE_FOR_WAITER
+	_patience = PATIENCE_FOR_WAITER * guest_type.patience
 	_waited_for_order = 0.0
 
 
@@ -253,7 +258,7 @@ func take_order() -> bool:
 		return false
 	state = State.WAITING_FOR_ORDER
 	_did_order = true
-	_patience = PATIENCE_FOR_ORDER
+	_patience = PATIENCE_FOR_ORDER * guest_type.patience
 	ordered.emit(self)
 	return true
 
@@ -304,16 +309,26 @@ func _place_order() -> bool:
 	if foods.is_empty() and drinks.is_empty():
 		return false
 
+	# Each kind of guest leans its own way; the ordinary traveller's numbers
+	# are the ones every guest used before there were kinds.
+	var t: GuestType = guest_type
 	var roll: float = _rng.randf()
-	var wants_food: bool = not foods.is_empty() and (roll < 0.7 or drinks.is_empty())
-	var wants_drink: bool = not drinks.is_empty() and (roll > 0.3 or foods.is_empty())
+	var wants_food: bool = not foods.is_empty() and (roll < t.food_chance or drinks.is_empty())
+	var wants_drink: bool = not drinks.is_empty() and (roll > 1.0 - t.drink_chance or foods.is_empty())
 
 	if wants_food:
-		var dish: StringName = foods[0] if foods.size() == 1 else foods[_rng.randi() % foods.size()]
-		order.append({"id": dish, "count": 1, "served": 0})
+		var dish: StringName = foods[0]
+		if t.dearest:
+			for id in foods:
+				if ItemCatalog.get_def(id).sell_value > ItemCatalog.get_def(dish).sell_value:
+					dish = id
+		elif foods.size() > 1:
+			dish = foods[_rng.randi() % foods.size()]
+		var plates: int = _rng.randi_range(1, t.most_dishes) if t.most_dishes > 1 else 1
+		order.append({"id": dish, "count": mini(plates, _sellable(dish)), "served": 0})
 	if wants_drink:
 		var drink: StringName = drinks[0] if drinks.size() == 1 else drinks[_rng.randi() % drinks.size()]
-		var cups: int = _rng.randi_range(1, 2) if wants_food else 1
+		var cups: int = _rng.randi_range(1, t.most_drinks) if wants_food else 1
 		order.append({"id": drink, "count": mini(cups, _sellable(drink)), "served": 0})
 	return not order.is_empty()
 
@@ -362,7 +377,7 @@ func _process_eating(delta: float) -> void:
 	_timer -= delta
 	if _timer <= 0.0:
 		state = State.WAITING_FOR_BILL
-		_patience = PATIENCE_FOR_BILL
+		_patience = PATIENCE_FOR_BILL * guest_type.patience
 		_waited_for_bill = 0.0
 
 
@@ -400,7 +415,7 @@ func _pay_and_go() -> void:
 	# Tip falls off with how long they waited -- for a waiter, for the food and
 	# for the bill. Prompt service is the only thing the player controls here,
 	# so it is the only thing that moves the number.
-	var tip: int = 0 if _paid_at_door else int(round(float(bill) * MAX_TIP * (1.0 - service_wait())))
+	var tip: int = 0 if _paid_at_door else int(round(float(bill) * MAX_TIP * guest_type.tip * (1.0 - service_wait())))
 
 	_leave_dishes()
 	_release_seat()
@@ -457,7 +472,8 @@ func write_review(satisfied: bool, spend: int) -> Review:
 		order_wait,
 		menu,
 		_dirt_sum / float(maxi(_dirt_samples, 1)),
-		food
+		food,
+		guest_type.cares
 	)
 
 
@@ -570,7 +586,7 @@ func bill_so_far() -> int:
 func tip_so_far() -> int:
 	if _paid_at_door:
 		return 0
-	return int(round(float(bill_so_far()) * MAX_TIP * (1.0 - service_wait())))
+	return int(round(float(bill_so_far()) * MAX_TIP * guest_type.tip * (1.0 - service_wait())))
 
 
 ## The review they would write if they were served and left this minute.

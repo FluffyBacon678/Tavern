@@ -71,14 +71,18 @@ func _ready() -> void:
 	brain = world.customers.customers[0]
 	check(brain.state == CustomerBrain.State.WAITING_FOR_BILL and GameState.gold == purse,
 		"a diner waiting for the bill survives reload, still unpaid")
+	# 16g of beer; the tip is by this guest's own kind (4g for an ordinary one).
+	var owed: int = brain.bill_so_far() + brain.tip_so_far()
+	check(brain.bill_so_far() == 16, "the restored diner owes for two beers")
 	check(brain.settle(), "bringing the bill settles it")
-	check(GameState.gold == purse + 20 and world.customers.served_count == 1, "restored diner pays the 16g bill and 4g tip once")
+	check(GameState.gold == purse + owed and world.customers.served_count == 1,
+		"restored diner pays the 16g bill and a %s's %dg tip, once" % [brain.guest_type.title.to_lower(), owed - 16])
 	check(world.customers.dishes_left == 1 and world.items.total_of(&"dirty_dishes") == 1,
 		"restored visit creates exactly one set of dishes")
 	world = _reload(world)
 	brain = world.customers.customers[0]
 	brain.sim_step(0.0)
-	check(GameState.gold == purse + 20 and world.customers.served_count == 1, "leaving diner is not billed again after reload")
+	check(GameState.gold == purse + owed and world.customers.served_count == 1, "leaving diner is not billed again after reload")
 	check(world.customers.day_reviews.size() == 1 and world.customers.consumed.get(&"beer", 0) == 2,
 		"review and lifetime consumption survive reload")
 	var invalid: Dictionary = CustomerSnapshot.capture(world.customers)

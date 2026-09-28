@@ -17,6 +17,7 @@ func run() -> void:
 	_check_fisherman(world)
 	_check_service_loop(world)
 	_check_fish_menu(world)
+	_check_guest_types(world)
 
 
 ## A host has to be worth their wage, and has to stop existing when the stand
@@ -533,3 +534,65 @@ func _check_fish_menu(world: TavernWorld) -> void:
 	for tile in world.items.tiles_with(&"fish_soup", world.plot.position):
 		world.items.take(tile, world.items.count_at(tile))
 	world.delivered[&"fish_soup"] = int(world.delivered.get(&"fish_soup", 0)) - added
+
+
+## Each kind of adventurer wants its own thing (phase 3), and the ordinary
+## traveller is still exactly the guest the game had before kinds.
+func _check_guest_types(world: TavernWorld) -> void:
+	var ordinary: GuestType = GuestType.of(-1)
+	check(ordinary.food_chance == 0.7 and ordinary.drink_chance == 0.7 and ordinary.most_drinks == 2
+		and ordinary.tip == 1.0 and ordinary.patience == 1.0 and ordinary.cares.is_empty(),
+		"the ordinary traveller keeps the old numbers")
+	check(GuestType.of(PawnMesh.Look.STAFF) == ordinary, "staff looks map to no kind of guest")
+	for look in [PawnMesh.Look.WARRIOR, PawnMesh.Look.WIZARD, PawnMesh.Look.RANGER,
+			PawnMesh.Look.ADVENTURER, PawnMesh.Look.DUELIST, PawnMesh.Look.PILGRIM]:
+		var t: GuestType = GuestType.of(look)
+		check(t != ordinary and not t.wants.is_empty(), "every outfit is a kind of guest that wants something: %s" % t.title)
+		check(t.food_chance + t.drink_chance >= 1.0, "a %s always orders something" % t.title.to_lower())
+
+	# A pilgrim's dirty table counts double; nothing else about the review moves.
+	var plain: Review = Review.write("A", true, 10, 0.0, 0.0, 2, 1.0, ItemWorld.BASE_QUALITY)
+	var fussy: Review = Review.write("A", true, 10, 0.0, 0.0, 2, 1.0, ItemWorld.BASE_QUALITY,
+		GuestType.of(PawnMesh.Look.PILGRIM).cares)
+	check(int(fussy.parts[Review.Part.CLEANLINESS]) == 2 * int(plain.parts[Review.Part.CLEANLINESS])
+		and fussy.parts[Review.Part.SERVICE] == plain.parts[Review.Part.SERVICE],
+		"a pilgrim minds a filthy room twice as much, and only that")
+
+	# Ordering, with bread, beer and grilled fish on.
+	var director: CustomerDirector = world.customers
+	var fish: ItemDef = ItemCatalog.get_def(&"grilled_fish")
+	var added: int = world.items.place_near(fish, 4, world.plot.position + world.plot.size / 2)
+	world.delivered[&"grilled_fish"] = int(world.delivered.get(&"grilled_fish", 0)) + added
+	var before: int = director.customers.size()
+	director._try_spawn()
+	if director.customers.size() == before + 1:
+		var brain: CustomerBrain = director.customers[director.customers.size() - 1]
+		brain.set_process(false)
+		brain.pawn.set_process(false)
+		brain.pawn.stop()
+		check(brain.guest_type == GuestType.of(brain.pawn.adventurer), "a guest is the kind their outfit says")
+		brain.guest_type = GuestType.of(PawnMesh.Look.DUELIST)
+		var dearest: bool = true
+		for i in range(10):
+			brain._place_order()
+			for line in brain.order:
+				if not ItemCatalog.get_def(line["id"]).tags.has("drink"):
+					dearest = dearest and line["id"] == &"grilled_fish"
+		check(dearest, "a duelist orders the dearest dish on the menu")
+		var drinks: Dictionary = {}
+		for kind in [PawnMesh.Look.WARRIOR, PawnMesh.Look.PILGRIM]:
+			brain.guest_type = GuestType.of(kind)
+			var n: int = 0
+			for i in range(60):
+				brain._place_order()
+				for line in brain.order:
+					if ItemCatalog.get_def(line["id"]).tags.has("drink"):
+						n += int(line["count"])
+			drinks[kind] = n
+		check(int(drinks[PawnMesh.Look.WARRIOR]) > 3 * int(drinks[PawnMesh.Look.PILGRIM]),
+			"a warrior drinks far more than a pilgrim (%d cups to %d)" % [drinks[PawnMesh.Look.WARRIOR], drinks[PawnMesh.Look.PILGRIM]])
+		brain.order.clear()
+		director.remove_customer(brain)
+	for tile in world.items.tiles_with(&"grilled_fish", world.plot.position):
+		var n: int = world.items.take(tile, world.items.count_at(tile))
+		world.delivered[&"grilled_fish"] = int(world.delivered.get(&"grilled_fish", 0)) - n

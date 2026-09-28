@@ -151,6 +151,9 @@ static func _patron_rows(world, pawn: Pawn, brain: CustomerBrain) -> Array:
 	# Who they are before what they are doing: the look is what the player
 	# picked them out of the crowd by.
 	rows.append(_sub("Patron · %s" % pawn.look if not pawn.look.is_empty() else "Patron"))
+	# And what that kind of adventurer wants, which is what to act on.
+	if not brain.guest_type.wants.is_empty():
+		rows.append(_stat(brain.guest_type.title, brain.guest_type.wants, TavernTheme.CANDLE, true))
 	rows.append(_stat("Now", _capitalise(brain.status_text()), TavernTheme.CANDLE, true))
 
 	var patience: float = brain.patience_fraction()

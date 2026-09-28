@@ -72,6 +72,8 @@ var wander_area: Rect2i
 var autonomous_idle: bool = true
 
 var _rig: PawnMesh.Rig
+## PawnMesh.Look: what kind of adventurer this is, which GuestType reads.
+var adventurer: int = 0
 var _path: Array[Vector2i] = []
 var _path_index: int = 0
 var _move_from: Vector3
@@ -110,6 +112,7 @@ func setup(p_nav: NavGrid, p_terrain: TerrainMeshBuilder, start_tile: Vector2i, 
 	_rig = PawnMesh.build(_rng, material, is_customer, uniform)
 	add_child(_rig.root)
 	look = _rig.description
+	adventurer = _rig.kind
 
 	tile = start_tile
 	position = world_position_of(start_tile)
