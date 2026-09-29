@@ -32,8 +32,9 @@ const ACTIONS: Array = [
 	["speed_3", "Time", "Faster (3x)", [KEY_3, KEY_KP_3]],
 	["speed_4", "Time", "Fastest (5x)", [KEY_4, KEY_KP_4]],
 	["build", "Tavern", "Build", [KEY_B]],
-	["rotate", "Tavern", "Rotate what you are placing", [KEY_R]],
-	["demolish", "Tavern", "Demolish", [KEY_X]],
+	["rotate", "Building", "Rotate what you are placing", [KEY_R]],
+	["demolish", "Building", "Demolish, or sell goods", [KEY_X]],
+	["build_undo", "Building", "Take back the last placement", [KEY_C]],
 	["staff", "Tavern", "Staff and hiring", [KEY_K]],
 	["production", "Tavern", "Production", [KEY_P]],
 	["supplies", "Tavern", "Order supplies", [KEY_U]],
@@ -45,6 +46,12 @@ const ACTIONS: Array = [
 	["screenshot", "Game", "Take a screenshot", [KEY_F12]],
 	["toggle_fullscreen", "Game", "Full screen or windowed", [KEY_F11]],
 ]
+
+## Actions that only count while the build bar is open. They may share a key
+## with an action that works everywhere else -- C takes back a placement while
+## building, and switches the camera the rest of the time -- and they win while
+## the bar is open.
+const BUILD_ONLY: Array[String] = ["build_undo"]
 
 ## Keys the table may not take: they mean something fixed.
 const RESERVED: Array = [KEY_ESCAPE, KEY_ALT, KEY_SHIFT, KEY_CTRL, KEY_META]
@@ -97,6 +104,9 @@ static func bind(id: String, slot: int, keycode: int) -> String:
 	var taken_from: String = ""
 	if keycode != 0:
 		for other in _keys:
+			# A build-bar action and an everywhere-else one can share a key.
+			if BUILD_ONLY.has(other) != BUILD_ONLY.has(id):
+				continue
 			for s in range(2):
 				if int(_keys[other][s]) == keycode and not (other == id and s == slot):
 					_keys[other][s] = 0

@@ -55,7 +55,7 @@ static func diagnose(world) -> String:
 			waiting[job.kind] = true
 		for kind in [WorkType.Kind.COOK, WorkType.Kind.HAUL, WorkType.Kind.SERVE,
 				WorkType.Kind.CLEAN, WorkType.Kind.CLEAR, WorkType.Kind.CONSTRUCT, WorkType.Kind.GATHER,
-				WorkType.Kind.BILL]:
+				WorkType.Kind.BILL, WorkType.Kind.FISH, WorkType.Kind.HOST]:
 			if waiting.has(kind) and not _anyone_allowed(world, kind):
 				return "Nobody on the staff can %s. %s" % [_verb(kind), _hire_advice(kind)]
 
@@ -68,13 +68,29 @@ static func diagnose(world) -> String:
 				var def: ItemDef = ItemCatalog.get_def(id)
 				out.append(def.display_name.to_lower() if def != null else String(id))
 		if not out.is_empty():
-			var delivery: int = world.order_cost(world.STANDARD_ORDER)
-			if GameState.gold < delivery:
-				# Advice that can be followed: the standard order is out of reach,
-				# so say what is not.
-				return "Out of %s, and the purse (%dg) will not cover a full delivery (%dg). Order just what is missing, or demolish something for money back." % [
-					_joined(out), GameState.gold, delivery]
-			return "Out of %s. Order supplies before the kitchen stops." % _joined(out)
+			# Auto-order has it in hand, unless it has said why it is holding back
+			# or the missing goods are ones the player said never to buy.
+			var auto: AutoSupply = world.auto_supply
+			if auto.enabled:
+				if not auto.note.is_empty():
+					return auto.note
+				var unbought: PackedStringArray = PackedStringArray()
+				for id in _ingredients_in_use(world):
+					if world.stock_of(id) <= 0 and auto.never.has(id):
+						unbought.append(ItemCatalog.get_def(id).display_name.to_lower())
+				if not unbought.is_empty():
+					return "Out of %s, which auto-order is set never to buy. Get it yourself, or tick it in Production%s." % [
+						_joined(unbought), KeyBindings.hint("production")]
+				# Otherwise it is on its way: nothing to say, and on to the rest.
+			else:
+				var delivery: int = world.order_cost(world.STANDARD_ORDER)
+				if GameState.gold < delivery:
+					# Advice that can be followed: the standard order is out of reach,
+					# so say what is not.
+					return "Out of %s, and the purse (%dg) will not cover a full delivery (%dg). Order just what is missing, or demolish something for money back." % [
+						_joined(out), GameState.gold, delivery]
+				return "Out of %s. Order supplies%s, or switch on auto-order in Production%s." % [
+					_joined(out), KeyBindings.hint("supplies"), KeyBindings.hint("production")]
 
 	if customers.lost_no_menu >= LOSSES_WORTH_NAMING and customers.menu_stock() <= 0:
 		return "Nothing to sell: %d guests left today without ordering." % customers.lost_no_menu

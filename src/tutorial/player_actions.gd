@@ -68,6 +68,13 @@ static func demolish(world, tile: Vector2i) -> bool:
 	return world.build.grid.live_count() < before
 
 
+## The take-back key in the build bar, as WorldInput answers it.
+static func undo(world) -> int:
+	if world.hud._build_bar != null and not world.hud._build_bar.visible:
+		world.hud._toggle_build_bar()
+	return world.undo_last_placement()
+
+
 ## Leave build mode and close the bar, as Esc does.
 static func stop_building(world) -> void:
 	world.build.mode = BuildController.Mode.OFF

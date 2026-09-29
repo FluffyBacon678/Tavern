@@ -22,6 +22,7 @@ func run() -> void:
 	_check_custom_orders(world, scenario)
 	_check_fishing(world, scenario)
 	_check_blocked_pass(world, scenario)
+	_check_auto_supply(world, scenario)
 
 
 ## The opening delivery: the unloading area refuses what it cannot hold,
@@ -880,3 +881,65 @@ func _check_blocked_pass(world: TavernWorld, scenario: Node) -> void:
 			var n: int = world.items.take(tile, world.items.count_at(tile))
 			world.delivered[id] = int(world.delivered.get(id, 0)) - n
 	check(scenario.reconcile(), "the blocked-pass test leaves the books straight")
+
+
+## Auto-order: the stock targets buy their own ingredients, traced back through
+## dough to flour, never what the player marked, never tonight's wages, and not
+## every half hour.
+func _check_auto_supply(world: TavernWorld, scenario: Node) -> void:
+	var auto: AutoSupply = world.auto_supply
+	var bills: BillBook = world.bills
+	var gold: int = GameState.gold
+	var supplies: int = int(world.ledger.today.get(Ledger.Line.SUPPLIES, 0))
+	auto.enabled = true
+	auto.never.clear()
+	bills.set_target(&"bake_bread", world.stock_of(&"bread") + 20)
+	bills.set_target(&"brew_beer", world.stock_of(&"beer") + 200)
+	var wanted: Dictionary = auto.shortfall()
+	check(wanted.has(&"flour") and wanted.has(&"yeast") and wanted.has(&"malt") and wanted.has(&"hops"),
+		"a bread and a beer target want flour and yeast (through dough), malt and hops: %s" % AutoSupply.describe(wanted))
+	check(not wanted.has(&"trout") and not wanted.has(&"dough"), "nothing the merchant does not sell is wanted")
+	auto.set_never(&"water", true)
+	check(not auto.shortfall().has(&"water"), "an ingredient marked never-buy is left out")
+	auto.set_never(&"water", false)
+
+	# Ordered, once, then not again until the cooldown has passed.
+	GameState.gold = 100000
+	auto._since_order = AutoSupply.COOLDOWN
+	var order: Dictionary = auto.check()
+	check(not order.is_empty() and auto.last_order == order and GameState.gold < 100000,
+		"when the larder is short it orders by itself: %s" % AutoSupply.describe(order))
+	check(auto.check().is_empty(), "and not again straight away")
+
+	# The wages stay in the purse.
+	auto._since_order = AutoSupply.COOLDOWN
+	bills.set_target(&"bake_bread", world.stock_of(&"bread") + 40)
+	GameState.gold = world.wage_bill() + 1
+	check(auto.check().is_empty() and auto.note.contains("wages"), "an order that would eat tonight's wages waits, and says so")
+
+	# Targets met, nothing to buy; switched off, nothing at all.
+	bills.set_target(&"bake_bread", 0)
+	bills.set_target(&"brew_beer", 0)
+	check(auto.shortfall().is_empty(), "with the targets met there is nothing to buy")
+	auto.enabled = false
+	auto._since_order = AutoSupply.COOLDOWN
+	bills.set_target(&"bake_bread", 40)
+	GameState.gold = 100000
+	check(auto.check().is_empty(), "switched off, it never orders")
+
+	var saved: Dictionary = auto.capture()
+	var copy := AutoSupply.new()
+	auto.set_never(&"water", true)
+	copy.restore(auto.capture())
+	check(not copy.enabled and copy.never.has(&"water"), "the switch and the never-buy marks survive a save")
+	auto.set_never(&"water", false)
+
+	# Leave the fixture as found: its larder has the delivery in it now, which
+	# the books count as delivered.
+	auto.enabled = true
+	auto.note = ""
+	bills.reset_to_defaults()
+	var spent: int = int(world.ledger.today.get(Ledger.Line.SUPPLIES, 0)) - supplies
+	GameState.gold = gold - spent
+	check(scenario.reconcile(), "auto-ordered goods reconcile like any delivery")
+

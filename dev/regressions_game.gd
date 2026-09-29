@@ -110,8 +110,16 @@ func _check_trouble(world: TavernWorld, scenario: Node) -> void:
 			stash.append({"tile": tile, "count": world.items.count_at(tile), "quality": world.items.quality_at(tile)})
 		for entry in stash:
 			world.items.take(entry["tile"], entry["count"])
+		# Ordering by hand: the advice is to order.
+		world.auto_supply.enabled = false
 		said = Trouble.diagnose(world)
 		check(said.contains("Out of") and said.contains("hops"), "running out of hops is named: '%s'" % said)
+		# With auto-order on it is in hand, unless hops are marked never-buy.
+		world.auto_supply.enabled = true
+		check(not Trouble.diagnose(world).contains("hops"), "with auto-order on, the shortage is left to it")
+		world.auto_supply.set_never(&"hops", true)
+		check(Trouble.diagnose(world).contains("never to buy"), "unless hops are marked never to buy")
+		world.auto_supply.set_never(&"hops", false)
 		for entry in stash:
 			world.items.add(hops, entry["count"], entry["tile"], entry["quality"])
 		check(not Trouble.diagnose(world).contains("hops"), "and restocking clears it")

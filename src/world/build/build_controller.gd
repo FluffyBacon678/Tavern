@@ -305,6 +305,7 @@ func try_place() -> bool:
 		return false
 	if not _place_one(_hover_tile):
 		return false
+	_close_batch()
 	_rebuild_instances(selected)
 	placed.emit(selected)
 	return true
@@ -329,6 +330,7 @@ func finish_drag(limit: int) -> int:
 			break
 		if _place_one(tile):
 			done += 1
+	_close_batch()
 	if done > 0:
 		_rebuild_instances(selected)
 		placed.emit(selected)
@@ -347,7 +349,40 @@ func _place_one(origin: Vector2i) -> bool:
 		return false
 	if not instant:
 		_post_build_job(index)
+	_batch.append({"index": index, "def": selected, "origin": origin})
 	return true
+
+
+## What each placing action put down, newest last: one click, or one whole
+## drag. Undo (C in the build bar) takes back the latest that still stands.
+## Kept by what was placed where, not by index alone -- an index can be
+## reused once its piece is gone.
+var history: Array = []
+var _batch: Array = []
+const HISTORY_MOST: int = 30
+
+
+func _close_batch() -> void:
+	if not _batch.is_empty():
+		history.append(_batch)
+		_batch = []
+		if history.size() > HISTORY_MOST:
+			history.pop_front()
+
+
+## The latest action's pieces that are still where they were put.
+func pop_batch() -> Array:
+	while not history.is_empty():
+		var standing: Array = []
+		for record in history.pop_back():
+			var index: int = int(record["index"])
+			if index < grid.placements.size():
+				var entry = grid.placements[index]
+				if entry != null and entry["def"] == record["def"] and entry["origin"] == record["origin"]:
+					standing.append(record)
+		if not standing.is_empty():
+			return standing
+	return []
 
 
 ## Place without going through the cursor. Used by scripted setups and, later,

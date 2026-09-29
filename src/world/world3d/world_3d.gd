@@ -68,6 +68,11 @@ var ledger := Ledger.new()
 ## nothing outside the simulation may draw from it, and it draws from nothing
 ## outside.
 var sim_rng := RandomNumberGenerator.new()
+## Goods sold off by the player, by id, for the books: they left the tavern
+## without being eaten or used.
+var sold: Dictionary = {}
+## Buys what the stock targets need when the larder runs short. See AutoSupply.
+var auto_supply := AutoSupply.new()
 var bills := BillBook.new()
 var objectives := Objectives.new()
 var plot: Rect2i
@@ -272,12 +277,13 @@ func order_problem(order: Dictionary) -> String:
 
 ## Buy an order (the standard bundle if none is given) and unload it in the
 ## yard. All or nothing: refused, it charges nothing and places nothing.
-func order_supplies(order: Dictionary = {}) -> bool:
+func order_supplies(order: Dictionary = {}, quiet: bool = false) -> bool:
 	if order.is_empty():
 		order = STANDARD_ORDER
 	var problem: String = order_problem(order)
 	if not problem.is_empty():
-		hud.flash(problem)
+		if not quiet:
+			hud.flash(problem)
 		return false
 	var plan: Array = _plan_delivery(order)
 	var cost: int = order_cost(order)
@@ -288,7 +294,8 @@ func order_supplies(order: Dictionary = {}) -> bool:
 		items.place_near(line["def"], line["count"], line["tile"], 0)
 		delivered[line["def"].id] = delivered.get(line["def"].id, 0) + line["count"]
 
-	hud.flash("Delivery arrived — %dg" % cost)
+	if not quiet:
+		hud.flash("Delivery arrived — %dg" % cost)
 	hud.refresh_stats()
 	return true
 
@@ -601,6 +608,8 @@ func _open_level() -> void:
 	GameState.gold = level.starting_gold
 	hud.show_briefing(level)
 	if level.is_tutorial:
+		# The tutorial teaches ordering by hand first, then switches this on.
+		auto_supply.enabled = false
 		var room: Rect2i = TutorialPlan.room(self)
 		var middle: Vector2 = Vector2(room.position) + Vector2(room.size) * 0.5
 		if rig != null:
@@ -791,7 +800,13 @@ func wage_bill() -> int:
 ## space, not economy.
 func commit_build_action() -> void:
 	if build.mode == BuildController.Mode.DEMOLISH:
-		demolish_at(build.hover_tile())
+		var at: Vector2i = build.hover_tile()
+		# Loose goods with nothing built over them are sold, not the floor under
+		# them torn up: removing anything returns half its value.
+		if build.grid.object_index_at(at) < 0 and items.has_stack(at):
+			sell_stack(at)
+		else:
+			demolish_at(at)
 		return
 
 	if build.selected == null:
@@ -842,6 +857,56 @@ func demolish_at(tile: Vector2i, quiet: bool = false) -> int:
 			def.display_name.to_lower(), refund])
 	hud.refresh_stats()
 	return refund
+
+
+## Take back the latest placement (C in the build bar): a whole drag at once.
+## A blueprint nobody started comes back in full; a finished piece, half, as
+## any demolition does. Returns the gold back, or -1 with nothing to undo.
+func undo_last_placement() -> int:
+	var batch: Array = build.pop_batch()
+	if batch.is_empty():
+		hud.flash("Nothing to take back")
+		return -1
+	var refund: int = 0
+	var name: String = batch[0]["def"].display_name.to_lower()
+	for record in batch:
+		var tile: Vector2i = record["origin"]
+		var back: int = demolish_at(tile, true)
+		refund += maxi(back, 0)
+	hud.flash("Took back %s%s: %dg back" % ["%d x " % batch.size() if batch.size() > 1 else "", name, refund])
+	AudioDirector.play("ui_back")
+	return refund
+
+
+## Half a stack's value, for selling it off: half the merchant's price for an
+## ingredient, half the menu price for a dish. Free goods (well water, fish,
+## dirty plates) fetch nothing.
+static func sale_value(def: ItemDef, count: int) -> int:
+	if def == null or count <= 0:
+		return 0
+	var unit: int = def.purchase_price if def.purchase_price > 0 else def.sell_value
+	return unit * count / 2
+
+
+## Sell what stands on `tile` for half its value. Returns the gold, or -1 if
+## there was nothing there that anyone would buy.
+func sell_stack(tile: Vector2i, quiet: bool = false) -> int:
+	var def: ItemDef = items.def_at(tile)
+	var count: int = items.count_at(tile)
+	var value: int = sale_value(def, count)
+	if def == null or value <= 0:
+		if not quiet and def != null:
+			hud.flash("Nobody buys %s" % def.display_name.to_lower())
+		return -1
+	var taken: int = items.take(tile, count)
+	value = sale_value(def, taken)
+	sold[def.id] = int(sold.get(def.id, 0)) + taken
+	ledger.earn(Ledger.Line.SOLD, value)
+	if not quiet:
+		hud.flash("Sold %d %s: %dg" % [taken, def.display_name.to_lower(), value])
+	AudioDirector.play("ui_click")
+	hud.refresh_stats()
+	return value
 
 
 ## What demolishing this placement pays back.

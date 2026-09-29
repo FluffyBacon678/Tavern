@@ -290,9 +290,19 @@ static func _building_a_room() -> Array[TutorialStep]:
 			PlayerActions.place_all(w, &"table", tiles(w, TABLES))
 			PlayerActions.place_all(w, &"chair", tiles(w, chairs()))
 	).pointing_at(func(w) -> Dictionary: return {"tiles": area(w, Vector2i(0, 0), Vector2i(4, 5))}))
+	out.append(TutorialStep.make("take_back", L,
+		"Place a chair on the marked tile, then press %s to take it back." % KeyBindings.first("build_undo"),
+		"%s in the build bar undoes your last placement, a whole drag at once, and refunds it." % KeyBindings.first("build_undo"),
+		func(w, ctx) -> bool:
+			return int(w.ledger.today.get(Ledger.Line.REFUNDS, 0)) > int(ctx["refunds"]) 				and not placed_at(w, at(w, SPARE_CHAIR), &"chair"),
+		func(w, _ctx) -> void:
+			PlayerActions.place_all(w, &"chair", [at(w, SPARE_CHAIR)])
+			PlayerActions.undo(w)
+	).starting(func(w, ctx) -> void: ctx["refunds"] = int(w.ledger.today.get(Ledger.Line.REFUNDS, 0))
+	).pointing_at(func(w) -> Dictionary: return {"tiles": Rect2i(at(w, SPARE_CHAIR), Vector2i.ONE)}))
 	out.append(TutorialStep.make("demolish", L,
 		"Place one more chair on the marked tile, then press Demolish and click it.",
-		"Unbuilt blueprints refund in full; finished pieces give half back.",
+		"Unbuilt blueprints refund in full; finished pieces give half back. Loose goods sell for half.",
 		func(w, ctx) -> bool: return int(w.ledger.today.get(Ledger.Line.REFUNDS, 0)) > int(ctx["refunds"]),
 		func(w, _ctx) -> void:
 			PlayerActions.place_all(w, &"chair", [at(w, SPARE_CHAIR)])
@@ -413,6 +423,16 @@ static func _supplies_and_production() -> Array[TutorialStep]:
 			if not w.hud._production_panel.visible:
 				w.hud._production_panel.toggle()
 			w.bills.set_target(&"bake_bread", 6)
+	).pointing_at({"button": "Production"}))
+	out.append(TutorialStep.make("auto_order", L,
+		"In Production, tick \"Order ingredients automatically\".",
+		"From now on the merchant brings what your stock targets need whenever the larder runs short. Untick anything you get yourself.",
+		func(w, _ctx) -> bool: return w.auto_supply.enabled,
+		func(w, _ctx) -> void:
+			if not w.hud._production_panel.visible:
+				w.hud._production_panel.toggle()
+			w.hud._production_panel._auto_toggle.button_pressed = true
+			w.hud._production_panel.toggle()
 	).pointing_at({"button": "Production"}))
 	out.append(TutorialStep.make("first_bread", L,
 		"Run time until the first bread comes out of the oven.",

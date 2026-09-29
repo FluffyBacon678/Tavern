@@ -9,6 +9,7 @@ func run() -> void:
 	var scenario: Node = fixture_scenario
 	_check_area_fill(world)
 	_check_build_money(world)
+	_check_take_back_and_sell(world, scenario)
 	_check_rooms(world)
 	_check_room_overlay(world)
 	_check_doorway(world)
@@ -414,4 +415,87 @@ func _check_build_money(world: TavernWorld) -> void:
 	build.mode = BuildController.Mode.OFF
 	GameState.gold = gold_before
 	world.ledger.today = books_before
+
+
+## C in the build bar takes back the last placement -- a whole drag at once --
+## and removing anything returns half its value, goods included.
+func _check_take_back_and_sell(world: TavernWorld, scenario: Node) -> void:
+	var build: BuildController = world.build
+	var floor_def: BuildingDef = BuildingCatalog.get_def(&"wood_floor")
+	var chair: BuildingDef = BuildingCatalog.get_def(&"chair")
+	# Somewhere clear: a row of four free tiles in the plot.
+	var at := Vector2i(-1, -1)
+	for y in range(world.plot.position.y + 1, world.plot.end.y - 1):
+		for x in range(world.plot.position.x + 1, world.plot.end.x - 5):
+			var free: bool = true
+			for dx in range(5):
+				var t := Vector2i(x + dx, y)
+				free = free and build.grid.placement_at(t) < 0 and not world.items.has_stack(t) and world.nav.is_walkable(t)
+			if free:
+				at = Vector2i(x, y)
+				break
+		if at.x >= 0:
+			break
+	check(at.x >= 0, "the fixture has clear ground to build on")
+	if at.x < 0:
+		return
+	# Only this check's placements: earlier checks built in the same fixture.
+	build.history.clear()
+	var gold: int = GameState.gold
+	PlayerActions.select(world, &"wood_floor")
+	var laid: int = PlayerActions.drag(world, at, at + Vector2i(2, 0))
+	PlayerActions.select(world, &"chair")
+	PlayerActions.click(world, at + Vector2i(4, 0))
+	check(laid == 3 and GameState.gold == gold - 3 * floor_def.cost - chair.cost, "a drag of three floors and a chair go down")
+	check(PlayerActions.undo(world) == chair.cost and build.grid.placement_at(at + Vector2i(4, 0)) < 0
+		and build.grid.placement_at(at) >= 0, "taking back removes only the last placement, the chair, in full")
+	check(PlayerActions.undo(world) == 3 * floor_def.cost and build.grid.placement_at(at) < 0
+		and build.grid.placement_at(at + Vector2i(2, 0)) < 0, "and the one before it, the whole drag at once")
+	check(GameState.gold == gold, "every blueprint taken back is refunded in full")
+	check(PlayerActions.undo(world) == -1 and GameState.gold == gold, "with nothing left to take back, nothing more is refunded")
+
+	# A finished piece comes back at half, as any demolition does.
+	PlayerActions.click(world, at)
+	build.grid.mark_built(build.grid.placement_at(at))
+	check(PlayerActions.undo(world) == chair.cost / 2, "taking back a finished piece gives half back")
+	# Something already gone cannot be taken back twice.
+	PlayerActions.click(world, at)
+	world.demolish_at(at, true)
+	var before: int = GameState.gold
+	PlayerActions.undo(world)
+	check(GameState.gold == before and build.grid.placement_at(at) < 0, "a placement already demolished is skipped, not refunded again")
+	PlayerActions.stop_building(world)
+
+	# C is taking back in the build bar and the camera everywhere else.
+	check(KeyBindings.keys_of("build_undo")[0] == KEY_C and KeyBindings.keys_of("cam_mode")[0] == KEY_C,
+		"C takes back while building and switches the camera otherwise")
+
+	# Selling goods: half the merchant's price, on its own line, off the books.
+	var flour: ItemDef = ItemCatalog.get_def(&"flour")
+	world.items.add(flour, 6, at, ItemWorld.BASE_QUALITY)
+	world.delivered[&"flour"] = int(world.delivered.get(&"flour", 0)) + 6
+	var sold_line: int = int(world.ledger.today.get(Ledger.Line.SOLD, 0))
+	gold = GameState.gold
+	var value: int = world.sell_stack(at)
+	check(value == flour.purchase_price * 6 / 2 and GameState.gold == gold + value
+		and int(world.ledger.today.get(Ledger.Line.SOLD, 0)) == sold_line + value and not world.items.has_stack(at),
+		"six flour sell for half their price (%dg), under Sold stock" % value)
+	check(scenario.reconcile(), "sold goods leave the books straight")
+	var dishes: ItemDef = ItemCatalog.get_def(&"dirty_dishes")
+	check(TavernWorld.sale_value(dishes, 4) == 0, "nobody buys dirty plates")
+
+	# Demolish on goods lying on a floor sells the goods and leaves the floor.
+	PlayerActions.select(world, &"wood_floor")
+	PlayerActions.click(world, at + Vector2i(1, 0))
+	var malt: ItemDef = ItemCatalog.get_def(&"malt")
+	world.items.add(malt, 4, at + Vector2i(1, 0), ItemWorld.BASE_QUALITY)
+	world.delivered[&"malt"] = int(world.delivered.get(&"malt", 0)) + 4
+	gold = GameState.gold
+	PlayerActions.demolish(world, at + Vector2i(1, 0))
+	check(not world.items.has_stack(at + Vector2i(1, 0)) and build.grid.placement_at(at + Vector2i(1, 0)) >= 0
+		and GameState.gold == gold + malt.purchase_price * 4 / 2,
+		"demolishing loose goods sells them and leaves the floor they lay on")
+	world.demolish_at(at + Vector2i(1, 0), true)
+	PlayerActions.stop_building(world)
+	check(scenario.reconcile(), "and the books still balance")
 

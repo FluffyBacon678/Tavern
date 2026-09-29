@@ -289,7 +289,8 @@ func reconcile(quit_on_failure: bool = true) -> bool:
 		# Covers both destructions: recipe inputs, and refuse washed at a basin.
 		var used: int = world.generator.consumed.get(def.id, 0)
 		var eaten: int = world.customers.consumed.get(def.id, 0)
-		var difference: int = received + made - used - eaten - on_ground - carried
+		var sold: int = int(world.sold.get(def.id, 0))
+		var difference: int = received + made - used - eaten - sold - on_ground - carried
 		passed = passed and difference == 0
 		lines.append("%s: delivered=%d made=%d used=%d eaten=%d ground=%d carried=%d difference=%d" % [
 			def.id, received, made, used, eaten, on_ground, carried, difference])

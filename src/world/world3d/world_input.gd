@@ -80,6 +80,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventKey and event.pressed:
+		# The build bar's own keys first: C takes back a placement there, and
+		# only switches the camera when the bar is shut.
+		if not event.echo and hud._build_bar != null and hud._build_bar.visible \
+				and event.is_action_pressed("build_undo"):
+			world.undo_last_placement()
+			get_viewport().set_input_as_handled()
+			return
 		# Zoom keys repeat while held, like the wheel; everything else fires once.
 		if event.is_action_pressed("cam_zoom_in", true):
 			world.rig.zoom_by(-1.0)

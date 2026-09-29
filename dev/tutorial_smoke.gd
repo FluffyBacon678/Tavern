@@ -148,7 +148,8 @@ func _trade_on(days: int) -> bool:
 		await get_tree().process_frame
 		if world.clock.day != last:
 			last = world.clock.day
-			if world.order_problem(TavernWorld.STANDARD_ORDER) == "":
+			# A player with auto-order on leaves the larder to it.
+			if not world.auto_supply.enabled and world.order_problem(TavernWorld.STANDARD_ORDER) == "":
 				world.order_supplies()
 	# Guests given up on for want of service are the thing to watch: a pass
 	# jammed with abandoned plates lost 15-27 a day before it was fixed.

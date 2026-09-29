@@ -49,6 +49,8 @@ static func capture(world: TavernWorld) -> Dictionary:
 		"buildings": _capture_buildings(world),
 		"items": _capture_items(world),
 		"bills": _capture_bills(world),
+		"auto_supply": world.auto_supply.capture(),
+		"sold": _stringify_keys(world.sold),
 		"ledger": _capture_ledger(world),
 		"pawns": _capture_pawns(world),
 		"production": {"produced": _stringify_keys(world.generator.produced),
@@ -246,6 +248,11 @@ static func apply(world: TavernWorld, data: Dictionary) -> void:
 	if world.level != null and world.level.is_tutorial and world.hud != null:
 		world.hud.start_tutorial(maxi(0, int(data.get("tutorial_step", 0))))
 	_apply_ledger(world, data.get("ledger", {}))
+	world.auto_supply.restore(data.get("auto_supply", {}) if data.get("auto_supply") is Dictionary else {})
+	world.sold.clear()
+	if data.get("sold") is Dictionary:
+		for id in data["sold"]:
+			world.sold[StringName(id)] = int(data["sold"][id])
 	_apply_pawns(world, data.get("pawns", []))
 
 	if world.customers != null:

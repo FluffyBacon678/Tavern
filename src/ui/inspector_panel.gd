@@ -175,8 +175,19 @@ func refresh() -> void:
 		return
 	StatRows.render(_rows, rows, false, custom_minimum_size.x - 32.0 - StatRows.LABEL_WIDTH - 8.0)
 	reset_size()
-	if kind == Kind.BUILDING and _performable_key() != _extras_key:
+	if (kind == Kind.BUILDING or kind == Kind.ITEMS) and _extras_now() != _extras_key:
 		_rebuild_extras()
+
+
+## What the buttons below depend on: the recipes that can be done by hand, or
+## the stack a Sell button names.
+func _extras_now() -> String:
+	match kind:
+		Kind.BUILDING:
+			return _performable_key()
+		Kind.ITEMS:
+			return "%d" % world.items.count_at(tile) if world != null else ""
+	return ""
 
 
 func _performable_key() -> String:
@@ -192,7 +203,7 @@ func _performable_key() -> String:
 
 
 func _rebuild_extras() -> void:
-	_extras_key = _performable_key() if kind == Kind.BUILDING else ""
+	_extras_key = _extras_now()
 	for child in _extras.get_children():
 		_extras.remove_child(child)
 		child.queue_free()
@@ -209,6 +220,8 @@ func _rebuild_extras() -> void:
 				_extras.add_child(staff)
 		Kind.BUILDING:
 			_building_extras()
+		Kind.ITEMS:
+			_stack_extras()
 
 
 ## Follow [F]: keep the view on this person. Its label says which state it is
@@ -222,7 +235,7 @@ func _follow_button() -> Button:
 			return
 		var on: bool = target != null and target == pawn
 		b.set_pressed_no_signal(on)
-		b.text = "Following [F]" if on else "Follow [F]"
+		b.text = ("Following" if on else "Follow") + KeyBindings.tag("cam_follow")
 	refresh_label.call(rig.follow if rig != null else null)
 	b.pressed.connect(func() -> void:
 		if world != null:
@@ -292,6 +305,26 @@ func _present_filter(entry: Dictionary) -> void:
 			refresh()
 		)
 		_extras.add_child(reset)
+
+
+## Sell a loose stack for half its value: surplus flour, a spare cask.
+func _stack_extras() -> void:
+	if world == null or not world.items.has_stack(tile):
+		return
+	var def: ItemDef = world.items.def_at(tile)
+	var count: int = world.items.count_at(tile)
+	var value: int = TavernWorld.sale_value(def, count)
+	if value <= 0:
+		return
+	var b := Button.new()
+	b.text = "Sell %d %s for %dg" % [count, def.display_name.to_lower(), value]
+	b.tooltip_text = "Half what it is worth. Anybody fetching it will find it gone."
+	var at: Vector2i = tile
+	b.pressed.connect(func() -> void:
+		if world.sell_stack(at) >= 0:
+			clear()
+	)
+	_extras.add_child(b)
 
 
 ## The hands-on button. Section 22's promise in one control: step in during the
