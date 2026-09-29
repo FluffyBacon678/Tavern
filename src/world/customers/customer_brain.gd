@@ -576,11 +576,11 @@ func patience_fraction() -> float:
 		State.SEEKING_SEAT:
 			return clampf(_patience / maxf(_seat_tolerance, 1.0), 0.0, 1.0)
 		State.READY_TO_ORDER:
-			return clampf(_patience / PATIENCE_FOR_WAITER, 0.0, 1.0)
+			return clampf(_patience / (PATIENCE_FOR_WAITER * guest_type.patience), 0.0, 1.0)
 		State.WAITING_FOR_ORDER:
-			return clampf(_patience / PATIENCE_FOR_ORDER, 0.0, 1.0)
+			return clampf(_patience / (PATIENCE_FOR_ORDER * guest_type.patience), 0.0, 1.0)
 		State.WAITING_FOR_BILL:
-			return clampf(_patience / PATIENCE_FOR_BILL, 0.0, 1.0)
+			return clampf(_patience / (PATIENCE_FOR_BILL * guest_type.patience), 0.0, 1.0)
 	return -1.0
 
 

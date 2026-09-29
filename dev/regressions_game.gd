@@ -208,7 +208,8 @@ func _check_world_stats(world: TavernWorld, scenario: Node) -> void:
 		brain.order = [{"id": &"beer", "count": 2, "served": 1}]
 		brain.state = CustomerBrain.State.WAITING_FOR_ORDER
 		brain._did_order = true
-		brain._patience = CustomerBrain.PATIENCE_FOR_ORDER * 0.5
+		# Half of the patience this kind of guest was given.
+		brain._patience = CustomerBrain.PATIENCE_FOR_ORDER * brain.guest_type.patience * 0.5
 		brain._waited_for_order = CustomerBrain.PATIENCE_FOR_ORDER * 0.5
 		var before: String = var_to_str([brain.state, brain.order, brain._patience, brain._waited_for_order])
 		var rows: Array = WorldStats.pawn_rows(world, brain.pawn)

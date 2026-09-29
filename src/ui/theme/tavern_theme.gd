@@ -24,8 +24,8 @@ const INK := Color("1a120b")
 const DANGER := Color("b4543c")
 
 # --- metrics -------------------------------------------------------------
-const CORNER: int = 3
-const BORDER: int = 2
+const CORNER: int = 5
+const BORDER: int = 1
 
 
 ## Build the shared theme. `ui_scale` lets a phone-sized viewport request

@@ -141,6 +141,10 @@ func _trade_on(days: int) -> bool:
 		served += c.served_count
 		lost_service += c.lost_no_service
 		lost_seat += c.lost_no_seat
+		# A player reads the advice panel: told to hire a waiter, they do.
+		if Trouble.diagnose(world).contains("hire a waiter") and world.hire(&"waiter") == "":
+			if verbose:
+				print("     (hired a waiter, as the advice said)")
 		made_before = world.generator.produced.duplicate()
 		eaten_before = world.customers.consumed.duplicate()
 		PlayerActions.press(world.hud._day_summary, "Open tomorrow")

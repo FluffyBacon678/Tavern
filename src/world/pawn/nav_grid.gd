@@ -51,6 +51,7 @@ func setup(terrain: TerrainGrid, build: BuildGrid) -> void:
 
 ## Recompute every tile. Cheap enough at this size to just do on a world rebuild.
 func refresh_all() -> void:
+	_floors_dirty = true
 	for y in range(rows):
 		for x in range(cols):
 			var tile := Vector2i(x, y)
@@ -60,6 +61,7 @@ func refresh_all() -> void:
 
 ## Recompute a small area, for when something is built or demolished.
 func refresh_area(area: Rect2i) -> void:
+	_floors_dirty = true
 	for y in range(area.position.y, area.end.y):
 		for x in range(area.position.x, area.end.x):
 			var tile := Vector2i(x, y)
@@ -202,6 +204,34 @@ func adjacent_walkable(target: Vector2i, from: Vector2i) -> Vector2i:
 
 
 ## A random walkable tile inside a region, for spawning and for idle wandering.
+## Somewhere with a built floor to stand on, the better floors likelier: stone
+## counts twice what wood does. For where idle staff hang about -- inside the
+## tavern, mostly. (-1, -1) if there is no floor in `area`.
+func random_floor_in(area: Rect2i, rng: RandomNumberGenerator) -> Vector2i:
+	if _floors_dirty:
+		_floors_dirty = false
+		_floors.clear()
+		if _build != null:
+			for entry in _build.placements:
+				if entry == null or not entry["built"] or entry["def"].layer != BuildingDef.Layer.FLOOR:
+					continue
+				var weight: int = 2 if entry["def"].id == &"stone_floor" else 1
+				for tile in entry["tiles"]:
+					for i in range(weight):
+						_floors.append(tile)
+	var choices: Array[Vector2i] = []
+	for tile in _floors:
+		if area.has_point(tile) and is_walkable(tile):
+			choices.append(tile)
+	if choices.is_empty():
+		return Vector2i(-1, -1)
+	return choices[rng.randi() % choices.size()]
+
+
+var _floors: Array[Vector2i] = []
+var _floors_dirty: bool = true
+
+
 func random_walkable_in(area: Rect2i, rng: RandomNumberGenerator, attempts: int = 40) -> Vector2i:
 	for i in range(attempts):
 		var t := Vector2i(

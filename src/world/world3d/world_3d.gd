@@ -73,6 +73,8 @@ var sim_rng := RandomNumberGenerator.new()
 var sold: Dictionary = {}
 ## Buys what the stock targets need when the larder runs short. See AutoSupply.
 var auto_supply := AutoSupply.new()
+## The bubbles over people's heads. See ThoughtDirector.
+var thoughts: ThoughtDirector
 var bills := BillBook.new()
 var objectives := Objectives.new()
 var plot: Rect2i

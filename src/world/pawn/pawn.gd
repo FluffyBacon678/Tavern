@@ -27,6 +27,8 @@ const STRIDE_LENGTH: float = 0.9
 
 const IDLE_WANDER_MIN: float = 4.0
 const IDLE_WANDER_MAX: float = 11.0
+## How often an idle wander heads for a built floor rather than anywhere.
+const IDLE_ON_FLOORS: float = 0.75
 
 ## How close two people get before they start giving each other room, and how
 ## far a body may be nudged from where it logically stands.
@@ -74,6 +76,20 @@ var autonomous_idle: bool = true
 var _rig: PawnMesh.Rig
 ## PawnMesh.Look: what kind of adventurer this is, which GuestType reads.
 var adventurer: int = 0
+var _is_customer: bool = false
+var _bubble: ThoughtBubble
+
+
+## The faint staff-or-guest outline, on or off.
+func set_outline(on: bool) -> void:
+	if _rig != null and _rig.body != null:
+		_rig.body.material_overlay = PawnMesh.outline_material(_is_customer) if on else null
+
+
+## What the bubble over their head shows: a ThoughtBubble icon, or "" for none.
+func think(icon: String, urgent: bool = false) -> void:
+	if _bubble != null:
+		_bubble.show_icon(icon, urgent)
 var _path: Array[Vector2i] = []
 var _path_index: int = 0
 var _move_from: Vector3
@@ -113,6 +129,11 @@ func setup(p_nav: NavGrid, p_terrain: TerrainMeshBuilder, start_tile: Vector2i, 
 	add_child(_rig.root)
 	look = _rig.description
 	adventurer = _rig.kind
+	_is_customer = is_customer
+	set_outline(GameSettings.outline_people)
+	_bubble = ThoughtBubble.new()
+	_bubble.name = "Thought"
+	add_child(_bubble)
 
 	tile = start_tile
 	position = world_position_of(start_tile)
@@ -250,8 +271,14 @@ func _process_idle(delta: float) -> void:
 	if _idle_timer > 0.0:
 		return
 	_reset_idle_timer()
-	var target: Vector2i = nav.random_walkable_in(wander_area, _rng)
-	if target != Vector2i(-1, -1):
+	# Mostly on a good floor, but not only: staff hang about the tavern, and
+	# now and then step outside it.
+	var target := Vector2i(-1, -1)
+	if _rng.randf() < IDLE_ON_FLOORS:
+		target = nav.random_floor_in(wander_area, _rng)
+	if target == Vector2i(-1, -1):
+		target = nav.random_walkable_in(wander_area, _rng)
+	if target != Vector2i(-1, -1) and target != tile:
 		goto(target)
 
 

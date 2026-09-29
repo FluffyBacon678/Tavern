@@ -58,6 +58,10 @@ var max_fps: int = 0
 ## Menu background animation can be turned off entirely -- it is the single
 ## biggest battery cost on a phone sitting at the title screen.
 var animated_background: bool = true
+## A faint outline round each person: gold for staff, blue for guests.
+var outline_people: bool = true
+## Little bubbles over heads saying what each person is doing.
+var thought_bubbles: bool = true
 
 # --- audio --------------------------------------------------------------------
 var master_volume: float = 1.0:
@@ -133,6 +137,8 @@ func load_settings() -> void:
 	vsync = cfg.get_value("video", "vsync", vsync)
 	max_fps = cfg.get_value("video", "max_fps", max_fps)
 	animated_background = cfg.get_value("video", "animated_background", animated_background)
+	outline_people = cfg.get_value("video", "outline_people", outline_people)
+	thought_bubbles = cfg.get_value("video", "thought_bubbles", thought_bubbles)
 	master_volume = cfg.get_value("audio", "master", master_volume)
 	music_volume = cfg.get_value("audio", "music", music_volume)
 	sfx_volume = cfg.get_value("audio", "sfx", sfx_volume)
@@ -170,6 +176,8 @@ func save_settings() -> void:
 	cfg.set_value("video", "vsync", vsync)
 	cfg.set_value("video", "max_fps", max_fps)
 	cfg.set_value("video", "animated_background", animated_background)
+	cfg.set_value("video", "outline_people", outline_people)
+	cfg.set_value("video", "thought_bubbles", thought_bubbles)
 	cfg.set_value("audio", "master", master_volume)
 	cfg.set_value("audio", "music", music_volume)
 	cfg.set_value("audio", "sfx", sfx_volume)
@@ -263,6 +271,8 @@ func reset_section(section: String) -> void:
 			vsync = true
 			max_fps = 0
 			animated_background = true
+			outline_people = true
+			thought_bubbles = true
 		"audio":
 			master_volume = 1.0
 			music_volume = 0.7

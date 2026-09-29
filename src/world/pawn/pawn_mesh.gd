@@ -95,6 +95,8 @@ class Rig:
 	var carry_anchor: Node3D
 	## In words, for the inspector: "a steel-clad warrior", "in the house uniform".
 	var description: String = ""
+	## The one skinned mesh everything is drawn in, for the outline overlay.
+	var body: MeshInstance3D
 	## Look.*: which kind of adventurer, for GuestType. STAFF for staff.
 	var kind: int = 0
 
@@ -279,6 +281,7 @@ static func _merge_rig(rig: Rig, material: Material) -> void:
 	instance.skin = skin
 	instance.skeleton = NodePath("../Skeleton")
 	instance.material_override = material
+	rig.body = instance
 	# Swinging arms extend beyond the standing mesh bounds.
 	instance.extra_cull_margin = HEIGHT
 	rig.root.add_child(instance)
@@ -548,3 +551,37 @@ static func _chamfered_head(mb: MeshBuilder, bottom: float, top: float, width: f
 		mb.add_quad(a, b, c, d, col)
 		mb.add_tri(Vector3(0.0, top, 0.0), d, c, col)
 		mb.add_tri(Vector3(0.0, bottom, 0.0), b, a, col)
+
+
+## A faint outline for telling staff from guests at a glance: the body drawn
+## again a little larger, inside out, in one flat colour -- so only a thin rim
+## of it shows round the edge. Gold for staff, blue for guests.
+const OUTLINE_STAFF := Color(1.0, 0.78, 0.25, 0.55)
+const OUTLINE_GUEST := Color(0.4, 0.75, 1.0, 0.5)
+const OUTLINE_WIDTH: float = 0.032
+static var _outlines: Dictionary = {}
+
+
+static func outline_material(is_customer: bool) -> ShaderMaterial:
+	if _outlines.has(is_customer):
+		return _outlines[is_customer]
+	var shader := Shader.new()
+	shader.code = """
+shader_type spatial;
+render_mode unshaded, cull_front, depth_draw_never, blend_mix, shadows_disabled;
+uniform vec4 rim : source_color = vec4(1.0);
+uniform float width = 0.02;
+void vertex() {
+	VERTEX += NORMAL * width;
+}
+void fragment() {
+	ALBEDO = rim.rgb;
+	ALPHA = rim.a;
+}
+"""
+	var material := ShaderMaterial.new()
+	material.shader = shader
+	material.set_shader_parameter("rim", OUTLINE_GUEST if is_customer else OUTLINE_STAFF)
+	material.set_shader_parameter("width", OUTLINE_WIDTH)
+	_outlines[is_customer] = material
+	return material

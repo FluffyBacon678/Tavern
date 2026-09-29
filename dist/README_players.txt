@@ -1,4 +1,4 @@
-MOBILE TAVERN - demo build 0.8 (Windows)
+MOBILE TAVERN - demo build 0.9 (Windows)
 ========================================
 
 A medieval tavern management game: build rooms, stock the kitchen, hire staff,
@@ -18,13 +18,21 @@ CONTROLS (every key can be changed in Settings > Controls)
   Q / E                turn the view        H                    back to the tavern
   Space                pause                1-4                  game speed
   B                    build                X                    demolish
-  R                    rotate               K                    staff
+  R                    rotate               C (while building)   take back the last placement
+  K                    staff
   P                    production           U                    supplies
   L                    ledger               O                    rooms
   V                    cutaway walls        F                    follow someone
   F5                   save now             F12                  screenshot
   F11                  full screen          Esc                  pause menu / close
   Hold Alt             see every stack's count
+
+TIPS
+  Gold outlines are your staff, blue are guests. The little bubbles say
+  what each person is doing; a red one is a guest running out of patience.
+  Production (P) keeps stock targets and, once you have ordered once, buys
+  the ingredients by itself. Untick anything you get yourself (well water).
+  Demolish (X) on loose goods sells them for half their value.
 
 Saves live in %APPDATA%\Godot\app_userdata\Mobile Tavern. The game also saves
 itself at the close of every day. Screenshots go in the screenshots

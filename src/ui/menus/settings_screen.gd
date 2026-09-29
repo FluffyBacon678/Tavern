@@ -261,6 +261,13 @@ func _page_video() -> void:
 	_add_row("Animated title screen", _toggle(GameSettings.animated_background, func(on: bool) -> void:
 		GameSettings.set_value("animated_background", on)),
 		"The slow drift of the picture behind the title screen.")
+	_group("People")
+	_add_row("Outline staff and guests", _toggle(GameSettings.outline_people, func(on: bool) -> void:
+		GameSettings.set_value("outline_people", on)),
+		"A faint outline round everyone: gold for your staff, blue for guests.")
+	_add_row("Thought bubbles", _toggle(GameSettings.thought_bubbles, func(on: bool) -> void:
+		GameSettings.set_value("thought_bubbles", on)),
+		"A tiny bubble over each head: what they are doing, or waiting for. Red when a guest is losing patience.")
 
 
 func _page_audio() -> void:

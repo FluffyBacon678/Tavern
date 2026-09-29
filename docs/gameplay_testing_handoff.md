@@ -398,4 +398,19 @@ headless for the simulation alone, `-- --profile` for cost per system.
   Takings); walk-ins stay under Takings and keep coming whether or not anyone
   books. The 2% carries fractions across guests (`Bookings.carry`), so it is
   exact overall though one 20g bill's 0.4g never rounds to a coin.
+- **Round of 2026-09-29 (user's list):** C in the build bar takes back the last
+  placement (`BuildController.history`, a drag at once; full refund for a
+  blueprint, half for a finished piece). Loose goods sell for half value
+  (`TavernWorld.sell_stack`, Sold stock line, `world.sold` in the books).
+  Auto-order (`AutoSupply`): targets buy their ingredients after the first
+  delivery; never-buy marks; keeps wages; 70 game-s cooldown; halves to fit
+  the yard. Faint outlines (gold staff, blue guests: `PawnMesh.outline_material`)
+  and thought bubbles (`ThoughtBubble`, `ThoughtDirector`, frame clock only),
+  both switchable in Settings > Video. Idle staff wander to built floors 75%
+  of the time (stone twice as likely). HUD 10% smaller, 1px borders, softer
+  corners, fading panels, a day bar with the rushes marked, "N idle / N
+  waiting" in the header, a fish-dish chip. Soak hires a waiter when the
+  advice says to. Level 2939 / 1841 / -128g (goal 1100: auto-order made it
+  much easier; goal left for the user to decide). Chaos 81 `8d3250b4`,
+  90 `b6807bbe`, 33 `f0fa2628`. Max tavern 17.1 ms median, 30.9 ms p95.
 

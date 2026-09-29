@@ -65,7 +65,7 @@ func _build_hud() -> void:
 	_hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(_hud)
 	_hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_hud.theme = TavernTheme.build(TavernTheme.scale_for_control(_hud) * 0.8)
+	_hud.theme = TavernTheme.build(TavernTheme.scale_for_control(_hud) * HUD_SCALE)
 	# Built once, the text scale kept whatever the window was when the game
 	# opened: drag the window smaller and the bar ran off the edge.
 	get_viewport().size_changed.connect(_apply_scale)
@@ -100,7 +100,7 @@ func _build_hud() -> void:
 	header_row.add_child(title_box)
 	_title_label = Label.new()
 	_title_label.clip_text = true
-	_title_label.add_theme_font_size_override("font_size", 21)
+	_title_label.add_theme_font_size_override("font_size", 19)
 	_title_label.add_theme_color_override("font_color", Color("edcf90"))
 	title_box.add_child(_title_label)
 	# The clock and the speed controls on one line, as in Prison Architect:
@@ -108,6 +108,11 @@ func _build_hud() -> void:
 	var clock_row := HBoxContainer.new()
 	clock_row.add_theme_constant_override("separation", 10)
 	title_box.add_child(clock_row)
+	# How much of the open day is gone, with the rushes marked.
+	_day_bar = DayBar.new()
+	_day_bar.custom_minimum_size = Vector2(0, 5)
+	_day_bar.tooltip_text = "The trading day, 08:00 to 23:00. Lunch and evening rushes are marked."
+	title_box.add_child(_day_bar)
 	_clock_label = Label.new()
 	_clock_label.add_theme_font_size_override("font_size", 12)
 	_clock_label.add_theme_color_override("font_color", Color("bdad8a"))
@@ -141,13 +146,15 @@ func _build_hud() -> void:
 	_gold_label = _stock_chip(header_row, "coins", "Gold in the purse")
 	_bread_label = _stock_chip(header_row, "bread", "Bread, including carried stock")
 	_beer_label = _stock_chip(header_row, "beer-stein", "Beer, including carried stock")
+	_fish_label = _stock_chip(header_row, "pixel:fish", "Fish dishes: grilled fish and fish soup")
 	_gold_chip = _gold_label.get_parent()
 	_bread_chip = _bread_label.get_parent()
 	_beer_chip = _beer_label.get_parent()
+	_fish_chip = _fish_label.get_parent()
 	_staff_label = Label.new()
 	# Takes the mouse so it can carry a tooltip: who is doing what.
 	_staff_label.mouse_filter = Control.MOUSE_FILTER_STOP
-	_staff_label.add_theme_font_size_override("font_size", 14)
+	_staff_label.add_theme_font_size_override("font_size", 13)
 	header_row.add_child(_staff_label)
 	# Standing sits in the header beside the purse, because it is the other
 	# number that decides tomorrow.
@@ -156,7 +163,7 @@ func _build_hud() -> void:
 	_reputation_stars.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	header_row.add_child(_reputation_stars)
 	_reputation_label = Label.new()
-	_reputation_label.add_theme_font_size_override("font_size", 14)
+	_reputation_label.add_theme_font_size_override("font_size", 13)
 	_reputation_label.add_theme_color_override("font_color", Color("edcf90"))
 	_reputation_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	header_row.add_child(_reputation_label)
@@ -309,11 +316,14 @@ func _build_hud() -> void:
 	_production_panel.name = "ProductionPanel"
 	_hud.add_child(_production_panel)
 	_production_panel.add_theme_stylebox_override("panel", _panel_style())
+	_fade_in_when_shown(_production_panel)
 
 	_priority_panel = PriorityPanel.new()
 	_priority_panel.name = "PriorityPanel"
 	_hud.add_child(_priority_panel)
 	_priority_panel.setup(world)
+	for panel in [_land_panel, _supply_panel, _details_panel, _priority_panel]:
+		_fade_in_when_shown(panel)
 	_objectives_panel = ObjectivesPanel.new()
 	_objectives_panel.name = "ObjectivesPanel"
 	_hud.add_child(_objectives_panel)
@@ -422,16 +432,22 @@ func _build_hud() -> void:
 func _apply_scale() -> void:
 	if _hud == null:
 		return
-	var ui_scale: float = TavernTheme.scale_for_control(_hud) * 0.8
+	var ui_scale: float = TavernTheme.scale_for_control(_hud) * HUD_SCALE
 	var theme: Theme = TavernTheme.build(ui_scale)
-	# Narrower side padding than the menus use. Fourteen buttons share the bar,
-	# and at the menus' padding they were a few units wider than a 16:9 window:
-	# the old bar hid that by spilling past its own edge. Height is unchanged.
+	# Narrower padding than the menus use. Fourteen buttons share the bar, and
+	# at the menus' padding they were a few units wider than a 16:9 window: the
+	# old bar hid that by spilling past its own edge. Slimmer top and bottom
+	# too, and a touch see-through, so the bar sits over the world rather than
+	# walling it off.
 	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
 		var box: StyleBox = theme.get_stylebox(state, "Button")
 		if box != null:
-			box.content_margin_left = roundf(18.0 * ui_scale)
-			box.content_margin_right = roundf(18.0 * ui_scale)
+			box.content_margin_left = roundf(14.0 * ui_scale)
+			box.content_margin_right = roundf(14.0 * ui_scale)
+			box.content_margin_top = roundf(8.0 * ui_scale)
+			box.content_margin_bottom = roundf(8.0 * ui_scale)
+			if box is StyleBoxFlat and state == "normal":
+				(box as StyleBoxFlat).bg_color.a = 0.88
 	_hud.theme = theme
 	# The speed buttons are drawn, not typed, so the theme does not size them.
 	# Sized in canvas units alone they came out 19 pixels tall on a 1024-wide
@@ -481,34 +497,52 @@ func _layout_top() -> void:
 
 func _panel_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color("29271ff2")
+	style.bg_color = Color("29271ff0")
 	style.border_color = Color("85704b")
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(2)
-	style.content_margin_left = 16
-	style.content_margin_right = 16
-	style.content_margin_top = 10
-	style.content_margin_bottom = 10
-	style.shadow_color = Color(0, 0, 0, 0.3)
-	style.shadow_size = 4
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(6)
+	style.content_margin_left = 14
+	style.content_margin_right = 14
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	style.shadow_color = Color(0, 0, 0, 0.35)
+	style.shadow_size = 8
+	style.shadow_offset = Vector2(0, 2)
+	style.anti_aliasing = true
 	return style
+
+
+## Panels fade in rather than pop, over about a tenth of a second.
+func _fade_in_when_shown(panel: Control) -> void:
+	panel.visibility_changed.connect(func() -> void:
+		if not panel.visible:
+			return
+		panel.modulate.a = 0.0
+		var tween: Tween = panel.create_tween()
+		tween.tween_property(panel, "modulate:a", 1.0, 0.12)
+	)
 
 
 func _stock_chip(parent: HBoxContainer, icon: String, hint: String) -> Label:
 	var row := HBoxContainer.new()
 	row.tooltip_text = hint
-	row.custom_minimum_size.x = 82
-	row.add_theme_constant_override("separation", 8)
+	row.custom_minimum_size.x = 70
+	row.add_theme_constant_override("separation", 6)
 	parent.add_child(row)
 	var picture := TextureRect.new()
-	picture.texture = load("res://assets/prototype/ui/game_icons/%s.svg" % icon)
-	picture.custom_minimum_size = Vector2(26, 26)
+	if icon.begins_with("pixel:"):
+		# Drawn from the thought-bubble art: fish has no game-icons picture.
+		picture.texture = ThoughtBubble.icon(icon.trim_prefix("pixel:"))
+		picture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	else:
+		picture.texture = load("res://assets/prototype/ui/game_icons/%s.svg" % icon)
+	picture.custom_minimum_size = Vector2(22, 22)
 	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	picture.modulate = Color("d7b568")
 	row.add_child(picture)
 	var label := Label.new()
-	label.add_theme_font_size_override("font_size", 20)
+	label.add_theme_font_size_override("font_size", 17)
 	row.add_child(label)
 	return label
 
@@ -631,10 +665,15 @@ func take_screenshot() -> void:
 		AudioDirector.play("ui_click")
 
 
+## The HUD is drawn a size smaller than the menus: it shares the screen with
+## the tavern, and the tavern is the thing being looked at.
+const HUD_SCALE: float = 0.72
+
+
 func _hud_button(text: String, handler: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size.y = 38
+	b.custom_minimum_size.y = 32
 	b.focus_mode = Control.FOCUS_NONE
 	b.mouse_filter = Control.MOUSE_FILTER_STOP
 	b.pressed.connect(handler)
@@ -643,6 +682,30 @@ func _hud_button(text: String, handler: Callable) -> Button:
 
 
 var _keyed: Array[Button] = []
+var _fish_label: Label
+var _fish_chip: Control
+var _day_bar: DayBar
+
+
+## "6 staff, 2 idle  ·  11 guests, 3 waiting": the two numbers that say whether
+## the house is keeping up.
+func _people_line() -> String:
+	var idle: int = 0
+	for worker in world.workers:
+		if is_instance_valid(worker) and worker.current == null:
+			idle += 1
+	var guests: int = 0
+	var waiting: int = 0
+	if world.customers != null:
+		for brain in world.customers.customers:
+			if not is_instance_valid(brain):
+				continue
+			guests += 1
+			if brain.state in [CustomerBrain.State.SEEKING_SEAT, CustomerBrain.State.READY_TO_ORDER,
+					CustomerBrain.State.WAITING_FOR_ORDER, CustomerBrain.State.WAITING_FOR_BILL]:
+				waiting += 1
+	return "%d staff%s  ·  %d guest%s%s" % [world.pawns.size(), ", %d idle" % idle if idle > 0 else "",
+		guests, "" if guests == 1 else "s", ", %d waiting" % waiting if waiting > 0 else ""]
 var _help: Label
 
 
@@ -817,7 +880,13 @@ func refresh_stats() -> void:
 	_gold_label.text = "%dg" % GameState.gold
 	_bread_label.text = str(world.stock_of(&"bread"))
 	_beer_label.text = str(world.stock_of(&"beer"))
-	_staff_label.text = "%d staff  ·  %d guests" % [world.pawns.size(), world.customers.customers.size() if world.customers != null else 0]
+	# Fish only once the tavern has something to do with it.
+	var fish: int = world.stock_of(&"grilled_fish") + world.stock_of(&"fish_soup")
+	_fish_chip.visible = fish > 0 or (world.build != null and world.build.grid.count_built([&"fishing_spot"]) > 0)
+	_fish_label.text = str(fish)
+	_staff_label.text = _people_line()
+	if _day_bar != null and world.clock != null:
+		_day_bar.fraction = clampf((world.clock.hour() - DayClock.OPEN_HOUR) / (DayClock.CLOSE_HOUR - DayClock.OPEN_HOUR), 0.0, 1.0)
 	# Live figures behind every number in the header. Refreshed with the header
 	# itself, which is often enough for a tooltip read at a glance.
 	# Only for the one under the pointer: the stock breakdowns walk every stack
@@ -831,6 +900,9 @@ func refresh_stats() -> void:
 			_bread_chip.tooltip_text = WorldStats.stock_breakdown(world, &"bread")
 		if _beer_chip.get_global_rect().has_point(at):
 			_beer_chip.tooltip_text = WorldStats.stock_breakdown(world, &"beer")
+		if _fish_chip.visible and _fish_chip.get_global_rect().has_point(at):
+			_fish_chip.tooltip_text = WorldStats.stock_breakdown(world, &"grilled_fish") + "\n\n" \
+				+ WorldStats.stock_breakdown(world, &"fish_soup")
 		if _staff_label.get_global_rect().has_point(at):
 			_staff_label.tooltip_text = WorldStats.people_breakdown(world)
 	if world.customers != null:
@@ -1019,3 +1091,28 @@ func start_tutorial(step: int = 0) -> void:
 	tutorial.setup(world, step)
 	refresh_stats()
 
+
+## A hairline showing how far through the trading day it is, with the lunch
+## and evening rushes marked, so the next busy spell is never a surprise.
+class DayBar:
+	extends Control
+	var fraction: float = 0.0:
+		set(value):
+			if not is_equal_approx(value, fraction):
+				fraction = value
+				queue_redraw()
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_STOP
+
+	func _draw() -> void:
+		var w: float = size.x
+		var h: float = size.y
+		draw_rect(Rect2(0, h * 0.25, w, h * 0.5), Color(0.1, 0.08, 0.05, 0.8))
+		var span: float = DayClock.CLOSE_HOUR - DayClock.OPEN_HOUR
+		for rush in [[12.0, 14.0], [18.0, 21.0]]:
+			var x0: float = (rush[0] - DayClock.OPEN_HOUR) / span * w
+			var x1: float = (rush[1] - DayClock.OPEN_HOUR) / span * w
+			draw_rect(Rect2(x0, h * 0.25, x1 - x0, h * 0.5), Color(0.6, 0.35, 0.2, 0.55))
+		draw_rect(Rect2(0, h * 0.25, w * fraction, h * 0.5), Color(0.91, 0.71, 0.35, 0.9))
+		draw_rect(Rect2(w * fraction - 1.0, 0, 2.0, h), TavernTheme.PARCHMENT)

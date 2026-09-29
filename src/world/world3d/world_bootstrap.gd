@@ -400,6 +400,11 @@ func _setup_economy() -> void:
 		world.sim.attach(world.clock)
 		world.clock.day_ended.connect(world._on_day_ended)
 	world.auto_supply.setup(world)
+	if world.thoughts == null:
+		world.thoughts = ThoughtDirector.new()
+		world.thoughts.name = "Thoughts"
+		world.add_child(world.thoughts)
+		world.thoughts.setup(world)
 	if not world.sim.ticked.is_connected(world.auto_supply.step):
 		world.sim.ticked.connect(world.auto_supply.step)
 	world.customers.setup(world.board, world.items, world.nav, world.terrain, world.build.grid, world.plot, world._pawn_material, world.sim_rng.randi())
