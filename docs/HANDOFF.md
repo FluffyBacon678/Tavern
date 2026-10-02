@@ -1,5 +1,25 @@
 # Handoff — Mobile Tavern
 
+**Owner vision clarification, 2026-09-30:** read
+[`CURRENT_GAME_VISION.md`](CURRENT_GAME_VISION.md) before planning gameplay.
+The primary direction is a minimal beer business, optional building, cozy
+collecting/decorating, and earning toward products, methods and interesting
+adventurers. The full-house start is for testing; hard service/cash deadlines
+are not the defining contract of the main cozy mode. This supersedes conflicting
+older scope and opening assumptions below.
+
+**Production roadmap, 2026-09-30:** see
+[`PRODUCTION_ROADMAP.md`](PRODUCTION_ROADMAP.md) for current readiness, shared
+character creation first, art direction from the owner's reference images,
+and the ordered demo milestones. This is a plan, not implemented gameplay.
+
+**Character foundation, 2026-10-01:** see
+[`CHARACTER_FOUNDATION.md`](CHARACTER_FOUNDATION.md) for the implemented creator,
+Keeper profile, shared player/NPC appearance path and save compatibility.
+The functional slice is verified; reference art quality and later demo
+milestones remain open. New games enter the creator before the world; Continue
+and Load still enter the saved world directly.
+
 **Visual follow-up, 2026-09-22:** see [VISUAL_POLISH.md](VISUAL_POLISH.md).
 Later gameplay work has continued alongside it; the older line counts and
 remaining-work lists below are historical, not a current inventory.

@@ -14,7 +14,10 @@ var output_dir: String
 
 
 func _ready() -> void:
-	if not OS.is_debug_build() or DisplayServer.get_name() == "headless":
+	if not OS.is_debug_build() or not GameState.begin_test_session():
+		get_tree().quit(2)
+		return
+	if DisplayServer.get_name() == "headless":
 		push_error("TavernProfile requires a debug build and real rendered display.")
 		get_tree().quit(1)
 		return

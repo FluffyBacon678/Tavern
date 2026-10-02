@@ -166,18 +166,22 @@ static func staff(mb: MeshBuilder, jewel: Color, variant: int = 0) -> void:
 		mb.add_limb(top, top + Vector3(side * 0.055, 0.075, 0), 0.014, 0.01, 5, EDGE)
 
 
-static func pack(mb: MeshBuilder, cloth: Color) -> void:
-	mb.add_box(Vector3(-0.14, -0.07, -0.31), Vector3(0.28, 0.36, 0.15), LEATHER)
-	panel(mb, [Vector2(-0.14, 0.25), Vector2(-0.11, 0.12), Vector2(0, 0.085), Vector2(0.11, 0.12), Vector2(0.14, 0.25)], -0.322, 0.015, LEATHER.lightened(0.19))
-	mb.add_limb(Vector3(-0.20, 0.33, -0.23), Vector3(0.20, 0.33, -0.23), 0.079, 0.079, 8, cloth)
+static func pack(mb: MeshBuilder, cloth: Color, back_offset: float = 0.0) -> void:
+	# Cape and bag are separate slots. The bag moves behind a worn cape while
+	# chest straps stay anchored to the same shirt and shoulders.
+	mb.add_box(Vector3(-0.14, -0.07, -0.31 + back_offset), Vector3(0.28, 0.36, 0.15), LEATHER)
+	panel(mb, [Vector2(-0.14, 0.25), Vector2(-0.11, 0.12), Vector2(0, 0.085), Vector2(0.11, 0.12), Vector2(0.14, 0.25)], -0.322 + back_offset, 0.015, LEATHER.lightened(0.19))
+	mb.add_limb(Vector3(-0.20, 0.33, -0.23 + back_offset), Vector3(0.20, 0.33, -0.23 + back_offset), 0.079, 0.079, 8, cloth)
 	for side in [-1.0, 1.0]:
-		var end := Vector3(side * 0.20, 0.33, -0.23)
+		var end := Vector3(side * 0.20, 0.33, -0.23 + back_offset)
 		cap(mb, end, Vector3.RIGHT * side, 0.079, 8, cloth.lightened(0.12))
 		cap(mb, end + Vector3(side * 0.001, 0, 0), Vector3.RIGHT * side, 0.046, 8, cloth.darkened(0.35))
 		cap(mb, end + Vector3(side * 0.002, 0.004, 0), Vector3.RIGHT * side, 0.025, 6, cloth.lightened(0.05))
-		mb.add_box(Vector3(side * 0.095 - 0.015, -0.065, -0.327), Vector3(0.03, 0.42, 0.018), LEATHER.darkened(0.35))
-		mb.add_box(Vector3(side * 0.095 - 0.024, 0.11, -0.339), Vector3(0.048, 0.043, 0.012), EDGE)
+		mb.add_box(Vector3(side * 0.095 - 0.015, -0.065, -0.327 + back_offset), Vector3(0.03, 0.42, 0.018), LEATHER.darkened(0.35))
+		mb.add_box(Vector3(side * 0.095 - 0.024, 0.11, -0.339 + back_offset), Vector3(0.048, 0.043, 0.012), EDGE)
 		mb.add_box(Vector3(side * 0.105 - 0.018, 0.12, 0.119), Vector3(0.036, 0.245, 0.016), LEATHER)
+		mb.add_limb(Vector3(side * 0.11, 0.348, 0.13), Vector3(side * 0.11, 0.346, -0.17 + back_offset),
+			0.012, 0.012, 4, LEATHER)
 
 
 static func belt_kit(mb: MeshBuilder, accent: Color, book: bool = false, cover: Color = Color("38635c")) -> void:

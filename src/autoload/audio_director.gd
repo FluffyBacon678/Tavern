@@ -35,6 +35,16 @@ func _ready() -> void:
 	_apply_volumes()
 
 
+func _exit_tree() -> void:
+	# Release playbacks before the audio server shuts down. A fast test can
+	# quit in the middle of the final UI blip, leaving its stream referenced.
+	for player in _pool:
+		player.stop()
+		player.stream = null
+	_pool.clear()
+	_registry.clear()
+
+
 func _ensure_buses() -> void:
 	# Created in code rather than shipped as a bus layout resource so the layout
 	# cannot drift out of sync with the names this script uses.
@@ -82,12 +92,19 @@ var _rng := RandomNumberGenerator.new()
 
 
 func play(event_id: String, pitch_variation: float = 0.06) -> void:
+	if _pool.is_empty():
+		return
 	if not _registry.has(event_id):
 		# Warn once per unknown event: a missing sound should never spam the log
 		# or, worse, throw during a menu interaction.
 		if not _warned_missing.has(event_id):
 			_warned_missing[event_id] = true
 			push_warning("AudioDirector: no sound registered for event '%s'." % event_id)
+		return
+	# No device consumes playback on the dummy driver. Rapid headless suites
+	# can exit before queued playbacks retire, retaining their WAV resources.
+	# Keep registry validation above, but do not start inaudible playback.
+	if AudioServer.get_driver_name() == "Dummy":
 		return
 
 	var entry: Dictionary = _registry[event_id]
@@ -98,6 +115,7 @@ func play(event_id: String, pitch_variation: float = 0.06) -> void:
 	var player: AudioStreamPlayer = _pool[_next_player]
 	_next_player = (_next_player + 1) % _pool.size()
 
+	player.stop()
 	player.stream = streams[_rng.randi() % streams.size()]
 	player.bus = entry["bus"]
 	player.volume_db = entry["volume_db"]

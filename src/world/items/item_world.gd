@@ -115,6 +115,10 @@ func _refresh_filters() -> void:
 			continue
 		var category: int = entry["def"].accepts_category
 		var ids: Dictionary = entry.get("filter", {})
+		if not entry["def"].stores_only.is_empty():
+			ids = {}
+			for id in entry["def"].stores_only:
+				ids[id] = true
 		if category < 0 and ids.is_empty():
 			continue
 		for tile in entry["tiles"]:
@@ -189,15 +193,29 @@ func add(def: ItemDef, count: int, tile: Vector2i, quality: float = -1.0) -> int
 		return added
 
 	var placed: int = mini(count, def.stack_size)
+	_insert_stack(def, placed, tile, quality)
+	return placed
+
+
+## Loading restores existing stock, not a new delivery. A changed whitelist
+## may prohibit future deliveries while goods already on the shelf remain.
+func restore_stack(def: ItemDef, count: int, tile: Vector2i, quality: float) -> bool:
+	if def == null or count <= 0 or count > def.stack_size or _stacks.has(tile) \
+			or (_grid != null and not _grid.in_bounds(tile)):
+		return false
+	_insert_stack(def, count, tile, quality)
+	return true
+
+
+func _insert_stack(def: ItemDef, count: int, tile: Vector2i, quality: float) -> void:
 	_stacks[tile] = {
 		"def": def,
-		"count": placed,
+		"count": count,
 		"quality": quality if quality >= 0.0 else BASE_QUALITY,
 		"node": null,
 	}
 	_refresh_visual(tile)
 	stack_changed.emit(tile)
-	return placed
 
 
 ## Remove up to `count` from a tile. Returns what was actually taken.

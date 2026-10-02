@@ -723,6 +723,7 @@ func _wash_up(tile: Vector2i, def: ItemDef, count: int) -> void:
 func _generate_hauls(storage: Array[Vector2i]) -> void:
 	if storage.is_empty():
 		return
+	_generate_restock(storage)
 
 	for tile in items.all_tiles():
 		var def: ItemDef = items.def_at(tile)
@@ -793,6 +794,65 @@ func _generate_hauls(storage: Array[Vector2i]) -> void:
 
 ## The catch is carried in by whoever caught it, before they cast again. As a
 ## cook's fetch or a porter's haul, it had the kitchen walking to the river.
+## Dedicated storage beats general storage. A barrel the player set to hold
+## only water, with room, is filled from the well or from unfiltered shelves.
+## Without it, rain and pumped water stayed in the well by the river and the
+## cooks walked there for every barrel while the porters stood idle.
+## Dedicated tiles never give their goods up, so nothing ping-pongs.
+func _generate_restock(storage: Array[Vector2i]) -> void:
+	var wanting: Dictionary = {}  # id -> [tiles dedicated to it with room]
+	for tile in storage:
+		var index: int = build.grid.object_index_at(tile)
+		if index < 0:
+			continue
+		var entry: Dictionary = build.grid.placements[index]
+		var filter: Dictionary = entry.get("filter", {})
+		if filter.is_empty() or not entry["def"].stores_only.is_empty():
+			continue
+		for id in filter:
+			var def: ItemDef = ItemCatalog.get_def(id)
+			if def != null and items.accepts(tile, def) and _standable(tile):
+				if not wanting.has(id):
+					wanting[id] = []
+				wanting[id].append(tile)
+	if wanting.is_empty():
+		return
+	for tile in storage:
+		var def: ItemDef = items.def_at(tile)
+		if def == null or not wanting.has(def.id):
+			continue
+		var index: int = build.grid.object_index_at(tile)
+		if index < 0:
+			continue
+		var entry: Dictionary = build.grid.placements[index]
+		var dedicated: bool = not entry.get("filter", {}).is_empty() and entry["def"].stores_only.is_empty()
+		if dedicated:
+			continue
+		var key: String = "restock:%d,%d" % [tile.x, tile.y]
+		_wanted_keys[key] = true
+		if board.has_key(key) or board.has_pickup(tile) or items.available_at(tile) <= 0 or not _standable(tile):
+			continue
+		var best := Vector2i(-1, -1)
+		var best_distance: int = 1 << 30
+		for target in wanting[def.id]:
+			var d: int = ItemWorld._chebyshev(target, tile)
+			if d < best_distance and items.accepts(target, def):
+				best = target
+				best_distance = d
+		if best == Vector2i(-1, -1):
+			continue
+		var job := Job.new()
+		job.kind = WorkType.Kind.HAUL
+		job.pickup_tile = tile
+		job.target = best
+		job.carry_def = def
+		job.carry_count = mini(HAUL_BATCH, items.available_at(tile))
+		job.work_amount = 0.0
+		job.label = "Restock %s" % def.display_name.to_lower()
+		job.key = key
+		board.post(job)
+
+
 func _if_from_the_bank(job: Job) -> void:
 	if not _bank_tiles_this_scan.has(job.pickup_tile):
 		return

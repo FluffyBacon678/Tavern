@@ -23,6 +23,7 @@ func run() -> void:
 	_check_fishing(world, scenario)
 	_check_blocked_pass(world, scenario)
 	_check_auto_supply(world, scenario)
+	_check_farm(world, scenario)
 
 
 ## The opening delivery: the unloading area refuses what it cannot hold,
@@ -451,48 +452,51 @@ func _check_well(world: TavernWorld, scenario: Node) -> void:
 		world.build.grid.placement_problem(well, middle, 0) == "Must be built near water",
 		"a well in the middle of the plot is refused"
 	)
-
-	# The back row is not: that is what the river along the boundary is for.
 	var bank: Vector2i = Vector2i(world.plot.position.x + 1, world.plot.position.y)
-	check(
-		world.build.grid.placement_problem(well, bank, 0) == "",
-		"a well against the back boundary reaches the river"
-	)
-
+	check(world.build.grid.placement_problem(well, bank, 0) == "", "a well against the back boundary reaches the river")
 	var index: int = world.build.place_programmatic(well, bank, 0, false)
 	check(index >= 0, "the well is built")
 	if index < 0:
 		return
 
-	var draw: Recipe = null
-	for recipe in RecipeCatalog.for_station(&"well"):
-		draw = recipe
-		break
-	check(draw != null and draw.inputs.is_empty(), "drawing water takes nothing but time")
-	check(draw != null and draw.work_kind == WorkType.Kind.GATHER, "drawing water is gathering, not cooking")
-	if draw == null:
-		return
+	# No recipe: it is water storage now, and nothing but water.
+	check(RecipeCatalog.for_station(&"well").is_empty(), "the well no longer draws water on demand")
+	var tile: Vector2i = world.build.grid.placements[index]["tiles"][0]
+	check(world.items.accepts(tile, ItemCatalog.get_def(&"water")), "the well takes water")
+	check(not world.items.accepts(tile, ItemCatalog.get_def(&"flour")), "and nothing else")
 
-	# No ingredients, so it can always be worked -- that is the whole point.
-	check(world.generator.can_perform(index, draw), "a built well can always be worked")
+	# Rain: one barrel every RAIN_EVERY game seconds, into the well, on the books.
 	var before: int = world.items.total_of(&"water")
-	check(world.generator.perform_by_hand(index, draw, ItemWorld.BASE_QUALITY), "the well yields water")
-	var drawn: int = world.items.total_of(&"water") - before
-	check(drawn == 3, "a turn at the well draws three barrels")
+	var made: int = int(world.generator.produced.get(&"water", 0))
+	var old_day: int = world.clock.day
+	var old_fraction: float = world.clock.fraction
+	var old_rain: float = world.farm._rain
+	for hour in range(240):
+		var weather: Dictionary = AtmospherePalette.sample(world._world_seed, 1 + hour / 24, float(hour % 24) / 24.0)
+		if float(weather["rain"]) > 0.99:
+			world.clock.day = 1 + hour / 24
+			world.clock.fraction = float(hour % 24) / 24.0
+			break
+	world.farm._rain = Farm.RAIN_EVERY
+	world.farm.step(Farm.RAIN_EVERY + 0.1)
+	world.clock.day = old_day
+	world.clock.fraction = old_fraction
+	world.farm._rain = old_rain
+	check(world.items.total_of(&"water") == before + 1 and int(world.generator.produced.get(&"water", 0)) == made + 1,
+		"rain puts a barrel in the well, slowly")
+	check(scenario.reconcile(), "rain water reconciles like water off a cart")
 
-	# Free water still has to appear in the books, and must not be born filthy.
-	var station: Dictionary = world.generator.station_at(index)
-	var worst: float = 2.0
-	for tile in station["input_tiles"]:
-		var here: ItemDef = world.items.def_at(tile)
-		if here != null and here.id == &"water":
-			worst = minf(worst, world.items.quality_at(tile))
-	check(worst >= ItemWorld.BASE_QUALITY, "water drawn by hand is not born spoiled")
-	check(scenario.reconcile(), "water out of the ground reconciles like water off a cart")
+	# The river pump: slow labour into water.
+	var pump: Recipe = RecipeCatalog.get_recipe(&"pump_water")
+	check(pump != null and pump.inputs.is_empty() and pump.work_amount >= 20.0 and pump.work_kind == WorkType.Kind.GATHER,
+		"the river pump makes water from labour, slowly")
+	check(BuildingCatalog.get_def(&"river_pump").needs_water_within == 1, "and must touch the river")
 
+	for t in world.build.grid.placements[index]["tiles"]:
+		var n: int = world.items.take(t, world.items.count_at(t))
+		world.generator.consumed[&"water"] = int(world.generator.consumed.get(&"water", 0)) + n
 	world.build.grid.remove(index)
 	world.build._rebuild_instances(well)
-
 
 ## A shelf holds what the player told it to, and hauling obeys without being
 ## told anything.
@@ -893,7 +897,10 @@ func _check_auto_supply(world: TavernWorld, scenario: Node) -> void:
 	var supplies: int = int(world.ledger.today.get(Ledger.Line.SUPPLIES, 0))
 	auto.enabled = true
 	auto.never.clear()
-	bills.set_target(&"bake_bread", world.stock_of(&"bread") + 20)
+	# Make a real shortfall beyond this fixture's existing dough, flour, yeast
+	# and harvested grain. Intermediate reserve targets are no longer shopping.
+	var bread_batches: int = 20 + world.stock_of(&"dough") + world.stock_of(&"flour") + world.stock_of(&"yeast") + world.stock_of(&"wheat")
+	bills.set_target(&"bake_bread", world.stock_of(&"bread") + bread_batches * 2)
 	bills.set_target(&"brew_beer", world.stock_of(&"beer") + 200)
 	var wanted: Dictionary = auto.shortfall()
 	check(wanted.has(&"flour") and wanted.has(&"yeast") and wanted.has(&"malt") and wanted.has(&"hops"),
@@ -942,4 +949,70 @@ func _check_auto_supply(world: TavernWorld, scenario: Node) -> void:
 	var spent: int = int(world.ledger.today.get(Ledger.Line.SUPPLIES, 0)) - supplies
 	GameState.gold = gold - spent
 	check(scenario.reconcile(), "auto-ordered goods reconcile like any delivery")
+
+
+## A farm plot: planted by a farmer, grown slowly, harvested into wheat (or
+## hops), bare again. Wheat grinds into flour at the prep table.
+func _check_farm(world: TavernWorld, scenario: Node) -> void:
+	var farmer: StaffRole = StaffRole.of(&"farmer")
+	check(farmer != null and farmer.allows(WorkType.Kind.FARM) and farmer.allows(WorkType.Kind.HAUL)
+		and not farmer.allows(WorkType.Kind.COOK), "a farmer farms and carries, and does not cook")
+	check(StaffRole.for_kind(WorkType.Kind.FARM) == farmer, "and farming is his work")
+	var mill: Recipe = RecipeCatalog.get_recipe(&"mill_flour")
+	check(mill != null and mill.station_id == "prep_table" and mill.inputs[0]["id"] == &"wheat",
+		"wheat is ground into flour at the prep table")
+
+	var plot: BuildingDef = BuildingCatalog.get_def(&"farm_plot")
+	var tile := Vector2i(-1, -1)
+	for y in range(world.plot.position.y + 2, world.plot.end.y - 2):
+		for x in range(world.plot.position.x + 2, world.plot.end.x - 2):
+			var t := Vector2i(x, y)
+			if world.build.grid.placement_at(t) < 0 and not world.items.has_stack(t) and world.nav.is_walkable(t):
+				tile = t
+				break
+		if tile.x >= 0:
+			break
+	var index: int = world.build.place_programmatic(plot, tile, 0, false)
+	check(index >= 0, "a farm plot goes down on open ground")
+	if index < 0:
+		return
+	var entry: Dictionary = world.build.grid.placements[index]
+	check(Farm.growth_of(entry) < 0.0 and Farm.crop_of(entry) == &"wheat", "a new plot is bare, down for wheat")
+	var key: String = "farm:%d,%d" % [tile.x, tile.y]
+	world.farm.step(Farm.SCAN_EVERY + 0.01)
+	var job: Job = world.board.job_with_key(key)
+	check(job != null and job.kind == WorkType.Kind.FARM, "a bare plot asks a farmer to plant it")
+	if job == null:
+		return
+	job.on_complete.call(job)
+	world.board.complete(job)
+	check(is_equal_approx(Farm.growth_of(entry), 0.0), "planted, it starts to grow")
+	world.farm.step(Farm.GROW_SECONDS * 0.5)
+	check(Farm.growth_of(entry) > 0.4 and Farm.growth_of(entry) < 0.6, "slowly: half grown after half the time")
+	check(world.board.job_with_key(key) == null, "nobody is asked to do anything while it grows")
+	world.farm.step(Farm.GROW_SECONDS * 0.5 + Farm.SCAN_EVERY)
+	job = world.board.job_with_key(key)
+	check(Farm.growth_of(entry) >= 1.0 and job != null, "ripe, it asks to be harvested")
+	var wheat_before: int = world.items.total_of(&"wheat")
+	if job != null:
+		job.on_complete.call(job)
+		world.board.complete(job)
+	check(world.items.total_of(&"wheat") == wheat_before + int(Farm.YIELD[&"wheat"]) and Farm.growth_of(entry) < 0.0,
+		"the harvest is three sheaves of wheat, and the plot is bare again")
+	check(scenario.reconcile(), "grown wheat reconciles like any produce")
+
+	world.farm.set_crop(index, &"hops")
+	check(Farm.crop_of(entry) == &"hops", "a plot can grow hops instead")
+	var saved: Array = SaveGame._capture_buildings(world)
+	var kept: bool = false
+	for row in saved:
+		kept = kept or (row["def"] == "farm_plot" and row["crop"] == "hops")
+	check(kept, "the crop is kept in a save")
+
+	world.board.cancel_key(key)
+	for t in world.items.tiles_with(&"wheat", tile):
+		var n: int = world.items.take(t, world.items.count_at(t))
+		world.generator.consumed[&"wheat"] = int(world.generator.consumed.get(&"wheat", 0)) + n
+	world.build.grid.remove(index)
+	world.build._rebuild_instances(plot)
 

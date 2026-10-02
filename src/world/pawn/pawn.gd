@@ -61,6 +61,10 @@ var look: String = ""
 ## Staff only: the waistcoat colour of their position, set before setup().
 ## Transparent means the plain house uniform.
 var uniform: Color = Color(0, 0, 0, 0)
+## Stored cosmetics, independent of role, habits and the customer's tastes.
+var appearance: CharacterAppearance
+var equipped: Dictionary = {}
+var _pawn_material: Material
 var state: int = State.IDLE
 var tile := Vector2i.ZERO
 
@@ -74,7 +78,7 @@ var wander_area: Rect2i
 var autonomous_idle: bool = true
 
 var _rig: PawnMesh.Rig
-## PawnMesh.Look: what kind of adventurer this is, which GuestType reads.
+## Behaviour archetype chosen once at spawn; wardrobe changes cannot alter it.
 var adventurer: int = 0
 var _is_customer: bool = false
 var _bubble: ThoughtBubble
@@ -125,10 +129,12 @@ func setup(p_nav: NavGrid, p_terrain: TerrainMeshBuilder, start_tile: Vector2i, 
 		SURNAMES[_rng.randi_range(0, SURNAMES.size() - 1)],
 	]
 
-	_rig = PawnMesh.build(_rng, material, is_customer, uniform)
+	_pawn_material = material
+	appearance = PawnMesh.generate_appearance(_rng, is_customer, uniform)
+	_rig = PawnMesh.build_appearance(appearance, material, equipped)
 	add_child(_rig.root)
 	look = _rig.description
-	adventurer = _rig.kind
+	adventurer = appearance.family
 	_is_customer = is_customer
 	set_outline(GameSettings.outline_people)
 	_bubble = ThoughtBubble.new()
@@ -140,6 +146,37 @@ func setup(p_nav: NavGrid, p_terrain: TerrainMeshBuilder, start_tile: Vector2i, 
 	_facing = _rng.randf() * TAU
 	_rig.root.rotation.y = _facing
 	_reset_idle_timer()
+
+
+## Replace only the body. Path, habits, cargo, name and behaviour survive;
+## no call here consumes a random number or touches simulation state.
+func set_appearance(next: CharacterAppearance, equipment: Variant = null) -> void:
+	if next == null:
+		return
+	appearance = next.clone()
+	if equipment is Dictionary:
+		equipped = CharacterProfile.equipment_from_save(equipment)
+	if _rig == null:
+		return
+	var previous: PawnMesh.Rig = _rig
+	_rig = PawnMesh.build_appearance(appearance, _pawn_material, equipped)
+	add_child(_rig.root)
+	_rig.root.transform = previous.root.transform
+	var old_parts: Array[Node3D] = [previous.torso, previous.head, previous.arm_l,
+		previous.arm_r, previous.leg_l, previous.leg_r]
+	var new_parts: Array[Node3D] = [_rig.torso, _rig.head, _rig.arm_l,
+		_rig.arm_r, _rig.leg_l, _rig.leg_r]
+	for i in range(old_parts.size()):
+		# Keep the animation offset, not the old body type's shoulder/hip
+		# spacing. The new rig retains the matching mesh bind positions.
+		new_parts[i].position += old_parts[i].position - previous.skeleton.get_bone_rest(i).origin
+		new_parts[i].quaternion = old_parts[i].quaternion
+	if is_instance_valid(_carried):
+		_carried.reparent(_rig.carry_anchor, false)
+	previous.root.queue_free()
+	look = _rig.description
+	set_outline(GameSettings.outline_people)
+	_rig.sync_pose()
 
 
 func world_position_of(t: Vector2i) -> Vector3:

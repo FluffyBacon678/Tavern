@@ -68,6 +68,8 @@ static func worker_icon(worker: Worker) -> String:
 			return "gather"
 		WorkType.Kind.FISH:
 			return "fish"
+		WorkType.Kind.FARM:
+			return "farm"
 	return ""
 
 

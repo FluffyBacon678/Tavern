@@ -55,6 +55,9 @@ func _play() -> void:
 	await _frames(10)
 	await _shot("sandbox", "Sandbox chosen: name, seed and slot appear.")
 	_press(menu, "Open the doors")
+	await _frames(10)
+	await _shot("character", "Choose the tavern keeper before opening a new tavern.")
+	_press(menu, "Create character")
 	for i in range(240):
 		await get_tree().process_frame
 		if get_tree().current_scene is TavernWorld:
@@ -130,7 +133,8 @@ func _play() -> void:
 	await _shot("built", "The building is up. Paused with Space.")
 
 	# Supplies through the order screen.
-	_press(world.hud._hud, "Supplies")
+	_press(world.hud._hud, "Stores")
+	world.hud._supply_panel.show_manual()
 	await _frames(10)
 	await _shot("order_screen", "The order screen with the standard bundle.")
 	_press(world.hud._supply_panel, "Confirm")
@@ -364,3 +368,4 @@ func _button_texts(root: Node) -> PackedStringArray:
 	for child in root.get_children():
 		out.append_array(_button_texts(child))
 	return out
+

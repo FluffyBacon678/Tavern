@@ -120,6 +120,24 @@ func _tavern_capture(prefix: String) -> void:
 	SimWait.hold(world)
 	SimWait.configure(world)
 	world.input.hover_enabled = false
+	# The inherited level intentionally has no sink or prep table. Repair the
+	# same three gaps as level_smoke before judging the seated character art;
+	# otherwise every seat becomes dirty and a late capture can contain nobody.
+	var level: LevelDef = LevelCatalog.get_level(&"wayfarers_rest")
+	var origin: Vector2i = world.plot.position + level.origin
+	for entry in [["prep_table", Vector2i(1, 3)], ["sink", Vector2i(3, 7)], ["storage_shelf", Vector2i(1, 7)]]:
+		var def: BuildingDef = BuildingCatalog.get_def(StringName(entry[0]))
+		world.build.mode = BuildController.Mode.PLACE
+		world.build.select(def)
+		world.build.update_hover(origin + entry[1], true)
+		var before: int = world.build.grid.live_count()
+		world.commit_build_action()
+		if world.build.grid.live_count() != before + 1:
+			push_error("Showcase could not repair %s" % entry[0])
+			capture_failed = true
+			return
+	world.build.mode = BuildController.Mode.OFF
+	world.order_supplies()
 	SimWait.release(world)
 	# Capture real seated guests instead of relying on a wall-clock offset:
 	# day-length tuning otherwise gives an empty opening or a cleared room.
@@ -133,6 +151,10 @@ func _tavern_capture(prefix: String) -> void:
 	var elapsed: float = world.sim.sim_time
 	print("Capture: %d seated guests at %.1f game seconds" % [seated, elapsed])
 	SimWait.hold(world)
+	if seated < 4:
+		push_error("Showcase did not reach four real seated guests; not a valid seating capture")
+		capture_failed = true
+		return
 	if world.hud._briefing_panel != null:
 		world.hud._briefing_panel.hide()
 	var scenario: Node = load("res://dev/world_scenario.gd").new()
@@ -144,7 +166,7 @@ func _tavern_capture(prefix: String) -> void:
 	scenario.screenshot_setup({"distance": "11", "pitch": "38", "yaw": "25"})
 	await get_tree().create_timer(0.5).timeout
 	await _capture(prefix + "_tavern_close.png")
-	print("Live level at %.1fs: %s" % [elapsed, world.customers.summary()])
+	print("Repaired live level at %.1fs: %s" % [elapsed, world.customers.summary()])
 
 
 func _capture(path: String) -> void:

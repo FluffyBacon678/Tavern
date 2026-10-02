@@ -3,13 +3,9 @@ extends RefCounted
 
 ## Orders ingredients by itself, so a player who forgets does not stall.
 ##
-## Driven by the stock targets in Production ("keep 10 bread"): whatever a
-## target still wants made, worked back through its recipes to what the
-## merchant sells, less what is already in the tavern, is bought. Dough is
-## made from flour, yeast and water, so a bread target buys those; a fish
-## target buys nothing, because nobody sells fish. The player can mark any
-## ingredient "never order" -- the well draws the water, say -- and switch the
-## whole thing off.
+## Finished meal targets share a virtual pantry through MealSupplyPlan. Existing
+## dough, harvested wheat, and the heads/fillets from each fish count once.
+## Only missing merchant ingredients are bought; no speculative local catches.
 ##
 ## It keeps tonight's wages in the purse, waits a while between deliveries so
 ## a slow afternoon is not ten delivery fees, and says why when it holds back.
@@ -18,10 +14,10 @@ extends RefCounted
 const CHECK_EVERY: float = 20.0
 ## Game seconds a delivery must be apart: about two hours of clock.
 const COOLDOWN: float = 70.0
-## How far an intermediate (dough) is traced back to what it is made of.
-const DEPTH: int = 3
 
 var enabled: bool = true
+## Explicit meal controls can start ordering without a manual first cart.
+var configured: bool = false
 ## item id -> true: never bought automatically.
 var never: Dictionary = {}
 ## The last automatic order: id -> count, and when and what it cost.
@@ -116,70 +112,38 @@ static func _first(order: Dictionary) -> StringName:
 
 
 func started() -> bool:
-	return world != null and not world.delivered.is_empty()
+	return world != null and (configured or not world.delivered.is_empty())
 
 
 ## What the targets still want, as merchant goods not already in the tavern.
 func shortfall() -> Dictionary:
-	var need: Dictionary = {}
-	var drawn: Dictionary = {}  # intermediate id -> stock already counted towards a target
-	for recipe in RecipeCatalog.all():
-		if recipe.outputs.is_empty() or recipe.inputs.is_empty() or not world.bills.has_bill(recipe.id):
-			continue
-		var bill: Dictionary = world.bills.get_bill(recipe.id)
-		if not bill.get("enabled", true) or int(bill.get("target", 0)) <= 0 or not _can_make(recipe):
-			continue
-		var missing: int = int(bill["target"]) - world.stock_of(recipe.outputs[0]["id"])
-		if missing <= 0:
-			continue
-		var per_batch: int = maxi(1, int(recipe.outputs[0]["count"]))
-		_add_inputs(recipe, ceili(float(missing) / float(per_batch)), need, drawn, 0)
-	var buy: Dictionary = {}
-	for id in need:
-		if never.has(id):
-			continue
-		var short: int = int(need[id]) - world.stock_of(id)
-		if short > 0:
-			buy[id] = short
-	return buy
+	return MealSupplyPlan.new().calculate(world, never)["buy"]
 
 
-func _add_inputs(recipe: Recipe, batches: int, need: Dictionary, drawn: Dictionary, depth: int) -> void:
-	for input in recipe.inputs:
-		var id: StringName = input["id"]
-		var count: int = int(input["count"]) * batches
-		var def: ItemDef = ItemCatalog.get_def(id)
-		if def == null:
-			continue
-		if def.purchase_price > 0:
-			need[id] = int(need.get(id, 0)) + count
-			continue
-		if depth >= DEPTH:
-			continue
-		# Made here (dough): what is on hand counts first, the rest is traced
-		# back to its own ingredients.
-		var maker: Recipe = _maker_of(id)
-		if maker == null:
-			continue
-		var spare: int = maxi(0, world.stock_of(id) - int(drawn.get(id, 0)))
-		var used: int = mini(spare, count)
-		drawn[id] = int(drawn.get(id, 0)) + used
-		var still: int = count - used
-		if still > 0:
-			var per_batch: int = maxi(1, int(maker.outputs[0]["count"]))
-			_add_inputs(maker, ceili(float(still) / float(per_batch)), need, drawn, depth + 1)
-
-
-func _maker_of(id: StringName) -> Recipe:
-	for recipe in RecipeCatalog.all():
-		if not recipe.outputs.is_empty() and recipe.outputs[0]["id"] == id and _can_make(recipe):
-			return recipe
-	return null
-
-
-func _can_make(recipe: Recipe) -> bool:
-	return world.build.grid.count_built([StringName(recipe.station_id)]) > 0
-
+## One control per finished meal. Intermediate production stays available,
+## while only menu targets buy ingredients (no separate dough shopping list).
+func set_meal(recipe_id: StringName, on: bool, amount: int) -> void:
+	var recipe: Recipe = RecipeCatalog.get_recipe(recipe_id)
+	if recipe == null or not MealSupplyPlan.meals().has(recipe):
+		return
+	world.bills.set_target(recipe_id, clampi(amount, 1, 200))
+	world.bills.set_resume_below(recipe_id, clampi(amount, 1, 200) - 1)
+	world.bills.set_enabled(recipe_id, on)
+	if on:
+		enabled = true
+		configured = true
+		# A deliberately disabled prep recipe must not silently defeat the
+		# simple meal control. Restore the necessary kitchen chain.
+		if recipe_id == &"bake_bread":
+			world.bills.set_enabled(&"make_dough", true)
+			if int(world.bills.get_bill(&"make_dough").get("target", 0)) == 0:
+				world.bills.set_target(&"make_dough", 3)
+		elif recipe_id == &"fish_soup" or recipe_id == &"grill_fish":
+			for prep in [&"clean_trout", &"clean_perch"]:
+				world.bills.set_enabled(prep, true)
+				if int(world.bills.get_bill(prep).get("target", 0)) == 0:
+					world.bills.set_target(prep, 4)
+	note = ""
 
 ## Every ingredient a recipe in the game buys, for the "never order" boxes.
 static func buyable_ingredients() -> Array[StringName]:
@@ -217,12 +181,21 @@ func capture() -> Dictionary:
 	var never_ids: Array = []
 	for id in never:
 		never_ids.append(String(id))
-	return {"enabled": enabled, "never": never_ids}
+	return {"enabled": enabled, "never": never_ids, "configured": configured, "since_order": _since_order, "menu_version": 1}
 
 
 func restore(data: Dictionary) -> void:
 	enabled = bool(data.get("enabled", true))
+	configured = bool(data.get("configured", false))
+	_since_order = clampf(float(data.get("since_order", COOLDOWN)), 0.0, COOLDOWN)
+	# Preserve old targets and on/off choices, upgrade only the hidden restart
+	# line to the single number now shown by Stores.
+	if world != null and int(data.get("menu_version", 0)) < 1:
+		for recipe in MealSupplyPlan.meals():
+			world.bills.set_resume_below(recipe.id, int(world.bills.get_bill(recipe.id)["target"]) - 1)
 	never.clear()
 	for id in data.get("never", []):
 		if ItemCatalog.get_def(StringName(id)) != null:
 			never[StringName(id)] = true
+
+

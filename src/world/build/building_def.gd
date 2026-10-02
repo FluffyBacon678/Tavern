@@ -35,6 +35,8 @@ enum Shape {
 	LECTERN,
 	WELL,
 	JETTY,
+	FARM,
+	PUMP,
 }
 
 @export var id: StringName = &""
@@ -81,6 +83,8 @@ enum Shape {
 ## catalog has anything for its id, so adding a recipe is the only step needed
 ## to make an existing piece useful.
 @export var is_storage: bool = false
+## Storage that only ever holds these (the well: water), whatever is ticked.
+@export var stores_only: Array[StringName] = []
 
 
 static func make(

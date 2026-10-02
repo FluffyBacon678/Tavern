@@ -56,6 +56,10 @@ var _bar: HFlowContainer
 ## Where the space under the header and bar begins, in canvas units.
 var _below_top: float = 134.0
 var _layout_queued: bool = false
+var _owner_button: Button
+var _character_creator: CharacterCreator
+var _profile_previous_hold: bool = false
+var _profile_previous_lock: bool = false
 
 
 func _build_hud() -> void:
@@ -83,12 +87,17 @@ func _build_hud() -> void:
 	header.offset_right = -12
 	header.offset_top = 10
 	header.add_theme_stylebox_override("panel", _panel_style())
-	var header_row := HBoxContainer.new()
-	header_row.add_theme_constant_override("separation", 20)
+	# Stock, staff and reputation grow as the tavern grows. Flow whole chips
+	# onto another line when their real widths exceed the window, just as the
+	# toolbar does; the title alone may shorten, never the live status figures.
+	var header_row := HFlowContainer.new()
+	header_row.add_theme_constant_override("h_separation", 12)
+	header_row.add_theme_constant_override("v_separation", 6)
 	header.add_child(header_row)
 	var crest := TextureRect.new()
 	crest.texture = load("res://assets/prototype/ui/game_icons/beer-stein.svg")
 	crest.custom_minimum_size = Vector2(38, 42)
+	crest.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	crest.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	crest.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	crest.modulate = Color("d7b568")
@@ -98,11 +107,19 @@ func _build_hud() -> void:
 	title_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_box.add_theme_constant_override("separation", 0)
 	header_row.add_child(title_box)
+	var title_row := HBoxContainer.new()
+	title_row.add_theme_constant_override("separation", 8)
+	title_box.add_child(title_row)
 	_title_label = Label.new()
+	_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_title_label.clip_text = true
 	_title_label.add_theme_font_size_override("font_size", 19)
 	_title_label.add_theme_color_override("font_color", Color("edcf90"))
-	title_box.add_child(_title_label)
+	title_row.add_child(_title_label)
+	_owner_button = _hud_button("Keeper", open_owner_profile)
+	_owner_button.name = "OwnerProfile"
+	_owner_button.focus_mode = Control.FOCUS_ALL
+	title_row.add_child(_owner_button)
 	# The clock and the speed controls on one line, as in Prison Architect:
 	# the question "how fast is time going" belongs beside "what time is it".
 	var clock_row := HBoxContainer.new()
@@ -154,6 +171,7 @@ func _build_hud() -> void:
 	_staff_label = Label.new()
 	# Takes the mouse so it can carry a tooltip: who is doing what.
 	_staff_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	_staff_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_staff_label.add_theme_font_size_override("font_size", 13)
 	header_row.add_child(_staff_label)
 	# Standing sits in the header beside the purse, because it is the other
@@ -161,12 +179,15 @@ func _build_hud() -> void:
 	_reputation_stars = StarRating.new()
 	_reputation_stars.star_size = 15.0
 	_reputation_stars.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	header_row.add_child(_reputation_stars)
+	var standing_row := HBoxContainer.new()
+	standing_row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header_row.add_child(standing_row)
+	standing_row.add_child(_reputation_stars)
 	_reputation_label = Label.new()
 	_reputation_label.add_theme_font_size_override("font_size", 13)
 	_reputation_label.add_theme_color_override("font_color", Color("edcf90"))
 	_reputation_label.mouse_filter = Control.MOUSE_FILTER_STOP
-	header_row.add_child(_reputation_label)
+	standing_row.add_child(_reputation_label)
 
 	# Two groups in a flow: what to do on the left, how to look on the right.
 	# On a 16:9 window they share one row; on anything squarer the right-hand
@@ -193,10 +214,9 @@ func _build_hud() -> void:
 	)
 	hire.tooltip_text = "Take somebody on: each position has a fee and a daily wage (Staff%s)" % KeyBindings.hint("staff")
 	actions.add_child(hire)
-	var supplies: Button = _keyed_button("Supplies", "supplies", toggle_supplies, false)
-	supplies.set_meta("tip", "Choose what the merchant brings, then confirm the order")
+	var supplies: Button = _keyed_button("Stores", "supplies", toggle_supplies, false)
+	supplies.set_meta("tip", "Meal stock targets and automatic ingredient deliveries")
 	actions.add_child(supplies)
-	actions.add_child(_keyed_button("Production", "production", func() -> void: _production_panel.toggle()))
 	actions.add_child(_keyed_button("Staff", "staff", func() -> void: _priority_panel.toggle()))
 	actions.add_child(_keyed_button("Buy land", "land", toggle_land, false))
 	actions.add_child(_keyed_button("Ledger", "ledger", toggle_ledger, false))
@@ -523,10 +543,11 @@ func _fade_in_when_shown(panel: Control) -> void:
 	)
 
 
-func _stock_chip(parent: HBoxContainer, icon: String, hint: String) -> Label:
+func _stock_chip(parent: Container, icon: String, hint: String) -> Label:
 	var row := HBoxContainer.new()
 	row.tooltip_text = hint
 	row.custom_minimum_size.x = 70
+	row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_theme_constant_override("separation", 6)
 	parent.add_child(row)
 	var picture := TextureRect.new()
@@ -731,6 +752,9 @@ func open_hands_on(placement_index: int, recipe: Recipe) -> bool:
 ## used to do even with a panel open, taking the player to the main menu when
 ## they only meant to dismiss the inspector.
 func close_top_panel() -> bool:
+	if is_instance_valid(_character_creator):
+		_character_creator.cancel_changes()
+		return true
 	# Swallowed rather than acted on: the hands-on bench has its own cancel,
 	# and neither closing it nor leaving the game mid-bake should be an accident.
 	if _hands_on != null and _hands_on.visible:
@@ -876,6 +900,9 @@ func refresh_stats() -> void:
 	if _title_label == null:
 		return
 	_title_label.text = _tavern_name()
+	if _owner_button != null:
+		var owner_name: String = GameState.owner_profile.name if GameState.owner_profile != null else "Your tavern keeper"
+		_owner_button.tooltip_text = "%s: appearance and wardrobe" % owner_name
 	_clock_label.text = _clock_summary()
 	_gold_label.text = "%dg" % GameState.gold
 	_bread_label.text = str(world.stock_of(&"bread"))
@@ -1064,7 +1091,42 @@ func open_pause_menu() -> void:
 
 
 func pause_menu_open() -> bool:
-	return pause_menu != null and pause_menu.is_open()
+	return is_instance_valid(_character_creator) or (pause_menu != null and pause_menu.is_open())
+
+
+## A personal profile, without making the owner a second simulation pawn.
+func open_owner_profile() -> void:
+	if is_instance_valid(_character_creator) or (pause_menu != null and pause_menu.is_open()):
+		return
+	if (_hands_on != null and _hands_on.visible) or (_day_summary != null and _day_summary.visible):
+		return
+	close_top_panel()
+	if _build_bar != null and _build_bar.visible:
+		_toggle_build_bar()
+	if world.build != null:
+		world.build.mode = BuildController.Mode.OFF
+	_profile_previous_hold = world.sim.menu_held
+	_profile_previous_lock = world.rig.locked if world.rig != null else false
+	world.sim.menu_held = true
+	if world.rig != null:
+		world.rig.locked = true
+	if hover != null:
+		hover.dismiss()
+	var profile: CharacterProfile = GameState.owner_profile
+	if profile == null:
+		profile = CharacterProfile.default_owner(GameState.world_seed)
+	_character_creator = CharacterCreator.open(_hud, profile, true)
+	_character_creator.accepted.connect(func(chosen: CharacterProfile) -> void:
+		GameState.owner_profile = chosen
+		refresh_stats()
+		flash("Appearance updated. Save to keep your changes.", 2.5)
+	)
+	_character_creator.closed.connect(func() -> void:
+		_character_creator = null
+		world.sim.menu_held = _profile_previous_hold
+		if world.rig != null:
+			world.rig.locked = _profile_previous_lock
+	)
 
 
 ## Before the day summary: close the working panels and leave build mode, so

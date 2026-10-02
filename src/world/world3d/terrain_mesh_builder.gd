@@ -230,7 +230,14 @@ func build_water_mesh() -> ArrayMesh:
 	var col := Color(0.15, 0.30, 0.32, 0.78)
 	for y in range(grid.rows):
 		for x in range(grid.cols):
-			if grid.cells[y * grid.cols + x] != TerrainGrid.Cell.WATER:
+			var near_water: bool = grid.cell_at(x, y) == TerrainGrid.Cell.WATER
+			for offset in TerrainGrid.NEIGHBOURS:
+				near_water = near_water or grid.cell_at(x + offset.x, y + offset.y) == TerrainGrid.Cell.WATER
+			# Extend only into neighbouring low banks. The shader clips this
+			# fringe to the actual heightfield; unrelated depressions stay dry.
+			if not near_water or plot.has_point(Vector2i(x, y)):
+				continue
+			if minf(minf(height_at_corner(x, y), height_at_corner(x + 1, y)), minf(height_at_corner(x, y + 1), height_at_corner(x + 1, y + 1))) >= WATER_LEVEL:
 				continue
 			var fx: float = float(x) * TILE
 			var fz: float = float(y) * TILE
@@ -242,6 +249,16 @@ func build_water_mesh() -> ArrayMesh:
 				col
 			)
 	return mb.commit()
+
+
+## Corner-aligned linear texture for shore depth, independent of scene depth
+## buffers so it also works in Compatibility and at low graphics settings.
+func water_height_texture() -> ImageTexture:
+	var image := Image.create(vcols, vrows, false, Image.FORMAT_RF)
+	for z in range(vrows):
+		for x in range(vcols):
+			image.set_pixel(x, z, Color(height_at_corner(x, z), 0, 0))
+	return ImageTexture.create_from_image(image)
 
 
 ## Centre of the map in world space, for the camera to start looking at.

@@ -121,12 +121,18 @@ func _begin() -> void:
 	if step == null:
 		_finish()
 		return
+	ctx["construction_practice"] = []
 	if step.begin.is_valid():
 		step.begin.call(world, ctx)
 	var lesson_number: int = TutorialPlan.LESSONS.find(step.lesson) + 1
 	var in_lesson: Array = steps.filter(func(s: TutorialStep) -> bool: return s.lesson == step.lesson)
 	_lesson.text = "TUTORIAL  ·  %d of %d  ·  %s" % [lesson_number, TutorialPlan.LESSONS.size(), step.lesson.to_upper()]
 	_text.text = step.text
+	if not ctx["construction_practice"].is_empty():
+		var names: PackedStringArray = PackedStringArray()
+		for alternatives in ctx["construction_practice"]:
+			names.append(BuildingCatalog.get_def(alternatives[0]).display_name)
+		_text.text = "These are already in place. Practise by placing one more of each anywhere on your land: %s." % ", ".join(names)
 	_why.text = step.why
 	_progress.text = "Step %d of %d in this lesson" % [in_lesson.find(step) + 1, in_lesson.size()]
 	# Paused while there is something to do; running while there is something
@@ -228,5 +234,7 @@ func show_me() -> void:
 		var worker: Worker = PlayerActions.staff(world, target["role"])
 		if worker != null:
 			world.rig.focus_on(worker.pawn.global_position)
-	elif target.has("button") and is_instance_valid(_pulsed):
+	elif target.has("button") and is_instance_valid(_pulsed) and _pulsed.focus_mode != Control.FOCUS_NONE:
+		# Toolbar buttons already pulse. They opt out of keyboard focus so
+		# Space keeps pausing time instead of activating the last clicked button.
 		_pulsed.grab_focus()

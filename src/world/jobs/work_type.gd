@@ -31,9 +31,11 @@ enum Kind {
 	BILL = 8,
 	## Fishing from a fishing spot on the river bank.
 	FISH = 9,
+	## Planting and harvesting farm plots.
+	FARM = 10,
 }
 
-const COUNT: int = 10
+const COUNT: int = 11
 
 ## 0 means the worker refuses this kind of work. 1 is the most urgent.
 const PRIORITY_OFF: int = 0
@@ -52,6 +54,7 @@ static func display_name(kind: int) -> String:
 		Kind.CLEAR: return "Clear"
 		Kind.BILL: return "Bill"
 		Kind.FISH: return "Fish"
+		Kind.FARM: return "Farm"
 		_: return "Work"
 
 
@@ -84,4 +87,5 @@ static func default_priorities() -> Dictionary:
 		# A patron waiting on the bill holds a table, like dirty plates do.
 		Kind.BILL: 2,
 		Kind.FISH: 4,
+		Kind.FARM: 4,
 	}

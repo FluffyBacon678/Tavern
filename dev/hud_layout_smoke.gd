@@ -42,6 +42,12 @@ func _ready() -> void:
 			var label: String = "%dx%d%s" % [size.x, size.y, " level briefing" if level else ""]
 			if await _new_world(size, level, label):
 				_measure(label, level)
+	# The empty opening hides fish and has a short staff line. The populated
+	# test house must fit too, including every stock and reputation caption.
+	for size in [Vector2i(1280, 720), Vector2i(1024, 768), Vector2i(1920, 1080)]:
+		var label: String = "%dx%d full house" % [size.x, size.y]
+		if await _new_world(size, false, label, true):
+			_measure(label, false)
 	if await _new_world(Vector2i(1920, 1080), false, "live resize source"):
 		_measure("live resize source 1920x1080", false)
 		if await _resize(Vector2i(1024, 768), "live resize 1920x1080 -> 1024x768"):
@@ -80,12 +86,14 @@ func _free_world() -> void:
 		await get_tree().process_frame
 
 
-func _new_world(size: Vector2i, level: bool, label: String) -> bool:
+func _new_world(size: Vector2i, level: bool, label: String, full_house: bool = false) -> bool:
 	await _free_world()
 	if not await _resize(size, label):
 		return false
 	GameState.world_seed = 12345
 	GameState.pending_level = &"wayfarers_rest" if level else &""
+	GameState.full_house_start = full_house
+	GameState.start_new_run("Layout test", 12345, GameState.MAX_SLOTS - 1, true)
 	SimWait.seed_run()
 	world = load(WORLD_SCENE).instantiate()
 	add_child(world)
@@ -116,6 +124,15 @@ func _button_name(button: Button) -> String:
 	return button.text if not button.text.is_empty() else button.tooltip_text
 
 
+func _header_labels(node: Node) -> Array[Label]:
+	var result: Array[Label] = []
+	for child in node.get_children():
+		if child is Label and child.is_visible_in_tree() and not child.text.is_empty():
+			result.append(child)
+		result.append_array(_header_labels(child))
+	return result
+
+
 func _inside(control: Control, view: Rect2) -> bool:
 	return control != null and control.is_visible_in_tree() and control.get_global_rect().has_area() and view.encloses(control.get_global_rect())
 
@@ -128,6 +145,9 @@ func _measure(label: String, level: bool) -> void:
 	# click targets; canvas_items/expand may render a logical 1280-wide viewport.
 	var pixels_per_unit: Vector2 = Vector2(get_window().size) / view.size
 	var buttons: Array[Button] = _buttons(root)
+	for caption in _header_labels(hud._header):
+		check(view.encloses(caption.get_global_rect()) and hud._header.get_global_rect().encloses(caption.get_global_rect()),
+			"%s: header text '%s' fits inside the header and viewport" % [label, caption.text])
 	check(not buttons.is_empty(), "%s: HUD contains visible buttons" % label)
 	for button in buttons:
 		var rect: Rect2 = button.get_global_rect()

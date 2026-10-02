@@ -14,6 +14,12 @@ void vertex() {
 	vec3 origin = MODEL_MATRIX[3].xyz;
 	if (foliage) {
 		float crown = smoothstep(0.8, 3.0, VERTEX.y);
+		if (INSTANCE_CUSTOM.r > 0.5) {
+			crown = smoothstep(0.0, 0.8, VERTEX.y) * 0.45;
+			// Broad upward fill keeps tiny two-sided blades from reading as
+			// black needles at the management camera's distance.
+			NORMAL = normalize(NORMAL + vec3(0.0, 1.5, 0.0));
+		}
 		float gust = sin(fx_time * 1.7 + origin.x * 0.3 + origin.z * 0.21);
 		VERTEX.x += crown * gust * (0.025 + wind * 0.075);
 		VERTEX.z += crown * sin(fx_time * 1.3 + origin.x * 0.23) * wind * 0.045;

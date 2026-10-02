@@ -89,7 +89,7 @@ func _ready() -> void:
 				await step.perform.call(world, director.ctx)
 		# At turbo speed a selected guest may leave before the director's real-
 		# time poll. Point at another actual guest, as a player would; never skip.
-		if step.id == "hover_guest" and not step.done.call(world, director.ctx):
+		if step.id in ["hover_guest", "guest_type"] and not step.done.call(world, director.ctx):
 			await step.perform.call(world, director.ctx)
 		# Match a player's continuation after an unexpected day close, but let
 		# the actual tutorial handle the lessons explicitly teaching the summary.
@@ -172,6 +172,9 @@ func _finish(reason: String, code: int) -> void:
 		print("WATCH diagnostic: " + JSON.stringify(_state()))
 	await _shot("final_" + reason.to_lower().replace(" ", "_"))
 	print("TUTORIAL WATCH: %s" % reason)
+	world.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
 	get_tree().quit(code)
 
 

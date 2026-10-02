@@ -46,6 +46,7 @@ func _ready() -> void:
 	SaveGame.apply(world, saved)
 	original.free()
 	check(world.clock.paused and world.hud._day_summary.visible, "loading a closed day restores its paused summary")
+	check(world.simulation_paused and world.sim.held, "freshly loaded summary holds the whole simulation before any close signal")
 	world.clock.sim_step(0.1)
 	check(GameState.gold == purse, "loading a closed day does not charge wages again")
 	check(world.ledger.history.size() == 1, "loading a closed day does not close the ledger again")

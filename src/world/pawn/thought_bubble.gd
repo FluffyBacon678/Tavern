@@ -126,6 +126,15 @@ const ICONS: Dictionary = {
 		"..aabbbaaa.",
 		"....aaa..a.",
 	], Color("7f9a86"), Color("1a120b")],
+	"farm": [[
+		".....b.....",
+		"...b.b.b...",
+		"....bbb....",
+		".....b.....",
+		".....b.....",
+		"aaaaaaaaaaa",
+		"acacacacaca",
+	], Color("6f9a3c"), Color("5a3d24")],
 	"idle": [[
 		"......aaaa.",
 		".........a.",

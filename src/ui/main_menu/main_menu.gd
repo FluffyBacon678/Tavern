@@ -29,6 +29,8 @@ var _s: float = 1.0
 var _page: int = Page.NONE
 var _backdrop: TextureRect
 var _menu: VBoxContainer
+var _menu_title: Label
+var _menu_margin: MarginContainer
 var _page_panel: PanelContainer
 var _buttons: Array[Button] = []
 var _page_buttons: Dictionary = {}
@@ -41,6 +43,10 @@ var _name_field: LineEdit
 var _seed_field: LineEdit
 var _chosen_slot: int = 0
 var _new_warning: Label
+## New-game choices survive rebuilding the page and opening the creator.
+var _draft_tavern_name: String = "The Drunken Dwarf"
+var _draft_seed: String = ""
+var _character_creator: CharacterCreator
 
 
 func _ready() -> void:
@@ -48,13 +54,19 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_rebuild)
 	GameSettings.changed.connect(_rebuild)
 	_rebuild()
+	if not GameState.load_error.is_empty():
+		var reason: String = GameState.load_error
+		GameState.load_error = ""
+		ModalDialog.ask(self, "Could not resume tavern", reason + " Your save files have been kept.", [["close", "Close", "primary"]])
 
 
 func _rebuild() -> void:
 	if not is_inside_tree():
 		return
+	_remember_new_fields()
 	for child in get_children():
-		child.queue_free()
+		if child != _character_creator:
+			child.queue_free()
 	_buttons.clear()
 	_page_buttons.clear()
 	_s = TavernTheme.scale_for_control(self)
@@ -67,6 +79,8 @@ func _rebuild() -> void:
 		_open_page(_page, false)
 	else:
 		_focus_first.call_deferred()
+	if is_instance_valid(_character_creator):
+		move_child(_character_creator, get_child_count() - 1)
 
 
 # --- backdrop -------------------------------------------------------------------
@@ -94,7 +108,9 @@ func _build_backdrop() -> void:
 	_backdrop.position = Vector2(view.x * 0.10, 0.0)
 	_backdrop.scale = Vector2.ONE * 1.24
 	if GameSettings.animated_background:
-		var drift: Tween = create_tween().set_loops()
+		# Resizing rebuilds this texture. Bind its looping animation to the
+		# texture itself so deleting it also stops the old loop.
+		var drift: Tween = _backdrop.create_tween().set_loops()
 		drift.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		drift.tween_property(_backdrop, "scale", Vector2.ONE * 1.32, 26.0)
 		drift.parallel().tween_property(_backdrop, "position", Vector2(view.x * 0.13, -view.y * 0.03), 26.0)
@@ -107,13 +123,11 @@ func _build_backdrop() -> void:
 	gradient.set_color(0, Color(0.03, 0.03, 0.02, 0.92))
 	gradient.set_color(1, Color(0.03, 0.03, 0.02, 0.0))
 	gradient.add_point(0.42, Color(0.03, 0.03, 0.02, 0.72))
-	var fill := GradientTexture2D.new()
-	fill.gradient = gradient
-	fill.fill_from = Vector2(0, 0)
-	fill.fill_to = Vector2(1, 0)
-	fill.width = 256
-	fill.height = 4
-	shade.texture = fill
+	var ramp := GradientTexture2D.new()
+	ramp.gradient = gradient
+	ramp.width = 256
+	ramp.height = 4
+	shade.texture = ramp
 	shade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	shade.stretch_mode = TextureRect.STRETCH_SCALE
 	shade.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
@@ -126,6 +140,7 @@ func _build_backdrop() -> void:
 
 func _build_menu() -> void:
 	var margin := MarginContainer.new()
+	_menu_margin = margin
 	margin.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
 	margin.offset_right = 520.0 * _s
 	margin.add_theme_constant_override("margin_left", int(72.0 * _s))
@@ -139,6 +154,8 @@ func _build_menu() -> void:
 	margin.add_child(column)
 
 	var title := UiKit.heading(GAME_TITLE, _s, 64.0, TavernTheme.PARCHMENT)
+	_menu_title = title
+	title.clip_text = true
 	title.add_theme_color_override("font_outline_color", TavernTheme.INK)
 	title.add_theme_constant_override("outline_size", int(6.0 * _s))
 	column.add_child(title)
@@ -158,6 +175,8 @@ func _build_menu() -> void:
 		_add_entry("Continue", _on_continue)
 		var about := UiKit.caption("%s  ·  day %d  ·  %s" % [String(summary.get("tavern_name", "Unnamed")),
 			int(summary.get("day", 1)), UiKit.ago(int(summary.get("saved_at", 0)))], _s, 14.0)
+		if summary.get("backup_recovered", false):
+			about.text += "\nPrevious backup available; latest save unreadable."
 		about.add_theme_color_override("font_color", TavernTheme.CANDLE_DIM)
 		var indent := MarginContainer.new()
 		indent.add_theme_constant_override("margin_left", int(24.0 * _s))
@@ -213,9 +232,15 @@ func _focus_first() -> void:
 # --- pages ----------------------------------------------------------------------
 
 func _open_page(page: int, sound: bool = true) -> void:
+	_remember_new_fields()
 	if is_instance_valid(_page_panel):
 		_page_panel.queue_free()
 	_page = page
+	_menu_margin.offset_right = 520.0 * _s
+	# Keep the brand inside the left column while the right page is open.
+	# Its natural width otherwise stretches the saved-game description beneath
+	# the page, especially with long tavern names at 4:3.
+	_menu_title.add_theme_font_size_override("font_size", int(round((64.0 if page == Page.NONE else 44.0) * _s)))
 	for key in _page_buttons:
 		var b: Button = _page_buttons[key]
 		b.add_theme_color_override("font_color", TavernTheme.CANDLE if key == page else TavernTheme.PARCHMENT)
@@ -228,6 +253,7 @@ func _open_page(page: int, sound: bool = true) -> void:
 	var view: Vector2 = get_viewport_rect().size
 	var width: float = minf(560.0 * _s, view.x - 560.0 * _s)
 	width = maxf(width, 380.0 * _s)
+	_menu_margin.offset_right = minf(520.0 * _s, view.x - width - 88.0 * _s)
 	_page_panel.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
 	_page_panel.offset_left = -width - 64.0 * _s
 	_page_panel.offset_right = -64.0 * _s
@@ -261,7 +287,7 @@ func _open_page(page: int, sound: bool = true) -> void:
 			_page_credits(body, footer)
 	# Slide in from the right: a quick, small movement reads as responsive.
 	_page_panel.modulate.a = 0.0
-	var slide: Tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var slide: Tween = _page_panel.create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	var rest: float = _page_panel.offset_left
 	_page_panel.offset_left = rest + 40.0 * _s
 	slide.tween_property(_page_panel, "offset_left", rest, 0.18)
@@ -289,7 +315,7 @@ func _page_new_game(body: VBoxContainer, footer: HBoxContainer) -> void:
 		options.append(["tutorial", "Tutorial", "Every part of the game, one step at a time: building, the kitchen, staff, service and money. About an hour; time waits while you learn."])
 	if level != null:
 		options.append(["demo", level.display_name, "%s %s" % [level.briefing, level.goal_text + "."]])
-	options.append(["sandbox", "Sandbox", "An empty plot on the road, %dg and five staff. Build what you like; there is no goal but your own." % GameState.STARTING_GOLD])
+	options.append(["sandbox", "Sandbox", "A big finished tavern with one of everything, every position on the staff and %dg, for trying it all out. No goal but your own." % TestHouse.GOLD])
 	var ids: Array = options.map(func(o) -> String: return String(o[0]))
 	if not ids.has(_scenario):
 		_scenario = String(ids[0])
@@ -317,13 +343,16 @@ func _page_new_game(body: VBoxContainer, footer: HBoxContainer) -> void:
 	if _scenario == "sandbox":
 		body.add_child(UiKit.caption("Tavern name", _s, 14.0))
 		_name_field = LineEdit.new()
-		_name_field.text = "The Drunken Dwarf"
+		_name_field.text = _draft_tavern_name
 		_name_field.placeholder_text = "The Drunken Dwarf"
+		_name_field.text_changed.connect(func(value: String) -> void: _draft_tavern_name = value)
 		_name_field.text_submitted.connect(func(_t: String) -> void: _on_start())
 		body.add_child(_name_field)
 		body.add_child(UiKit.caption("World seed", _s, 14.0))
 		_seed_field = LineEdit.new()
+		_seed_field.text = _draft_seed
 		_seed_field.placeholder_text = "Blank for a random forest; any word or number"
+		_seed_field.text_changed.connect(func(value: String) -> void: _draft_seed = value)
 		_seed_field.text_submitted.connect(func(_t: String) -> void: _on_start())
 		body.add_child(_seed_field)
 
@@ -362,9 +391,11 @@ func _page_new_game(body: VBoxContainer, footer: HBoxContainer) -> void:
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	footer.add_child(spacer)
-	var start: Button = UiKit.button("Open the doors", _s, true)
+	var start: Button = UiKit.button("Create character", _s, true)
 	start.pressed.connect(_on_start)
 	footer.add_child(start)
+	if is_instance_valid(_character_creator):
+		return
 	if _name_field != null and _scenario == "sandbox" and is_instance_valid(_name_field):
 		_name_field.call_deferred("grab_focus")
 	elif first != null:
@@ -383,6 +414,39 @@ func _first_free_slot() -> int:
 
 
 func _on_start() -> void:
+	if is_instance_valid(_character_creator):
+		return
+	_remember_new_fields()
+	var seed: int = _requested_seed()
+	if _scenario == "tutorial" and LevelCatalog.tutorial() != null:
+		seed = LevelCatalog.tutorial().world_seed
+	elif _scenario == "demo" and not LevelCatalog.all().is_empty():
+		seed = LevelCatalog.all()[0].world_seed
+	_character_creator = CharacterCreator.open(self, CharacterProfile.default_owner(seed))
+	_character_creator.accepted.connect(_start_with_character)
+	_character_creator.cancelled.connect(func() -> void:
+		_character_creator = null
+		if _page_buttons.has(Page.NEW):
+			_page_buttons[Page.NEW].call_deferred("grab_focus")
+	)
+
+
+func _requested_seed() -> int:
+	var raw: String = _draft_seed.strip_edges()
+	if raw.is_empty():
+		return -1
+	return int(raw) if raw.is_valid_int() else abs(raw.hash()) % 1_000_000
+
+
+func _remember_new_fields() -> void:
+	if is_instance_valid(_name_field):
+		_draft_tavern_name = _name_field.text
+	if is_instance_valid(_seed_field):
+		_draft_seed = _seed_field.text
+
+
+func _start_with_character(profile: CharacterProfile) -> void:
+	_character_creator = null
 	AudioDirector.play("ui_start")
 	var started: bool = false
 	var chosen_level: LevelDef = null
@@ -396,18 +460,14 @@ func _on_start() -> void:
 		if not started:
 			GameState.pending_level = &""
 	else:
-		var requested_seed: int = -1
-		var raw: String = _seed_field.text.strip_edges() if is_instance_valid(_seed_field) else ""
-		if not raw.is_empty():
-			# Any text is a seed: digits are used directly, words are hashed, so
-			# "ironhand" is as good a seed as 4211.
-			requested_seed = int(raw) if raw.is_valid_int() else abs(raw.hash()) % 1_000_000
-		var name: String = _name_field.text if is_instance_valid(_name_field) else ""
-		started = GameState.start_new_run(name, requested_seed, _chosen_slot, true)
+		GameState.full_house_start = true
+		started = GameState.start_new_run(_draft_tavern_name, _requested_seed(), _chosen_slot, true)
 	if not started:
 		_new_warning.text = "That slot could not be opened. Pick another."
 		_new_warning.visible = true
 		return
+	profile.person_id = "owner_%s" % str(GameState.world_seed)
+	GameState.owner_profile = profile
 	GameState.start_paused = true
 	SceneRouter.change_scene(WORLD_SCENE)
 
@@ -423,26 +483,36 @@ func _page_load(body: VBoxContainer, footer: HBoxContainer) -> void:
 		box.shadow_size = 0
 		card.add_theme_stylebox_override("panel", box)
 		body.add_child(card)
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", int(10.0 * _s))
-		card.add_child(row)
+		var content := VBoxContainer.new()
+		content.add_theme_constant_override("separation", int(8.0 * _s))
+		card.add_child(content)
 		var info := VBoxContainer.new()
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(info)
+		content.add_child(info)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", int(10.0 * _s))
+		content.add_child(row)
 		if summary.is_empty():
 			var stale: bool = GameState.has_slot_data(slot)
 			info.add_child(UiKit.heading("Slot %d" % (slot + 1), _s, 17.0, TavernTheme.PARCHMENT_DIM))
-			info.add_child(UiKit.caption("Unreadable — saved by an older build" if stale else "Empty", _s, 14.0))
+			info.add_child(UiKit.caption("Unreadable — damaged or unsupported save" if stale else "Empty", _s, 14.0))
 			if stale:
 				row.add_child(_delete_button(slot, "an unreadable save"))
 			continue
 		var name: String = String(summary.get("tavern_name", "Unnamed"))
-		info.add_child(UiKit.heading(name, _s, 19.0, TavernTheme.PARCHMENT))
-		var kind: String = "the demo scenario" if not String(summary.get("level", "")).is_empty() else "sandbox"
+		var title: Label = UiKit.heading(name, _s, 19.0, TavernTheme.PARCHMENT)
+		title.clip_text = true
+		title.tooltip_text = name
+		info.add_child(title)
+		var kind: String = SaveSlotDetails.kind(summary)
 		info.add_child(UiKit.caption("Day %d  ·  %dg  ·  %s  ·  slot %d  ·  saved %s" % [
 			int(summary.get("day", 1)), int(summary.get("gold", 0)), kind, slot + 1,
 			UiKit.ago(int(summary.get("saved_at", 0)))], _s, 13.0))
-		var open: Button = UiKit.button("Load", _s, true)
+		info.add_child(UiKit.caption(SaveSlotDetails.contents(summary), _s, 13.0))
+		var recovered: bool = summary.get("backup_recovered", false)
+		if recovered:
+			info.add_child(UiKit.caption("Latest save unreadable. This is your previous backup.", _s, 13.0))
+		var open: Button = UiKit.button("Load backup" if recovered else "Load", _s, true)
 		var chosen: int = slot
 		open.pressed.connect(func() -> void:
 			AudioDirector.play("ui_start")

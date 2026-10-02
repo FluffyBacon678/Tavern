@@ -33,6 +33,7 @@ func _ready() -> void:
 		get_tree().quit(2)
 		return
 	verbose = OS.get_cmdline_user_args().has("--verbose")
+	print("AUDIO: %s driver" % AudioServer.get_driver_name())
 	var args := OS.get_cmdline_user_args()
 	var at: int = args.find("--shots")
 	if at >= 0 and at + 1 < args.size():
@@ -76,11 +77,16 @@ func _play(director: TutorialDirector) -> void:
 			world.clock.day, world.clock.clock_text(), GameState.gold]
 		print(line)
 		if not shots_dir.is_empty():
+			# Drawing a report must not advance test time and change later rolls.
+			# Leave presentation/camera processing on and preserve the chosen speed.
+			var clock_processing: bool = world.sim.is_processing()
+			world.sim.set_process(false)
 			# Looking at what the step is about, as its Show me button would.
 			director.show_me()
 			await get_tree().process_frame
 			await RenderingServer.frame_post_draw
 			get_viewport().get_texture().get_image().save_png(shots_dir.path_join("%02d_%s.png" % [i + 1, step.id]))
+			world.sim.set_process(clock_processing)
 		if passed:
 			ok += 1
 		else:
@@ -94,6 +100,16 @@ func _play(director: TutorialDirector) -> void:
 	if at >= 0 and at + 1 < OS.get_cmdline_user_args().size():
 		if not await _trade_on(int(OS.get_cmdline_user_args()[at + 1])):
 			_failures.append("soak")
+	var report: Node = load("res://dev/world_scenario.gd").new()
+	report.world = world
+	add_child(report)
+	if not report.reconcile(false):
+		_failures.append("reconciliation")
+	report.queue_free()
+	# Let queued jobs, patrons and UI callbacks retire before engine shutdown.
+	world.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
 	get_tree().quit(0 if _failures.is_empty() else 1)
 
 
@@ -119,7 +135,7 @@ func _trade_on(days: int) -> bool:
 		# The summary is up: that day is done. Guest tallies are the day's own;
 		# they reset when the next day opens.
 		var line: PackedStringArray = PackedStringArray()
-		for id in [&"trout", &"perch", &"fillet", &"grilled_fish", &"fish_soup", &"bread", &"beer"]:
+		for id in [&"trout", &"perch", &"fillet", &"grilled_fish", &"fish_soup", &"bread", &"beer", &"wheat", &"hops", &"water"]:
 			var made: int = int(world.generator.produced.get(id, 0)) - int(made_before.get(id, 0))
 			if made > 0:
 				line.append("%s %d" % [id, made])

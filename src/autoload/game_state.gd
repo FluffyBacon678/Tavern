@@ -40,6 +40,8 @@ var pending_level: StringName = &""
 ## Populated when a run is in progress. Empty between runs.
 var tavern_name: String = ""
 var world_seed: int = 0
+## Personal identity belongs to this tavern/save, separate from its name.
+var owner_profile: CharacterProfile = CharacterProfile.default_owner()
 var active_slot: int = -1
 ## Starting purse. Placeholder value from the design notes' demo economy.
 var gold: int = STARTING_GOLD
@@ -53,6 +55,11 @@ var new_run_pending: bool = false
 ## Set by the title screen for a new game: open paused, so the player can plan
 ## before the clock runs. The world consumes it. Tests never set it.
 var start_paused: bool = false
+## A new sandbox opens in the finished test house (TestHouse) rather than on
+## an empty plot. Set by the main menu only, so test fixtures keep their plot.
+var full_house_start: bool = false
+## A failed resume is shown at the menu rather than opening an empty tavern.
+var load_error: String = ""
 var _test_save_dir: String = ""
 var _test_previous_state: Dictionary = {}
 
@@ -66,10 +73,11 @@ func begin_test_session() -> bool:
 	if DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path)) != OK:
 		return false
 	_test_previous_state = {"slot": active_slot, "name": tavern_name, "seed": world_seed,
-		"gold": gold, "load": load_requested}
+		"gold": gold, "load": load_requested, "owner": owner_profile}
 	_test_save_dir = path
 	active_slot = -1
 	load_requested = false
+	owner_profile = CharacterProfile.default_owner(world_seed)
 	return true
 
 
@@ -85,6 +93,7 @@ func end_test_session() -> void:
 	world_seed = _test_previous_state["seed"]
 	gold = _test_previous_state["gold"]
 	load_requested = _test_previous_state["load"]
+	owner_profile = _test_previous_state["owner"]
 	_test_save_dir = ""
 	_test_previous_state.clear()
 
@@ -148,7 +157,11 @@ func has_slot_data(slot: int) -> bool:
 ## Metadata for a slot, for the menu to label a Continue button.
 ## Returns an empty dictionary when the slot is empty or unreadable.
 func slot_summary(slot: int) -> Dictionary:
-	return SaveGame.read(slot)
+	var summary: Dictionary = SaveGame.read(slot)
+	if not summary.is_empty():
+		# Keep provenance on the card; another slot read changes the shared flag.
+		summary["backup_recovered"] = SaveGame.recovered_backup
+	return summary
 
 
 func most_recent_slot() -> int:
@@ -174,6 +187,7 @@ func start_new_run(p_tavern_name: String, p_seed: int = -1, slot: int = -1, repl
 	if tavern_name.is_empty():
 		tavern_name = "The Drunken Dwarf"
 	world_seed = p_seed if p_seed >= 0 else randi() % 1_000_000
+	owner_profile = CharacterProfile.default_owner(world_seed)
 	gold = STARTING_GOLD
 	active_slot = chosen
 	load_requested = false

@@ -27,6 +27,8 @@ static func capture(director: CustomerDirector) -> Dictionary:
 		var pawn: Pawn = brain.pawn
 		var target: Vector2i = pawn._path.back() if pawn.is_busy() and not pawn._path.is_empty() else pawn.tile
 		var row: Dictionary = {"name": pawn.pawn_name, "tile": _tile(pawn.tile),
+			"appearance": pawn.appearance.to_save() if pawn.appearance != null else {},
+			"equipment": pawn.equipped.duplicate(), "adventurer": pawn.adventurer,
 			"target": _tile(target), "pawn_seed": str(pawn._rng.seed),
 			"rng_seed": str(brain._rng.seed), "rng_state": str(brain._rng.state),
 			"state": brain.state, "greeted": brain.greeted, "did_order": brain._did_order,
@@ -74,6 +76,13 @@ static func restore(director: CustomerDirector, data: Dictionary) -> void:
 		pawn.setup(director.nav, director.terrain, _vector(row["tile"]),
 			director.pawn_material, int(row["pawn_seed"]), true)
 		pawn.pawn_name = row["name"]
+		if row.has("appearance"):
+			pawn.set_appearance(CharacterAppearance.from_save(row["appearance"], pawn.appearance),
+				CharacterProfile.equipment_from_save(row.get("equipment", {})))
+		# The archetype was seeded by the original outfit when the guest was
+		# born, but from now on it is stored independently of their wardrobe.
+		if _integer(row.get("adventurer"), -1, 6):
+			pawn.adventurer = int(row["adventurer"])
 		var brain := CustomerBrain.new()
 		brain.name = "Brain"
 		pawn.add_child(brain)

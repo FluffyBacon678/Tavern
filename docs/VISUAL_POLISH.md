@@ -1,5 +1,9 @@
 # RuneScape-inspired visual pass — 2026-09-22
 
+**Landscape follow-up, 2026-09-29:** [Landscape polish](LANDSCAPE_POLISH.md)
+records shallow riverbanks, animated shore foam, grass, wildflowers, rocks and
+reeds, with rendering budgets and land-expansion checks.
+
 **Atmosphere follow-up, 2026-09-28:** [World atmosphere](WORLD_ATMOSPHERE.md)
 records day/night lighting, weather, fire, lanterns, wind, sky and river effects,
 rendering limits, visual captures and the current six-day reconciliation.

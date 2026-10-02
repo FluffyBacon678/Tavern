@@ -105,8 +105,9 @@ func _build() -> void:
 func _refresh() -> void:
 	if world == null or _where == null:
 		return
-	_where.text = "%s  ·  Day %d, %s  ·  %dg" % [GameState.tavern_name, world.clock.day,
-		world.clock.clock_text(), GameState.gold]
+	_where.text = "%s  ·  Day %d, %s  ·  %dg\nSlot %d · %s" % [GameState.tavern_name, world.clock.day,
+		world.clock.clock_text(), GameState.gold, GameState.active_slot + 1,
+		SaveSlotDetails.contents(SaveGame.capture(world))]
 	var can_save: bool = GameState.active_slot >= 0
 	_save.disabled = not can_save
 	_save.tooltip_text = "Save to slot %d" % (GameState.active_slot + 1) if can_save else "This tavern has no save slot"
@@ -118,6 +119,8 @@ func _refresh() -> void:
 		_status.text = "Unsaved progress since %s." % _minutes_ago(world.saved_at_msec)
 	else:
 		_status.text = "Saved %s. Nothing unsaved." % _minutes_ago(world.saved_at_msec)
+	if world.restored_backup:
+		_status.text += "\nLoaded the previous backup. Save to keep this recovered tavern."
 
 
 func _minutes_ago(msec: int) -> String:

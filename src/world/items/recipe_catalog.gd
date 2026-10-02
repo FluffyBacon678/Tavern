@@ -48,12 +48,15 @@ static func _build() -> void:
 			[Recipe.ingredient("dough", 1)],
 			[Recipe.ingredient("bread", 2)]),
 
-		# No inputs at all: the point of the well is that water stops costing
-		# money and starts costing time. Everything else in the catalog turns
-		# goods into other goods; this one turns labour into goods.
-		Recipe.make("draw_water", "Draw Water", "well", 9.0, WorkType.Kind.GATHER,
+		# The river pump: labour into water, slowly. The well no longer makes
+		# water on demand; it fills with rain and stores what is poured in.
+		Recipe.make("pump_water", "Pump Water", "river_pump", 25.0, WorkType.Kind.GATHER,
 			[],
-			[Recipe.ingredient("water", 3)]),
+			[Recipe.ingredient("water", 1)]),
+		# Home-grown flour: two sheaves ground by hand make one sack.
+		Recipe.make("mill_flour", "Grind Flour", "prep_table", 3.0, WorkType.Kind.COOK,
+			[Recipe.ingredient("wheat", 2)],
+			[Recipe.ingredient("flour", 1)]),
 
 		Recipe.make("brew_beer", "Brew Beer", "brewing_vat", 7.0, WorkType.Kind.COOK,
 			[

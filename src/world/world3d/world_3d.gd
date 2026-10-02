@@ -75,6 +75,8 @@ var sold: Dictionary = {}
 var auto_supply := AutoSupply.new()
 ## The bubbles over people's heads. See ThoughtDirector.
 var thoughts: ThoughtDirector
+## Farm plots growing, and rain in the wells. See Farm.
+var farm: Farm
 var bills := BillBook.new()
 var objectives := Objectives.new()
 var plot: Rect2i
@@ -141,6 +143,7 @@ func _ready() -> void:
 		saved = SaveGame.read(GameState.active_slot)
 		GameState.load_requested = false
 		if saved.is_empty():
+			GameState.load_error = SaveGame.last_error if not SaveGame.last_error.is_empty() else "The save file could not be read."
 			GameState.active_slot = -1
 			SceneRouter.change_scene(MAIN_MENU_SCENE)
 			return
@@ -148,11 +151,18 @@ func _ready() -> void:
 	if saved.is_empty():
 		_world_seed = GameState.world_seed if GameState.world_seed > 0 else randi() % 1_000_000
 		generate(_world_seed)
+		if GameState.full_house_start and level == null:
+			TestHouse.build(self)
+		GameState.full_house_start = false
 	else:
+		var from_backup: bool = SaveGame.recovered_backup
+		restored_backup = from_backup
 		_world_seed = int(saved["world_seed"])
 		generate(_world_seed)
 		SaveGame.apply(self, saved)
 		mark_saved()
+		if from_backup:
+			hud.flash("Recovered the previous save from backup. The latest save was unreadable.", 8.0)
 	# A new tavern opens paused: building and ordering come first, and the
 	# clock used to be running from the first frame, before anything was done.
 	if GameState.start_paused:
@@ -165,8 +175,11 @@ func generate(world_seed: int) -> void:
 	var started: int = Time.get_ticks_msec()
 	_world_seed = world_seed
 	sim_rng.seed = hash(world_seed) ^ 0x5eed
-	for child in [_find("Terrain"), _find("Water"), _find("Forest")]:
+	for child in [_find("Terrain"), _find("Water"), _find("Forest"), _find("Scenery")]:
 		if child != null:
+			# Release the name immediately so repeated land purchases can find
+			# the replacement meshes before the deferred deletion runs.
+			remove_child(child)
 			child.queue_free()
 
 	var config := ForestConfig.new()
@@ -636,9 +649,10 @@ func save_now() -> bool:
 	if GameState.active_slot < 0:
 		return false
 	if not SaveGame.write(GameState.active_slot, SaveGame.capture(self)):
-		hud.flash("Could not save")
+		hud.flash("Could not save: " + SaveGame.last_error, 8.0)
 		return false
 	mark_saved()
+	restored_backup = false
 	return true
 
 
@@ -648,6 +662,8 @@ func save_now() -> bool:
 var _saved_mark: Array = []
 ## Real time of the last save or load, for "saved 3 min ago". 0 if never.
 var saved_at_msec: int = 0
+## Visible until the player successfully saves the recovered session.
+var restored_backup: bool = false
 
 
 func mark_saved() -> void:
@@ -660,8 +676,11 @@ func has_unsaved_progress() -> bool:
 
 
 func _progress_mark() -> Array:
-	return [snappedf(sim.sim_time if sim != null else 0.0, 0.5), GameState.gold,
-		build.grid.live_count() if build != null else 0, workers.size()]
+	# Counts miss swapping a building, changing crops, shelf filters or meal
+	# targets while paused. Compare the saved state, excluding wall-clock time.
+	var state: Dictionary = SaveGame.capture(self)
+	state.erase("saved_at")
+	return [JSON.stringify(state).sha256_text()]
 
 
 func _begin_next_day() -> void:

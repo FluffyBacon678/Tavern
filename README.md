@@ -12,6 +12,40 @@ Full design is in [`docs/medieval_tavern_game_design_notes.txt`](docs/medieval_t
 
 ## Current state
 
+**2026-10-02 keeper detail polish:** warmer eyes/brows and a quiet smile,
+narrower wrists, bent thumbs and shaped fingertips, plus a useful **Hands**
+editor view. Windowed/headless character checks, save restarts and the
+three-day economy pass; the largest equipped keeper remains below the
+1,400-triangle limit. See
+[`docs/KEEPER_DETAIL_POLISH.md`](docs/KEEPER_DETAIL_POLISH.md) for actual captures
+and measured limits.
+
+**2026-10-01 keeper/editor refinement:** sculpted ordinary-body contours,
+clearer collar, shaped jaw and swept hair crown, plus useful **Full body / Face**
+views with balanced lighting. Actual preview bounds, saves and gameplay checks
+pass across four PC window shapes. See
+[`docs/CHARACTER_EDITOR_POLISH.md`](docs/CHARACTER_EDITOR_POLISH.md) for captures,
+geometry budgets and remaining art limits.
+
+**2026-10-01 character polish:** leaner shared proportions, a fitted ordinary
+tunic, bevelled cuffs/boots, clearer face details, quieter hair and properly
+seated hats. Gentler creator lighting and a close-up art gallery make the
+shared player/staff/guest appearance easier to inspect. Mesh, character/save
+and gameplay regressions pass; the three-day economy is unchanged. See
+[`docs/CHARACTER_POLISH.md`](docs/CHARACTER_POLISH.md) for actual captures and
+rendering cost.
+
+**2026-10-01 character foundation:** new games now include a small tavern-keeper
+creator, with later appearance editing through **Keeper**. Owner, staff and live
+guests share explicit saved appearances and one renderer. Old-save continuity,
+cosmetic RNG isolation and the unchanged economy were measured; the sculpted
+reference art target and Android validation remain open. See
+[`docs/CHARACTER_FOUNDATION.md`](docs/CHARACTER_FOUNDATION.md).
+The current cozy ownership/progression direction is recorded in
+[`docs/CURRENT_GAME_VISION.md`](docs/CURRENT_GAME_VISION.md) and
+[`docs/PRODUCTION_ROADMAP.md`](docs/PRODUCTION_ROADMAP.md); older milestone
+descriptions below retain the history of the restaurant prototype.
+
 **2026-09-25 texture polish:** shared material detail, clearer goods, quieter
 floorboards and a verified item gallery. See [`docs/TEXTURE_POLISH.md`](docs/TEXTURE_POLISH.md)
 for captures, rendering measurements and verification limits.

@@ -1,7 +1,7 @@
 class_name AtmospherePalette
 extends RefCounted
 
-## Pure presentation state from saved inputs. Never draw simulation randomness
+## Deterministic sky and rainfall state from saved inputs. Never draw simulation randomness
 ## or maintain a second calendar that can drift after pause, speed or load.
 static func sample(world_seed: int, day: int, fraction: float) -> Dictionary:
 	var hour: float = clampf(fraction, 0.0, 1.0) * 24.0

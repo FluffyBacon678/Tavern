@@ -45,9 +45,11 @@ func triangle_count() -> int:
 ## this reversal only affects which side survives culling. Getting it wrong is
 ## quietly disastrous: a terrain surface simply stops existing when viewed from
 ## above, while closed shapes like tree canopies still look roughly correct.
-func add_tri(a: Vector3, b: Vector3, c: Vector3, col: Color) -> void:
+func add_tri(a: Vector3, b: Vector3, c: Vector3, col: Color, min_normal_squared: float = 0.0000001) -> void:
 	var n: Vector3 = (b - a).cross(c - a)
-	if n.length_squared() < 0.0000001:
+	# Small authored face marks opt into a finer cutoff. Keep the established
+	# threshold for terrain/props, while still rejecting truly collapsed faces.
+	if n.length_squared() < min_normal_squared:
 		return  # degenerate; contributes nothing but a bad normal
 	n = n.normalized()
 	_verts.push_back(a)
@@ -74,9 +76,9 @@ func _surface_uv(point: Vector3, normal: Vector3) -> Vector2:
 
 
 ## Add a quad as two triangles, wound consistently with add_tri.
-func add_quad(a: Vector3, b: Vector3, c: Vector3, d: Vector3, col: Color) -> void:
-	add_tri(a, b, c, col)
-	add_tri(a, c, d, col)
+func add_quad(a: Vector3, b: Vector3, c: Vector3, d: Vector3, col: Color, min_normal_squared: float = 0.0000001) -> void:
+	add_tri(a, b, c, col, min_normal_squared)
+	add_tri(a, c, d, col, min_normal_squared)
 
 
 ## An axis-aligned box from its minimum corner. The workhorse for built

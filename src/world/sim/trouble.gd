@@ -55,7 +55,7 @@ static func diagnose(world) -> String:
 			waiting[job.kind] = true
 		for kind in [WorkType.Kind.COOK, WorkType.Kind.HAUL, WorkType.Kind.SERVE,
 				WorkType.Kind.CLEAN, WorkType.Kind.CLEAR, WorkType.Kind.CONSTRUCT, WorkType.Kind.GATHER,
-				WorkType.Kind.BILL, WorkType.Kind.FISH, WorkType.Kind.HOST]:
+				WorkType.Kind.BILL, WorkType.Kind.FISH, WorkType.Kind.HOST, WorkType.Kind.FARM]:
 			if waiting.has(kind) and not _anyone_allowed(world, kind):
 				return "Nobody on the staff can %s. %s" % [_verb(kind), _hire_advice(kind)]
 
@@ -79,8 +79,8 @@ static func diagnose(world) -> String:
 					if world.stock_of(id) <= 0 and auto.never.has(id):
 						unbought.append(ItemCatalog.get_def(id).display_name.to_lower())
 				if not unbought.is_empty():
-					return "Out of %s, which auto-order is set never to buy. Get it yourself, or tick it in Production%s." % [
-						_joined(unbought), KeyBindings.hint("production")]
+					return "Out of %s, which auto restock is set never to buy. Get it yourself, or choose Allow all ingredients in Stores%s." % [
+						_joined(unbought), KeyBindings.hint("supplies")]
 				# Otherwise it is on its way: nothing to say, and on to the rest.
 			else:
 				var delivery: int = world.order_cost(world.STANDARD_ORDER)
@@ -89,8 +89,8 @@ static func diagnose(world) -> String:
 					# so say what is not.
 					return "Out of %s, and the purse (%dg) will not cover a full delivery (%dg). Order just what is missing, or demolish something for money back." % [
 						_joined(out), GameState.gold, delivery]
-				return "Out of %s. Order supplies%s, or switch on auto-order in Production%s." % [
-					_joined(out), KeyBindings.hint("supplies"), KeyBindings.hint("production")]
+				return "Out of %s. Enable Auto restock in Stores%s, or order ingredients manually there." % [
+					_joined(out), KeyBindings.hint("supplies")]
 
 	if customers.lost_no_menu >= LOSSES_WORTH_NAMING and customers.menu_stock() <= 0:
 		return "Nothing to sell: %d guests left today without ordering." % customers.lost_no_menu
@@ -161,8 +161,9 @@ static func _verb(kind: int) -> String:
 		WorkType.Kind.CLEAN: return "wash the dishes"
 		WorkType.Kind.CLEAR: return "clear tables"
 		WorkType.Kind.CONSTRUCT: return "build"
-		WorkType.Kind.GATHER: return "draw water"
+		WorkType.Kind.GATHER: return "pump water"
 		WorkType.Kind.FISH: return "fish"
+		WorkType.Kind.FARM: return "farm"
 	return "do that work"
 
 

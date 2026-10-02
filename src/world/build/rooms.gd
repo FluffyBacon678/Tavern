@@ -86,6 +86,19 @@ func named(tile: Vector2i) -> String:
 	return describe(rooms[index])
 
 
+## Blueprints enclose a planned room, but only finished floors and boundaries
+## shelter it. Shared by visible rain and actual rainwater collection.
+func is_sheltered(room: Dictionary) -> bool:
+	for tile in room["tiles"]:
+		if not _grid.is_built(_grid.floor_index_at(tile)):
+			return false
+		for direction in NEIGHBOURS:
+			var neighbour: Vector2i = tile + direction
+			if _grid.encloses_at(neighbour) and not _grid.is_built(_grid.object_index_at(neighbour)):
+				return false
+	return true
+
+
 static func describe(room: Dictionary) -> String:
 	var kind = room["kind"]
 	var name: String = kind.display_name if kind != null else "Room"

@@ -1,7 +1,7 @@
 class_name PawnMesh
 extends RefCounted
 
-## One surface per humanoid, with rigid bone weights preserving the blocky art.
+## One surface per humanoid, with rigid bone weights preserving the faceted art.
 ## Animation still drives joint transforms; a skeleton submits all six parts
 ## together, including shadow passes, rather than six separate draw submissions.
 ##
@@ -21,6 +21,12 @@ const LEG_H: float = HEIGHT * 0.38
 const TORSO_H: float = HEIGHT * 0.34
 const HEAD_H: float = HEIGHT * 0.20
 const ARM_H: float = HEIGHT * 0.30
+
+const FACE_LEVELS: Array[float] = [0.025, 0.074, 0.125, HEAD_H * 0.87]
+const FACE_RADII: Array[Vector2] = [Vector2(0.068, 0.078), Vector2(0.096, 0.096),
+	Vector2(0.108, 0.100), Vector2(0.100, 0.094)]
+## Open hats seat around the upper forehead, below the covered hair's apex.
+const HAT_BRIM_Y: float = HEAD_H - 0.020
 
 const BODY_W: float = 0.36
 const BODY_D: float = 0.24
@@ -97,7 +103,7 @@ class Rig:
 	var description: String = ""
 	## The one skinned mesh everything is drawn in, for the outline overlay.
 	var body: MeshInstance3D
-	## Look.*: which kind of adventurer, for GuestType. STAFF for staff.
+	## Visual preset only. Pawn stores its guest archetype independently.
 	var kind: int = 0
 
 	func sync_pose() -> void:
@@ -108,17 +114,50 @@ class Rig:
 
 static func build(rng: RandomNumberGenerator, material: Material, is_customer: bool = false,
 		uniform: Color = Color(0, 0, 0, 0)) -> Rig:
+	return build_appearance(generate_appearance(rng, is_customer, uniform), material)
+
+
+## Preserve the established two draws. A stored appearance and its renderer
+## never draw from the movement, guest or simulation streams.
+static func generate_appearance(rng: RandomNumberGenerator, is_customer: bool = false,
+		uniform: Color = Color(0, 0, 0, 0)) -> CharacterAppearance:
 	var palette: Array[Color] = CAPE_COLORS if is_customer else TUNIC_COLORS
 	var look_index: int = rng.randi_range(0, palette.size() - 1)
 	var skin_index: int = rng.randi_range(0, SKIN_COLORS.size() - 1)
-	var skin: Color = SKIN_COLORS[skin_index]
 	# Appearance must not consume extra simulation randomness: the same seed
 	# still produces the same initial facing, idle timers and walking choices.
 	# Everything below is derived from these two draws.
 	var style: int = look_index + skin_index * palette.size()
 	var variant: int = PawnWardrobe.variant_for_state(rng.state) if is_customer else 0
-	var hair: Color = HAIR_COLORS[(style + variant * 2) % HAIR_COLORS.size()]
 	var outfit: Dictionary = customer_outfit(style, look_index, variant) if is_customer else staff_outfit(uniform)
+	var appearance := CharacterAppearance.new()
+	appearance.skin = SKIN_COLORS[skin_index]
+	appearance.hair = HAIR_COLORS[(style + variant * 2) % HAIR_COLORS.size()]
+	appearance.body_type = (style + variant) % 2
+	appearance.hair_style = variant if is_customer else style % 4
+	appearance.top = outfit["body"]
+	appearance.trousers = outfit["legs"]
+	appearance.boots = outfit["boots"]
+	appearance.family = int(outfit.get("look", Look.STAFF))
+	appearance.style = style
+	appearance.cape_index = look_index
+	appearance.variant = variant
+	appearance.uniform = uniform
+	return appearance
+
+
+## The creator, staff and patrons all use this pure, single-surface builder.
+## Equipment here is cosmetic attachment data, independent of a guest's class.
+static func build_appearance(appearance: CharacterAppearance, material: Material,
+		equipped: Dictionary = {}) -> Rig:
+	var outfit: Dictionary = _outfit_for(appearance, equipped)
+	var slender: bool = appearance.body_type == 1
+	# A leaner old-school silhouette, baked into the same rig and equipment.
+	# Heights and the carry point stay fixed so chairs, walking and cargo fit.
+	var torso_scale := Vector3(0.79 if slender else 0.90, 1.0, 0.87 if slender else 0.90)
+	var arm_scale := Vector3(0.78 if slender else 0.85, 1.0, 0.87)
+	var leg_scale := Vector3(0.84 if slender else 0.92, 1.0, 0.92)
+	var head_scale := Vector3(0.84, 0.92, 0.90) if appearance.family < 0 else Vector3(0.94, 0.96, 0.94)
 
 	var rig := Rig.new()
 	rig.description = outfit["description"]
@@ -130,23 +169,32 @@ static func build(rng: RandomNumberGenerator, material: Material, is_customer: b
 	var shoulder_y: float = hip_y + TORSO_H
 
 	# Torso sits on the hips, built upward from its own origin.
-	rig.torso = _limb(_torso_mesh(outfit), Vector3(0.0, hip_y, 0.0), material)
+	rig.torso = _limb(_torso_mesh(outfit), Vector3(0.0, hip_y, 0.0), material, torso_scale)
 	rig.root.add_child(rig.torso)
 
-	rig.head = _limb(_head_mesh(skin, hair, style, outfit), Vector3(0.0, shoulder_y, 0.0), material)
+	rig.head = _limb(_head_mesh(appearance.skin, appearance.hair, appearance.style, outfit),
+		Vector3(0.0, shoulder_y, 0.0), material, head_scale)
 	rig.root.add_child(rig.head)
 
 	# Arms and legs hang below their pivots so rotation swings from the joint.
-	var hands: Color = outfit.get("hands", skin)
-	rig.arm_l = _limb(_arm_mesh(outfit["sleeve"], outfit["cuff"], hands, outfit),
-		Vector3(-(BODY_W * 0.5 + LIMB_W * 0.5), shoulder_y - 0.02, 0.0), material)
+	var hands: Color = outfit.get("hands", appearance.skin)
+	var shoulder_half: float = BODY_W * 0.5
+	if appearance.family < 0:
+		shoulder_half -= 0.030
+	elif appearance.family != Look.WARRIOR:
+		shoulder_half -= 0.014
+	var shoulder_x: float = shoulder_half * torso_scale.x + LIMB_W * 0.5 * arm_scale.x
+	rig.arm_l = _limb(_arm_mesh(outfit["sleeve"], outfit["cuff"], hands, outfit, 1.0),
+		Vector3(-shoulder_x, shoulder_y - 0.02, 0.0), material, arm_scale)
 	rig.arm_r = _limb(_arm_mesh(outfit["sleeve"], outfit["cuff"], hands, outfit),
-		Vector3(BODY_W * 0.5 + LIMB_W * 0.5, shoulder_y - 0.02, 0.0), material)
+		Vector3(shoulder_x, shoulder_y - 0.02, 0.0), material, arm_scale)
 	rig.root.add_child(rig.arm_l)
 	rig.root.add_child(rig.arm_r)
 
-	rig.leg_l = _limb(_leg_mesh(outfit["legs"], outfit["boots"], outfit), Vector3(-LIMB_W * 0.62, hip_y, 0.0), material)
-	rig.leg_r = _limb(_leg_mesh(outfit["legs"], outfit["boots"], outfit), Vector3(LIMB_W * 0.62, hip_y, 0.0), material)
+	rig.leg_l = _limb(_leg_mesh(outfit["legs"], outfit["boots"], outfit),
+		Vector3(-LIMB_W * 0.62 * torso_scale.x, hip_y, 0.0), material, leg_scale)
+	rig.leg_r = _limb(_leg_mesh(outfit["legs"], outfit["boots"], outfit),
+		Vector3(LIMB_W * 0.62 * torso_scale.x, hip_y, 0.0), material, leg_scale)
 	rig.root.add_child(rig.leg_l)
 	rig.root.add_child(rig.leg_r)
 
@@ -158,6 +206,45 @@ static func build(rng: RandomNumberGenerator, material: Material, is_customer: b
 
 	_merge_rig(rig, material)
 	return rig
+
+
+static func _outfit_for(appearance: CharacterAppearance, equipped: Dictionary) -> Dictionary:
+	var outfit: Dictionary
+	if appearance.family < 0:
+		outfit = {
+			"look": -1, "description": "in a linen travelling tunic", "ordinary": true,
+			"body": appearance.top, "sleeve": appearance.top,
+			"cuff": appearance.top.lightened(0.1), "hands": appearance.skin,
+			"legs": appearance.trousers, "boots": appearance.boots,
+			"headgear": "", "back": "", "cape": null,
+		}
+	elif appearance.family == Look.STAFF:
+		outfit = staff_outfit(appearance.top)
+	else:
+		# A preset selects its family explicitly; the remainder of the stored
+		# style still chooses tier/dye without coupling clothing to behaviour.
+		var style: int = appearance.style - posmod(appearance.style, 6) + appearance.family - 1
+		outfit = customer_outfit(style, appearance.cape_index, appearance.variant)
+		var old_body: Color = outfit["body"]
+		if outfit["sleeve"] == old_body:
+			outfit["sleeve"] = appearance.top
+		outfit["body"] = appearance.top
+		outfit["legs"] = appearance.trousers
+		outfit["boots"] = appearance.boots
+	outfit["hair_style"] = appearance.hair_style
+	outfit["skin"] = appearance.skin
+	if String(equipped.get("head", "")) == "felt_hat":
+		outfit["headgear"] = "felt_hat"
+		outfit["headgear_colour"] = Color("65513e")
+	if String(equipped.get("cape", "")) == "travel_cape":
+		outfit["cape"] = CAPE_COLORS[posmod(appearance.cape_index, CAPE_COLORS.size())]
+		outfit["edge"] = BRASS.darkened(0.15)
+		outfit["short_cape"] = false
+		outfit["cape_pattern"] = 0
+	if String(equipped.get("backpack", "")) == "travel_pack":
+		outfit["back"] = "pack"
+		outfit["trim"] = Color("667953")
+	return outfit
 
 
 ## The house uniform. `vest` is the position's colour (StaffRole.uniform):
@@ -295,8 +382,21 @@ static func _merge_rig(rig: Rig, material: Material) -> void:
 	rig.sync_pose()
 
 
-static func _limb(mesh: ArrayMesh, at: Vector3, material: Material) -> MeshInstance3D:
+static func _limb(mesh: ArrayMesh, at: Vector3, material: Material, shape: Vector3 = Vector3.ONE) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
+	if shape != Vector3.ONE:
+		# Bake shape into geometry. Bone rests retain unit scale, so the same
+		# walk/carry animations work for both silhouettes without stretching gear.
+		var arrays: Array = mesh.surface_get_arrays(0)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		for i in range(vertices.size()):
+			vertices[i] *= shape
+			normals[i] = (normals[i] / shape).normalized()
+		arrays[Mesh.ARRAY_VERTEX] = vertices
+		arrays[Mesh.ARRAY_NORMAL] = normals
+		mesh = ArrayMesh.new()
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	mi.mesh = mesh
 	mi.position = at
 	mi.material_override = material
@@ -307,14 +407,18 @@ static func _torso_mesh(outfit: Dictionary) -> ArrayMesh:
 	var mb := MeshBuilder.new()
 	var body: Color = outfit["body"]
 	var robe: bool = outfit.get("robe", false)
-	# Broad shoulders and a flared hem keep the silhouette readable at the
-	# management camera's distance; small surface details cannot do that job. A
-	# robe's hem simply comes further down.
-	_tapered_box(mb, -0.12 if robe else -0.045, 0.12, Vector2(0.18, 0.13),
-		Vector2(0.15, 0.115), body.darkened(0.08))
-	_tapered_box(mb, 0.12, TORSO_H, Vector2(0.15, 0.115), Vector2(BODY_W * 0.5, BODY_D * 0.5), body)
+	if outfit.get("ordinary", false):
+		KeeperMesh.tunic(mb, TORSO_H, body, outfit["skin"], BELT, BRASS)
+	else:
+		# Uniforms and armor retain their authored seams, beneath the same lean
+		# body scales. Robes keep their longer hem and recognizable silhouette.
+		_tapered_box(mb, -0.12 if robe else -0.045, 0.12, Vector2(0.18, 0.13),
+			Vector2(0.15, 0.115), body.darkened(0.08))
+		_tapered_box(mb, 0.12, TORSO_H, Vector2(0.15, 0.115), Vector2(BODY_W * 0.5, BODY_D * 0.5), body)
 
 	match int(outfit["look"]):
+		-1:
+			pass  # The continuous ordinary tunic includes its collar and belt.
 		Look.STAFF:
 			# The shirt shows down the front between the waistcoat's panels, with
 			# a dark cravat at the throat and brass buttons down one edge.
@@ -328,7 +432,6 @@ static func _torso_mesh(outfit: Dictionary) -> ArrayMesh:
 			mb.add_quad(Vector3(-0.13, -0.2, 0.15), Vector3(0.13, -0.2, 0.15),
 				Vector3(0.1, 0.13, 0.136), Vector3(-0.1, 0.13, 0.136), UNIFORM_SHIRT)
 			mb.add_box(Vector3(-0.155, 0.1, -0.121), Vector3(0.31, 0.03, 0.257), UNIFORM_SHIRT.darkened(0.15))
-			return mb.commit()
 		Look.WARRIOR:
 			# A ridged breastplate catches two broad values at play distance.
 			for side in [-1.0, 1.0]:
@@ -379,11 +482,14 @@ static func _torso_mesh(outfit: Dictionary) -> ArrayMesh:
 			PawnEquipment.quiver_and_bow(mb, outfit.get("edge", UNIFORM_SHIRT).lightened(0.12))
 			PawnEquipment.sling(mb, LEATHER.darkened(0.2))
 		"pack":
-			PawnEquipment.pack(mb, outfit["trim"].darkened(0.2))
+			# A cape sits against the back and the pack is strapped over it. Move
+			# only the luggage outward; front straps retain their shoulder anchors.
+			PawnEquipment.pack(mb, outfit["trim"].darkened(0.2), -0.05 if cape != null else 0.0)
 		"staff":
 			PawnEquipment.staff(mb, outfit["jewel"], outfit.get("variant", 0))
 			PawnEquipment.sling(mb, LEATHER)
-	PawnEquipment.belt_kit(mb, outfit.get("accent", Color("518f85")), robe, outfit.get("book_colour", Color("38635c")))
+	if int(outfit["look"]) > Look.STAFF:
+		PawnEquipment.belt_kit(mb, outfit.get("accent", Color("518f85")), robe, outfit.get("book_colour", Color("38635c")))
 	if outfit.get("sword", false):
 		PawnEquipment.sword(mb)
 	return mb.commit()
@@ -394,7 +500,9 @@ static func _head_mesh(skin: Color, hair: Color, style: int, outfit: Dictionary)
 	var mb := MeshBuilder.new()
 	var gear: String = String(outfit.get("headgear", ""))
 	var gear_colour: Color = outfit.get("headgear_colour", hair)
-	mb.add_box(Vector3(-0.043, -0.006, -0.04), Vector3(0.086, 0.055, 0.08), skin.darkened(0.1))
+	if outfit.get("ordinary", false):
+		return KeeperMesh.head(skin, hair, int(outfit.get("hair_style", 0)), gear == "felt_hat", gear_colour, VISOR)
+	_tapered_box(mb, -0.006, 0.049, Vector2(0.035, 0.035), Vector2(0.041, 0.037), skin.darkened(0.08))
 	if gear == "full_helm":
 		_chamfered_head(mb, 0.026, HEAD_H, 0.122, 0.11, gear_colour)
 		mb.add_blob(Vector3(0, HEAD_H - 0.007, 0), Vector3(0.127, 0.093, 0.116), 3, 8, gear_colour.lightened(0.06))
@@ -410,30 +518,41 @@ static func _head_mesh(skin: Color, hair: Color, style: int, outfit: Dictionary)
 
 	# The skull ends underneath the hair/hood. A taller flat cap pokes through
 	# the sloped crown when viewed from the management camera.
-	_chamfered_head(mb, 0.035, HEAD_H * 0.87, 0.108, 0.099, skin)
+	_face_planes(mb, skin)
 	if not gear in ["hood", "coif", "med_helm"]:
-		mb.add_blob(Vector3(0, HEAD_H * 0.80, -0.015), Vector3(0.117, 0.097, 0.11), 3, 8, hair)
-		mb.add_box(Vector3(-0.09, 0.074, -0.106), Vector3(0.18, 0.13, 0.034), hair)
-		# One side lock breaks the otherwise perfectly symmetric head.
-		var side: float = -1.0 if style % 2 == 0 else 1.0
-		mb.add_box(Vector3(side * 0.098 - 0.014, 0.116, -0.075), Vector3(0.028, 0.088, 0.133), hair)
-		if int(outfit.get("hair_style", 0)) == 2:
-			# A tied tail changes the back silhouette without another moving part.
-			mb.add_blob(Vector3(0.01, 0.12, -0.13), Vector3(0.044, 0.046, 0.032), 2, 6, hair)
-			mb.add_limb(Vector3(0.01, 0.105, -0.15), Vector3(0.028, -0.03, -0.16), 0.034, 0.014, 6, hair)
-			mb.add_box(Vector3(-0.023, 0.092, -0.175), Vector3(0.065, 0.016, 0.043), outfit.get("edge", BRASS))
-	mb.add_box(Vector3(-0.023, 0.10, 0.096), Vector3(0.046, 0.062, 0.042), skin.darkened(0.08))
+		_add_hair(mb, hair, int(outfit.get("hair_style", 0)), gear,
+			outfit.get("edge", BRASS))
+	# The bridge, two sides and underside form a small wedge, without a cube
+	# sitting on the face. Eye and mouth planes remain readable from three quarters.
+	var nose_l := Vector3(-0.016, 0.105, 0.100)
+	var nose_r := Vector3(0.016, 0.105, 0.100)
+	var bridge := Vector3(0, 0.161, 0.099)
+	var tip := Vector3(0, 0.114, 0.127)
+	mb.add_tri(nose_l, tip, bridge, skin.darkened(0.07))
+	mb.add_tri(bridge, tip, nose_r, skin.lightened(0.025))
+	mb.add_tri(nose_l, nose_r, tip, skin.darkened(0.17))
 	for side in [-1.0, 1.0]:
-		mb.add_box(Vector3(side * 0.05 - 0.018, 0.16, 0.100), Vector3(0.038, 0.014, 0.008), hair.darkened(0.28))
-		mb.add_box(Vector3(side * 0.05 - 0.015, 0.139, 0.102), Vector3(0.03, 0.016, 0.008), Color("ece0c8"))
-		mb.add_box(Vector3(side * 0.05 - 0.007, 0.139, 0.111), Vector3(0.014, 0.016, 0.005), VISOR)
-		if gear.is_empty() or gear == "feather_hat":
-			mb.add_blob(Vector3(side * 0.108, 0.112, 0.005), Vector3(0.023, 0.037, 0.029), 2, 5, skin.darkened(0.04))
-	mb.add_box(Vector3(-0.026, 0.065, 0.101), Vector3(0.052, 0.009, 0.008), skin.darkened(0.4))
+		# Broad ink planes sit just above the cheek surface. They keep the face
+		# readable without tiny projecting boxes casting heavy eye/brow shadows.
+		var eye_x: float = side * 0.048
+		_face_detail(mb, Vector2(eye_x - 0.014, 0.137), Vector2(eye_x + 0.014, 0.137),
+			Vector2(eye_x + 0.012, 0.150), Vector2(eye_x - 0.012, 0.150), Color("c5bba6"), 0.0015)
+		_face_detail(mb, Vector2(eye_x - 0.005, 0.138), Vector2(eye_x + 0.005, 0.138),
+			Vector2(eye_x + 0.005, 0.150), Vector2(eye_x - 0.005, 0.150), VISOR, 0.0025)
+		_face_detail(mb, Vector2(eye_x - 0.015, 0.161), Vector2(eye_x + 0.015, 0.161),
+			Vector2(eye_x + 0.014, 0.168), Vector2(eye_x - 0.014, 0.169), hair.darkened(0.18), 0.0015)
+		if not gear in ["hood", "coif", "med_helm"]:
+			mb.add_blob(Vector3(side * 0.107, 0.112, 0.005), Vector3(0.019, 0.030, 0.023), 2, 5, skin.darkened(0.04))
+	# A quieter, slightly lifted mouth replaces the rigid horizontal lip block.
+	var lip: Color = skin.darkened(0.25)
+	_face_detail(mb, Vector2(-0.023, 0.069), Vector2(0, 0.066),
+		Vector2(0, 0.070), Vector2(-0.023, 0.072), lip, 0.0015)
+	_face_detail(mb, Vector2(0, 0.066), Vector2(0.023, 0.069),
+		Vector2(0.023, 0.072), Vector2(0, 0.070), lip, 0.0015)
 	if outfit.get("beard", false):
 		PawnEquipment.panel(mb, [Vector2(-0.072, 0.093), Vector2(-0.065, -0.015), Vector2(0, -0.105), Vector2(0.066, -0.015), Vector2(0.072, 0.093)], 0.105, 0.039, BEARD)
 		mb.add_limb(Vector3(-0.035, 0.05, 0.15), Vector3(0, -0.072, 0.149), 0.017, 0.006, 4, BEARD.lightened(0.15))
-	elif style % 4 == 0 and gear != "coif":
+	elif not outfit.get("ordinary", false) and style % 4 == 0 and gear != "coif":
 		mb.add_box(Vector3(-0.072, 0.035, 0.084), Vector3(0.144, 0.06, 0.029), hair)
 
 	match gear:
@@ -472,30 +591,147 @@ static func _head_mesh(skin: Color, hair: Color, style: int, outfit: Dictionary)
 			mb.add_tri(Vector3(0.135, 0.20, -0.12), Vector3(0, 0.283, 0.11), Vector3(0.135, 0.20, 0.11), gear_colour.lightened(0.06))
 			mb.add_tri(Vector3(-0.135, 0.20, -0.12), Vector3(0, 0.283, 0.11), Vector3(0.135, 0.20, -0.12), gear_colour.darkened(0.06))
 		"wizard_hat":
-			PawnEquipment.pointed_hat(mb, HEAD_H + 0.025, gear_colour, outfit.get("edge", BRASS))
+			PawnEquipment.pointed_hat(mb, HAT_BRIM_Y + 0.004, gear_colour, outfit.get("edge", BRASS))
 		"circlet":
 			mb.add_box(Vector3(-0.092, 0.185, 0.106), Vector3(0.184, 0.022, 0.013), outfit["edge"])
 			PawnEquipment.panel(mb, [Vector2(0, 0.229), Vector2(-0.021, 0.197), Vector2(0, 0.173), Vector2(0.021, 0.197)], 0.121, 0.012, outfit["jewel"])
 		"feather_hat":
-			mb.add_cylinder(Vector3(0, HEAD_H + 0.013, 0), 0.19, 0.175, 0.022, 7, gear_colour)
-			PawnEquipment.cap(mb, Vector3(0, HEAD_H + 0.013, 0), Vector3.DOWN, 0.19, 7, gear_colour.darkened(0.25))
-			mb.add_cylinder(Vector3(0, HEAD_H + 0.035, 0), 0.115, 0.087, 0.09, 7, gear_colour.lightened(0.08))
-			mb.add_cylinder(Vector3(0, HEAD_H + 0.035, 0), 0.118, 0.113, 0.029, 7, outfit["body"])
-			PawnEquipment.panel(mb, [Vector2(0.09, 0.27), Vector2(0.15, 0.28), Vector2(0.235, 0.43), Vector2(0.16, 0.385)], -0.005, 0.014, UNIFORM_SHIRT)
+			mb.add_cylinder(Vector3(0, HAT_BRIM_Y + 0.004, 0), 0.19, 0.175, 0.022, 7, gear_colour)
+			PawnEquipment.cap(mb, Vector3(0, HAT_BRIM_Y + 0.004, 0), Vector3.DOWN, 0.19, 7, gear_colour.darkened(0.25))
+			mb.add_cylinder(Vector3(0, HAT_BRIM_Y + 0.026, 0), 0.115, 0.087, 0.09, 7, gear_colour.lightened(0.08))
+			mb.add_cylinder(Vector3(0, HAT_BRIM_Y + 0.026, 0), 0.118, 0.113, 0.029, 7, outfit["body"])
+			PawnEquipment.panel(mb, [Vector2(0.09, HAT_BRIM_Y + 0.041), Vector2(0.15, HAT_BRIM_Y + 0.051), Vector2(0.235, HAT_BRIM_Y + 0.201), Vector2(0.16, HAT_BRIM_Y + 0.156)], -0.005, 0.014, UNIFORM_SHIRT)
+		"felt_hat":
+			# A modest road hat, with an irregular eight-sided brim and leather
+			# band. No silhouette borrowed from a named outside game's item.
+			mb.add_cylinder(Vector3(0, HAT_BRIM_Y, 0), 0.167, 0.156, 0.021, 8, gear_colour.darkened(0.12))
+			PawnEquipment.cap(mb, Vector3(0, HAT_BRIM_Y, 0), Vector3.DOWN, 0.167, 8, gear_colour.darkened(0.24))
+			mb.add_cylinder(Vector3(0, HAT_BRIM_Y + 0.021, -0.006), 0.115, 0.091, 0.074, 8, gear_colour)
+			mb.add_cylinder(Vector3(0, HAT_BRIM_Y + 0.022, -0.006), 0.117, 0.112, 0.024, 8, BELT)
+			mb.add_box(Vector3(0.072, HAT_BRIM_Y + 0.028, 0.077), Vector3(0.025, 0.018, 0.008), BRASS)
 		"party_hat":
 			# A paper crown: a band and a ring of points.
-			mb.add_cylinder(Vector3(0.0, HEAD_H + 0.04, 0.0), 0.1, 0.1, 0.035, 8, gear_colour)
+			mb.add_cylinder(Vector3(0.0, HAT_BRIM_Y + 0.004, 0.0), 0.1, 0.1, 0.035, 8, gear_colour)
 			for i in range(5):
 				var a: float = TAU * float(i) / 5.0
-				mb.add_cone(Vector3(cos(a) * 0.07, HEAD_H + 0.075, sin(a) * 0.07), 0.035, 0.08, 4, gear_colour)
+				mb.add_cone(Vector3(cos(a) * 0.07, HAT_BRIM_Y + 0.039, sin(a) * 0.07), 0.035, 0.08, 4, gear_colour)
 	return mb.commit()
 
 
-static func _arm_mesh(sleeve: Color, cuff: Color, hand: Color, outfit: Dictionary) -> ArrayMesh:
+## Jaw, cheek and forehead planes give the face a silhouette without adding a
+## noisy triangulated skin texture. Each broad side retains one flat normal.
+static func _face_planes(mb: MeshBuilder, skin: Color) -> void:
+	var corners: Array[Vector2] = [Vector2(-0.65, -1), Vector2(-1, -0.65),
+		Vector2(-1, 0.65), Vector2(-0.65, 1), Vector2(0.65, 1),
+		Vector2(1, 0.65), Vector2(1, -0.65), Vector2(0.65, -1)]
+	var levels: Array[float] = FACE_LEVELS
+	var radii: Array[Vector2] = FACE_RADII
+	for ring in range(levels.size() - 1):
+		for i in range(8):
+			var j: int = (i + 1) % 8
+			var a := Vector3(corners[i].x * radii[ring].x, levels[ring], corners[i].y * radii[ring].y)
+			var b := Vector3(corners[j].x * radii[ring].x, levels[ring], corners[j].y * radii[ring].y)
+			var c := Vector3(corners[j].x * radii[ring + 1].x, levels[ring + 1], corners[j].y * radii[ring + 1].y)
+			var d := Vector3(corners[i].x * radii[ring + 1].x, levels[ring + 1], corners[i].y * radii[ring + 1].y)
+			mb.add_quad(a, b, c, d, skin.darkened(0.015) if ring == 0 else skin)
+			if ring == 0:
+				mb.add_tri(Vector3(0, levels[0], 0), b, a, skin.darkened(0.08))
+			if ring == levels.size() - 2:
+				mb.add_tri(Vector3(0, levels[-1], 0), d, c, skin)
+
+
+## Facial ink follows the skin slope rather than floating on a flat box front.
+## The normal-area guard stays enabled, with a cutoff suitable for tiny pupils.
+static func _face_detail(mb: MeshBuilder, a: Vector2, b: Vector2, c: Vector2, d: Vector2, colour: Color, lift: float) -> void:
+	mb.add_quad(_face_point(a, lift), _face_point(b, lift), _face_point(c, lift), _face_point(d, lift), colour, 0.000000000001)
+
+
+static func _face_point(point: Vector2, lift: float) -> Vector3:
+	for i in range(FACE_LEVELS.size() - 1):
+		if point.y <= FACE_LEVELS[i + 1]:
+			var fraction: float = clampf(inverse_lerp(FACE_LEVELS[i], FACE_LEVELS[i + 1], point.y), 0.0, 1.0)
+			return Vector3(point.x, point.y, lerpf(FACE_RADII[i].y, FACE_RADII[i + 1].y, fraction) + lift)
+	return Vector3(point.x, point.y, FACE_RADII[-1].y + lift)
+
+
+static func _add_hair(mb: MeshBuilder, hair: Color, style: int, gear: String, tie: Color) -> void:
+	var covered: bool = gear in ["felt_hat", "feather_hat", "wizard_hat", "party_hat"]
+	var crop: bool = style == 3
+	var centre_y: float = 0.165 if covered or crop else 0.177
+	var crown_h: float = 0.061 if covered or crop else 0.074
+	mb.add_blob(Vector3(0, centre_y, -0.015), Vector3(0.117, crown_h, 0.108), 2 if crop else 3, 8, hair)
+	# The nape narrows toward the neck instead of ending as a rectangular slab.
+	# Keep it closed and inside the crown so turning or wearing a hat stays tidy.
+	var nape_y: float = 0.09 if crop else 0.078
+	_tapered_box(mb, nape_y, nape_y + (0.083 if crop else 0.11),
+		Vector2(0.064, 0.014), Vector2(0.089, 0.015), hair.darkened(0.04), Vector2(0, -0.096))
+	if covered:
+		# Hair fits below the hat crown; two fringe planes remain visible.
+		_hair_tuft(mb, Vector3(-0.096, 0.198, 0.03), Vector3(-0.01, 0.20, 0.055),
+			Vector3(-0.071, 0.153, 0.107), Vector3(-0.052, 0.226, 0.064), hair)
+		_hair_tuft(mb, Vector3(-0.014, 0.20, 0.055), Vector3(0.09, 0.195, 0.038),
+			Vector3(0.038, 0.16, 0.106), Vector3(0.04, 0.224, 0.063), hair.lightened(0.025))
+	elif style == 0:
+		# Three broader locks follow the crown instead of forming a spiky row.
+		for i in range(3):
+			var x: float = -0.095 + float(i) * 0.060
+			_hair_tuft(mb, Vector3(x, 0.216, 0.042), Vector3(x + 0.070, 0.219, 0.038),
+				Vector3(x + 0.023, 0.160 + float(i % 2) * 0.010, 0.108),
+				Vector3(x + 0.042, 0.244 + (0.005 if i == 1 else 0.0), 0.066), hair.lightened(0.025 if i % 2 == 0 else 0.0))
+	elif style == 1:
+		# A swept, wider forelock breaks symmetry without adding loose motion.
+		_hair_tuft(mb, Vector3(-0.106, 0.194, 0.015), Vector3(0.055, 0.22, 0.018),
+			Vector3(-0.064, 0.150, 0.109), Vector3(-0.022, 0.260, 0.060), hair)
+		_hair_tuft(mb, Vector3(-0.002, 0.214, 0.019), Vector3(0.112, 0.193, 0.01),
+			Vector3(0.061, 0.159, 0.104), Vector3(0.060, 0.247, 0.044), hair.lightened(0.045))
+		_hair_tuft(mb, Vector3(-0.10, 0.15, -0.06), Vector3(-0.085, 0.21, 0.045),
+			Vector3(-0.103, 0.103, 0.037), Vector3(-0.113, 0.17, -0.006), hair.darkened(0.06))
+	elif style == 2:
+		# A tied style clears the brow and is immediately different from behind.
+		for side in [-1.0, 1.0]:
+			_hair_tuft(mb, Vector3(side * 0.10, 0.208, -0.028), Vector3(side * 0.033, 0.224, 0.04),
+				Vector3(side * 0.104, 0.114, 0.04), Vector3(side * 0.085, 0.246, 0.052), hair)
+	else:
+		_tapered_box(mb, 0.184, 0.203, Vector2(0.071, 0.014), Vector2(0.064, 0.010), hair, Vector2(0, 0.078))
+	if style == 2:
+		mb.add_blob(Vector3(0.01, 0.122, -0.135), Vector3(0.044, 0.044, 0.030), 2, 6, hair)
+		mb.add_limb(Vector3(0.01, 0.105, -0.15), Vector3(0.028, -0.03, -0.16), 0.031, 0.013, 6, hair)
+		mb.add_box(Vector3(-0.02, 0.094, -0.172), Vector3(0.060, 0.014, 0.038), tie)
+
+
+## Four closed facets, with winding determined from the interior point. Hair
+## locks stay solid from behind and retain correct outward lighting normals.
+static func _hair_tuft(mb: MeshBuilder, a: Vector3, b: Vector3, c: Vector3, d: Vector3, col: Color) -> void:
+	var centre: Vector3 = (a + b + c + d) * 0.25
+	for face in [[a, b, c], [a, d, b], [b, d, c], [c, d, a]]:
+		var p: Vector3 = face[0]
+		var q: Vector3 = face[1]
+		var r: Vector3 = face[2]
+		if (q - p).cross(r - p).dot(centre - p) > 0.0:
+			mb.add_tri(p, r, q, col)
+		else:
+			mb.add_tri(p, q, r, col)
+
+
+static func _arm_mesh(sleeve: Color, cuff: Color, hand: Color, outfit: Dictionary, thumb_side: float = -1.0) -> ArrayMesh:
 	var mb := MeshBuilder.new()
-	_tapered_box(mb, -ARM_H * 0.65, 0.006, Vector2(0.053, 0.056), Vector2(0.07, 0.07), sleeve)
-	mb.add_box(Vector3(-0.059, -ARM_H * 0.71, -0.061), Vector3(0.118, 0.036, 0.122), cuff)
-	_tapered_box(mb, -ARM_H, -ARM_H * 0.70, Vector2(0.057, 0.06), Vector2(0.047, 0.052), hand)
+	if outfit.get("ordinary", false):
+		KeeperMesh.arm(mb, ARM_H, sleeve, cuff, hand, thumb_side)
+		return mb.commit()
+	if int(outfit["look"]) == Look.WARRIOR:
+		_tapered_box(mb, -ARM_H * 0.65, 0.006, Vector2(0.047, 0.051), Vector2(0.064, 0.064), sleeve)
+	else:
+		# The upper cap slopes into the torso; a sleeve no longer ends as a
+		# horizontal rectangular shoulder. It still swings on the same bone.
+		_tapered_box(mb, -ARM_H * 0.65, -0.027, Vector2(0.047, 0.051), Vector2(0.060, 0.061), sleeve)
+		_tapered_box(mb, -0.027, 0.001, Vector2(0.060, 0.061), Vector2(0.050, 0.054), sleeve)
+	# Cuffs follow the sleeve facets rather than reading as wide square bricks.
+	_tapered_box(mb, -ARM_H * 0.72, -ARM_H * 0.62, Vector2(0.050, 0.054), Vector2(0.052, 0.057), cuff)
+	_tapered_box(mb, -ARM_H * 0.86, -ARM_H * 0.70, Vector2(0.036, 0.040), Vector2(0.043, 0.047), hand)
+	_tapered_box(mb, -ARM_H, -ARM_H * 0.86, Vector2(0.041, 0.039), Vector2(0.039, 0.038), hand)
+	# A small thumb wedge gives an actual hand silhouette with no finger bones.
+	_hair_tuft(mb, Vector3(thumb_side * 0.037, -ARM_H * 0.86, 0.023), Vector3(thumb_side * 0.037, -ARM_H * 0.96, 0.029),
+		Vector3(thumb_side * 0.069, -ARM_H * 0.91, 0.041), Vector3(thumb_side * 0.034, -ARM_H * 0.90, 0.049), hand.darkened(0.025))
 	if int(outfit["look"]) == Look.WARRIOR:
 		# Armour follows the shoulder bone, never the torso bob.
 		mb.add_blob(Vector3(0, -0.024, 0), Vector3(0.104, 0.092, 0.097), 3, 6, sleeve.lightened(0.12))
@@ -506,32 +742,39 @@ static func _arm_mesh(sleeve: Color, cuff: Color, hand: Color, outfit: Dictionar
 
 static func _leg_mesh(trouser: Color, boot: Color, outfit: Dictionary) -> ArrayMesh:
 	var mb := MeshBuilder.new()
-	_tapered_box(mb, -LEG_H * 0.67, 0.015, Vector2(0.051, 0.057), Vector2(0.065, 0.072), trouser)
-	mb.add_box(Vector3(-0.061, -LEG_H + 0.025, -0.065), Vector3(0.122, LEG_H * 0.36, 0.13), boot)
-	# The projecting toe makes the walk legible even when the hands carry goods.
-	mb.add_box(Vector3(-0.064, -LEG_H, -0.066), Vector3(0.128, 0.075, 0.19), boot.lightened(0.07))
-	mb.add_box(Vector3(-0.065, -LEG_H, -0.067), Vector3(0.13, 0.02, 0.194), boot.darkened(0.2))
+	if outfit.get("ordinary", false):
+		KeeperMesh.leg(mb, LEG_H, trouser, boot)
+		return mb.commit()
+	_tapered_box(mb, -LEG_H * 0.67, 0.015, Vector2(0.047, 0.052), Vector2(0.060, 0.065), trouser)
+	_tapered_box(mb, -LEG_H + 0.025, -LEG_H + LEG_H * 0.42,
+		Vector2(0.052, 0.055), Vector2(0.059, 0.060), boot)
+	# A fitted, bevelled toe and thin sole retain the readable foot direction
+	# without the old rectangular platform-shoe silhouette.
+	_tapered_box(mb, -LEG_H + 0.016, -LEG_H + 0.070, Vector2(0.056, 0.086),
+		Vector2(0.050, 0.071), boot.lightened(0.05), Vector2(0, 0.023))
+	_tapered_box(mb, -LEG_H, -LEG_H + 0.018, Vector2(0.058, 0.088),
+		Vector2(0.058, 0.088), boot.darkened(0.16), Vector2(0, 0.023))
 	if int(outfit["look"]) == Look.WARRIOR:
 		mb.add_blob(Vector3(0, -0.20, 0.064), Vector3(0.068, 0.062, 0.036), 2, 6, trouser.lightened(0.20))
 		PawnEquipment.panel(mb, [Vector2(-0.041, -0.24), Vector2(-0.043, -0.355), Vector2(0.043, -0.355), Vector2(0.041, -0.24)], 0.068, 0.015, trouser)
 	elif int(outfit["look"]) != Look.STAFF:
-		mb.add_box(Vector3(-0.063, -LEG_H * 0.67, -0.067), Vector3(0.126, 0.025, 0.138), boot.lightened(0.18))
+		mb.add_box(Vector3(-0.058, -LEG_H * 0.67, -0.061), Vector3(0.116, 0.020, 0.126), boot.lightened(0.12))
 	return mb.commit()
 
 
-static func _tapered_box(mb: MeshBuilder, bottom: float, top: float, lower: Vector2, upper: Vector2, col: Color) -> void:
+static func _tapered_box(mb: MeshBuilder, bottom: float, top: float, lower: Vector2, upper: Vector2, col: Color, offset: Vector2 = Vector2.ZERO) -> void:
 	# Broad planes and clipped corners look carved, without rounded smooth
 	# normals. The older four-sided limbs read as square toy blocks close up.
 	var corners: Array[Vector2] = [Vector2(-0.65, -1), Vector2(-1, -0.65), Vector2(-1, 0.65), Vector2(-0.65, 1), Vector2(0.65, 1), Vector2(1, 0.65), Vector2(1, -0.65), Vector2(0.65, -1)]
 	for i in range(8):
 		var j: int = (i + 1) % 8
-		var a := Vector3(corners[i].x * lower.x, bottom, corners[i].y * lower.y)
-		var b := Vector3(corners[j].x * lower.x, bottom, corners[j].y * lower.y)
-		var c := Vector3(corners[j].x * upper.x, top, corners[j].y * upper.y)
-		var d := Vector3(corners[i].x * upper.x, top, corners[i].y * upper.y)
+		var a := Vector3(corners[i].x * lower.x + offset.x, bottom, corners[i].y * lower.y + offset.y)
+		var b := Vector3(corners[j].x * lower.x + offset.x, bottom, corners[j].y * lower.y + offset.y)
+		var c := Vector3(corners[j].x * upper.x + offset.x, top, corners[j].y * upper.y + offset.y)
+		var d := Vector3(corners[i].x * upper.x + offset.x, top, corners[i].y * upper.y + offset.y)
 		mb.add_quad(a, b, c, d, col.darkened(0.055) if i % 2 == 0 else col)
-		mb.add_tri(Vector3(0, top, 0), d, c, col.lightened(0.04))
-		mb.add_tri(Vector3(0, bottom, 0), b, a, col.darkened(0.12))
+		mb.add_tri(Vector3(offset.x, top, offset.y), d, c, col.lightened(0.04))
+		mb.add_tri(Vector3(offset.x, bottom, offset.y), b, a, col.darkened(0.12))
 
 
 static func _chamfered_head(mb: MeshBuilder, bottom: float, top: float, width: float, depth: float, col: Color) -> void:

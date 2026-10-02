@@ -1,5 +1,15 @@
 # Tutorial design — and the tutorial as the smoke test (2026-09-28)
 
+**Update (2026-09-30):** 10 lessons / 61 steps now include Stores meal targets
+and farming/water. The appended farming lesson teaches hiring, six beds,
+planting, inspection, crop changes, river pump construction and saving; long
+growth continues after completion. Original indices 0–52 remain stable for
+saves. The day-close lesson requires a fresh close and its reviews refer to
+that summary, preventing a late tutorial from skipping into morning-only
+bookings. The smoke test now reconciles goods and gold and captures screenshots
+without adding simulation time. See `STORES_AND_FARM_POLISH.md` for measured
+trading and harvest results and remaining platform limits.
+
 **Status (2026-09-28):** findings 1-3 and 5-8 fixed; the tutorial (9 lessons,
 46 steps, fishing included) is playable from New Game > Tutorial and passes as
 the smoke test (`dev/tutorial_smoke.tscn`: 46/46 in about 10 real seconds;

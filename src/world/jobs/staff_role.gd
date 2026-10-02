@@ -72,6 +72,8 @@ static func all() -> Array[StaffRole]:
 				16, 6, {K.CLEAN: 1, K.CLEAR: 2}, Color("5d5f63")),
 			make(&"fisherman", "Fisherman", "Fishes from a fishing spot on the river bank, and carries the catch in. From day 2.",
 				20, 8, {K.FISH: 1, K.HAUL: 2}, Color("2f5d62")),
+			make(&"farmer", "Farmer", "Plants and harvests the farm plots, and carries the crop in.",
+				18, 8, {K.FARM: 1, K.HAUL: 2}, Color("5e6b2f")),
 			# Everybody hired before positions existed. Not on the hire list.
 			make(&"hand", "Hand", "A general hand from before positions: does anything.",
 				0, Ledger.WAGE_PER_STAFF * 2, WorkType.default_priorities(), Color("6e2233"), false),

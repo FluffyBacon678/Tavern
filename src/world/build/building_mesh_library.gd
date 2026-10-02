@@ -64,6 +64,10 @@ func _build(def: BuildingDef) -> ArrayMesh:
 			_well(mb, w, d, def.height, main, accent)
 		BuildingDef.Shape.JETTY:
 			_jetty(mb, w, d, def.height, main, accent)
+		BuildingDef.Shape.FARM:
+			_farm_plot(mb, w, d, def.height, main, accent)
+		BuildingDef.Shape.PUMP:
+			_pump(mb, w, d, def.height, main, accent)
 		BuildingDef.Shape.BARREL:
 			_barrel(mb, w, d, def.height, main, accent)
 	return mb.commit()
@@ -473,11 +477,12 @@ func _well(mb: MeshBuilder, w: float, d: float, h: float, main: Color, accent: C
 		0.055, 0.055, 8, accent.lightened(0.1)
 	)
 
-	# A shallow gable over the top, and the bucket hanging under it.
-	var ridge_left := Vector3(cx - r * 1.05, h, cz)
-	var ridge_right := Vector3(cx + r * 1.05, h, cz)
-	mb.add_quad(Vector3(ridge_left.x, beam_y, cz + r * 1.05), Vector3(ridge_right.x, beam_y, cz + r * 1.05), ridge_right, ridge_left, accent)
-	mb.add_quad(Vector3(ridge_right.x, beam_y, cz - r * 1.05), Vector3(ridge_left.x, beam_y, cz - r * 1.05), ridge_left, ridge_right, accent.darkened(0.15))
+	# Open to rainfall, with a winding drum and crank instead of a solid roof.
+	mb.add_limb(Vector3(cx - 0.16, beam_y, cz), Vector3(cx + 0.16, beam_y, cz), 0.085, 0.085, 8, Color("b19c70"))
+	mb.surface_style = TavernMaterials.Surface.METAL
+	mb.add_limb(Vector3(cx + r, beam_y, cz), Vector3(cx + r, beam_y - 0.17, cz), 0.024, 0.024, 5, Color("596169"))
+	mb.add_limb(Vector3(cx + r, beam_y - 0.17, cz), Vector3(cx + r + 0.14, beam_y - 0.17, cz), 0.032, 0.032, 5, accent)
+	mb.surface_style = TavernMaterials.Surface.WOOD
 	_hoop(mb, Vector3(cx, beam_y - 0.34, cz), 0.13, 0.025, 0.2, 8, accent.lightened(0.18))
 	mb.surface_style = TavernMaterials.Surface.PLAIN
 	mb.add_cylinder(Vector3(cx, beam_y - 0.30, cz), 0.10, 0.10, 0.01, 8, Color("2c4a58"))
@@ -573,3 +578,40 @@ func _jetty(mb: MeshBuilder, w: float, d: float, h: float, main: Color, accent: 
 	mb.add_limb(tip, Vector3(w * 0.84, -0.2, -1.25 * d), 0.004, 0.004, 3, Color("d8d0b8"))
 	mb.surface_style = TavernMaterials.Surface.PLAIN
 	mb.add_cylinder(Vector3(w * 0.14, 0.21, d * 0.58), 0.13, 0.15, 0.2, 7, Color("8a6a3a"))
+
+
+## Tilled earth: a dark bed with three raised furrows.
+func _farm_plot(mb: MeshBuilder, w: float, d: float, h: float, main: Color, accent: Color) -> void:
+	mb.surface_style = TavernMaterials.Surface.PLAIN
+	mb.add_box(Vector3(0.02, 0.0, 0.02), Vector3(w - 0.04, h * 0.6, d - 0.04), accent)
+	for i in range(3):
+		var x0: float = w * (0.12 + 0.3 * float(i))
+		mb.add_box(Vector3(x0, h * 0.6, 0.06), Vector3(w * 0.16, h * 0.4, d - 0.12), main)
+		for clod in range(4):
+			mb.add_blob(Vector3(x0 + w * 0.08, h * 0.85, 0.15 + clod * 0.23), Vector3(0.075, h * 0.3, 0.075), 2, 4, main.lightened(0.06 * float(clod % 2)))
+
+
+## A hand pump on a stone footing, a spout, and a pipe down to the river.
+func _pump(mb: MeshBuilder, w: float, d: float, h: float, main: Color, accent: Color) -> void:
+	mb.surface_style = TavernMaterials.Surface.STONE
+	mb.add_box(Vector3(w * 0.1, 0.0, d * 0.1), Vector3(w * 0.8, 0.18, d * 0.8), Color("8c8577"))
+	mb.surface_style = TavernMaterials.Surface.PLAIN
+	mb.add_cylinder(Vector3(w * 0.5, 0.18, d * 0.5), 0.09, 0.08, h * 0.62, 8, main)
+	mb.add_box(Vector3(w * 0.5, h * 0.62, d * 0.46), Vector3(0.28, 0.06, 0.08), main)
+	mb.add_limb(Vector3(w * 0.5, h * 0.8, d * 0.5), Vector3(w * 0.05, h, d * 0.5), 0.025, 0.02, 4, accent)
+	mb.add_cylinder(Vector3(w * 0.5, 0.0, d * 0.05), 0.04, 0.04, 0.18, 6, main.darkened(0.2))
+	mb.surface_style = TavernMaterials.Surface.METAL
+	# Bolted foot and collars make the mechanism read as worked iron.
+	mb.add_cylinder(Vector3(w * 0.5, 0.18, d * 0.5), 0.15, 0.15, 0.055, 8, main.lightened(0.12))
+	for y in [0.34, h * 0.65]:
+		_hoop(mb, Vector3(w * 0.5, y, d * 0.5), 0.105, 0.016, 0.045, 8, main.lightened(0.24))
+	for dx in [-0.1, 0.1]:
+		mb.add_cylinder(Vector3(w * 0.5 + dx, 0.235, d * 0.5), 0.018, 0.018, 0.025, 6, Color("aa9b7d"))
+	mb.add_limb(Vector3(w * 0.75, h * 0.64, d * 0.5), Vector3(w * 0.78, h * 0.55, d * 0.5), 0.038, 0.042, 6, main)
+	mb.add_limb(Vector3(w * 0.07, h * 0.98, d * 0.42), Vector3(w * 0.07, h * 0.98, d * 0.58), 0.035, 0.035, 6, accent.lightened(0.2))
+	mb.surface_style = TavernMaterials.Surface.WOOD
+	_hoop(mb, Vector3(w * 0.76, 0.18, d * 0.5), 0.13, 0.025, 0.2, 8, accent.lightened(0.15))
+	mb.surface_style = TavernMaterials.Surface.PLAIN
+	mb.add_cylinder(Vector3(w * 0.76, 0.2, d * 0.5), 0.102, 0.102, 0.015, 8, accent.darkened(0.4))
+	mb.surface_style = TavernMaterials.Surface.METAL
+	_hoop(mb, Vector3(w * 0.76, 0.22, d * 0.5), 0.135, 0.012, 0.025, 8, main)

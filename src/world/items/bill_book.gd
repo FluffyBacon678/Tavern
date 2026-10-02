@@ -35,16 +35,17 @@ func reset_to_defaults() -> void:
 	bills.clear()
 	# Water is bulky and nobody wants a yard full of barrels, so the well keeps
 	# a working reserve rather than running flat out.
-	_set_default(&"draw_water", 10, 4)
+	_set_default(&"pump_water", 10, 4)
+	_set_default(&"mill_flour", 6, 2)
 	_set_default(&"make_dough", 3, 1)
-	_set_default(&"bake_bread", 10, 4)
-	_set_default(&"brew_beer", 12, 5)
+	_set_default(&"bake_bread", 10, 9)
+	_set_default(&"brew_beer", 12, 11)
 	# Fish: a few in hand, cleaned as they come, cooked a few at a time.
 	_set_default(&"catch_fish", 8, 3)
 	_set_default(&"clean_trout", 4, 1)
 	_set_default(&"clean_perch", 4, 1)
-	_set_default(&"fish_soup", 6, 2)
-	_set_default(&"grill_fish", 6, 2)
+	_set_default(&"fish_soup", 6, 5)
+	_set_default(&"grill_fish", 6, 5)
 	changed.emit()
 
 

@@ -400,6 +400,12 @@ func _setup_economy() -> void:
 		world.sim.attach(world.clock)
 		world.clock.day_ended.connect(world._on_day_ended)
 	world.auto_supply.setup(world)
+	if world.farm == null:
+		world.farm = Farm.new()
+		world.farm.name = "Farm"
+		world.add_child(world.farm)
+		world.farm.setup(world)
+		world.sim.ticked.connect(world.farm.step)
 	if world.thoughts == null:
 		world.thoughts = ThoughtDirector.new()
 		world.thoughts.name = "Thoughts"
@@ -459,6 +465,12 @@ func _add_pawn(holder: Node, rng_seed: int, role: StaffRole = null) -> void:
 
 
 func _build_terrain() -> void:
+	# Deferred frees still reserve node names. Retire old render nodes now so
+	# successive land purchases find and replace exactly one scenery set.
+	for node_name in ["Terrain", "Water", "Scenery"]:
+		_retire_visual(node_name)
+	world._water_material.set_shader_parameter("ground_height", world.terrain.water_height_texture())
+	world._water_material.set_shader_parameter("height_size", Vector2(world.terrain.vcols, world.terrain.vrows))
 	var ground := MeshInstance3D.new()
 	ground.name = "Terrain"
 	ground.mesh = world.terrain.build_terrain_mesh()
@@ -474,11 +486,22 @@ func _build_terrain() -> void:
 		water.material_override = world._water_material
 		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		world.add_child(water)
+	var scenery := WorldScenery.new()
+	world.add_child(scenery)
+	scenery.setup(world)
+
+
+func _retire_visual(node_name: String) -> void:
+	var old: Node = world.get_node_or_null(NodePath(node_name))
+	if old != null:
+		world.remove_child(old)
+		old.queue_free()
 
 
 ## One MultiMesh per tree variant: eighteen draw calls for the whole forest,
 ## however many thousand trees it contains.
 func _build_forest(rng: RandomNumberGenerator) -> void:
+	_retire_visual("Forest")
 	if world._trees == null:
 		world._trees = TreeMeshLibrary.new()
 		world._trees.build()

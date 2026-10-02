@@ -34,8 +34,14 @@ run polish polish_regressions
 run layout hud_layout_smoke
 run atmosphere atmosphere_smoke
 run adventurers adventurer_mesh_smoke
+run characters character_smoke
 run tutorial tutorial_smoke
 run soak tutorial_smoke --days 6
+run house house_smoke
+run stores stores_smoke
+run farm farm_polish_smoke
+run saves save_resume_smoke
+run saveui save_ui_smoke
 run smoke smoke_test
 run chaos81 chaos_test seed=81 seconds=1800
 run chaos90 chaos_test seed=90 seconds=1800 level=wayfarers_rest
@@ -50,7 +56,7 @@ for f in "$OUT"/*.txt; do
 	name=$(basename "$f" .txt)
 	[ "$name" = "import" ] && continue
 	read -r _ code secs <<< "$(grep '^EXIT' "$f" | tail -1)"
-	total=$(grep -E "REGRESSIONS|SMOKE|TUTORIAL [0-9]|CHAOS TEST|LEVEL SMOKE|^SOAK" "$f" | tail -1)
+	total=$(grep -E "REGRESSIONS|SMOKE|TUTORIAL [0-9]|CHAOS TEST|LEVEL SMOKE|^SOAK|HOUSE SMOKE" "$f" | tail -1)
 	extra=$(grep -E "FINGERPRINT|Purse at the close" "$f" | sed 's/^ *//' | tr '\n' ' ')
 	if [ "$code" = "0" ]; then
 		printf "ok    %-12s %4ss  %s %s\n" "$name" "$secs" "$total" "$extra"

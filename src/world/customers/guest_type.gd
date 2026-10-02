@@ -3,8 +3,8 @@ extends RefCounted
 
 ## What kind of adventurer a guest is, and so what they want from the tavern.
 ##
-## Read off their outfit, which comes from dice already rolled for their looks,
-## so a guest's tastes take no randomness from the simulation. The ordinary
+## Initially seeded by their outfit, then stored as Pawn.adventurer separately
+## so wearing different clothes never changes their tastes. The ordinary
 ## guest (`of()` for anything unlisted) is the one the game had before types:
 ## every number here at 1.0 reproduces the old behaviour exactly.
 
@@ -38,7 +38,7 @@ static func make(p_id: StringName, p_title: String, p_wants: String) -> GuestTyp
 	return t
 
 
-## The type for a guest wearing this look (PawnMesh.Look).
+## The type for a guest's stored archetype (legacy PawnMesh.Look IDs).
 static func of(look: int) -> GuestType:
 	if _types.is_empty():
 		_build()

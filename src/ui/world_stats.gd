@@ -256,6 +256,16 @@ static func building_rows(world, index: int) -> Array:
 		var waiting: int = _dirty_tables(world)
 		rows.append(_stat("Tables to clear", str(waiting) if waiting > 0 else "none",
 			TavernTheme.DANGER if waiting > 0 else GOOD, true))
+	if def.id == &"farm_plot" and entry["built"]:
+		var growth: float = Farm.growth_of(entry)
+		var crop: ItemDef = ItemCatalog.get_def(Farm.crop_of(entry))
+		rows.append(_stat("Crop", crop.display_name, TavernTheme.CANDLE, true))
+		var state: String = "bare: a farmer will plant it" if growth < 0.0 \
+			else ("ripe: a farmer will harvest %d" % int(entry.get("harvest_remaining", Farm.YIELD.get(crop.id, 1))) if growth >= 1.0 \
+			else "growing, %d%%" % int(growth * 100.0))
+		rows.append(_stat("Field", state, GOOD if growth >= 1.0 else TavernTheme.PARCHMENT, true))
+		if entry.has("harvest_remaining"):
+			rows.append(_stat("Harvest", "Make room nearby for the remaining crop", TavernTheme.CANDLE, true))
 	if def.id == &"host_stand" and world.customers != null and world.clock != null:
 		rows.append_array(_booking_rows(world))
 	return rows
@@ -654,6 +664,12 @@ static func building_blurb(def: BuildingDef) -> String:
 			parts.append("the way in; walls round it make a room")
 		&"serving_counter":
 			parts.append("the pass: cooks plate orders here and waiters take them to the nearest tables")
+		&"farm_plot":
+			parts.append("a farmer plants and harvests it; about two trading days to grow wheat for flour, or hops")
+		&"well":
+			parts.append("collects rain outdoors and stores water carried in; a full well stops collecting")
+		&"river_pump":
+			parts.append("pumps river water slowly, for the well or storage; must touch the river")
 		&"fishing_spot":
 			parts.append("a fisherman fishes here, on the river bank")
 	if def.encloses and def.id != &"door":

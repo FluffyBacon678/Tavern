@@ -114,15 +114,7 @@ func _apply_light() -> void:
 func _rebuild_shelter() -> void:
 	shelter_image.fill(Color.BLACK)
 	for room in world.rooms.current():
-		var complete: bool = true
-		for tile in room["tiles"]:
-			if not _grid.is_built(_grid.floor_index_at(tile)):
-				complete = false
-			for direction in Rooms.NEIGHBOURS:
-				var neighbour: Vector2i = tile + direction
-				if _grid.encloses_at(neighbour) and not _grid.is_built(_grid.object_index_at(neighbour)):
-					complete = false
-		if complete:
+		if world.rooms.is_sheltered(room):
 			for tile in room["tiles"]:
 				shelter_image.set_pixel(tile.x, tile.y, Color.WHITE)
 	# Walls/door thresholds also shelter their footprint. Cutaways are only a

@@ -64,6 +64,8 @@ static func _build() -> void:
 			Vector2i.ONE, 2, false, 0.06, [TIMBER, TIMBER_DARK] as Array[Color]),
 		BuildingDef.make("stone_floor", "Stone Floor", "Structure", L.FLOOR, S.FLOOR_SLAB,
 			Vector2i.ONE, 4, false, 0.06, [STONE, STONE_DARK] as Array[Color]),
+		BuildingDef.make("farm_plot", "Farm Plot", "Kitchen", L.FLOOR, S.FARM,
+			Vector2i.ONE, 3, false, 0.08, [Color("5a3d24"), Color("3f2a18")] as Array[Color]),
 		# Walls priced for a whole room, not a tile: a 10 x 8 room is 32 of them.
 		# At 8g each the walls alone were 43% of the opening purse, and the first
 		# scripted player to build a room could not then afford a kitchen.
@@ -93,7 +95,9 @@ static func _build() -> void:
 			Vector2i(2, 1), 40, true, 1.5, [STONE, IRON] as Array[Color]),
 		BuildingDef.make("sink", "Wash Basin", "Kitchen", L.OBJECT, S.SINK,
 			Vector2i(2, 1), 22, true, 1.0, [STONE, IRON] as Array[Color]),
-		BuildingDef.make("well", "Draw Well", "Kitchen", L.OBJECT, S.WELL,
+		BuildingDef.make("river_pump", "River Pump", "Kitchen", L.OBJECT, S.PUMP,
+			Vector2i.ONE, 45, true, 1.3, [IRON, TIMBER_DARK] as Array[Color]),
+		BuildingDef.make("well", "Well", "Kitchen", L.OBJECT, S.WELL,
 			Vector2i(2, 2), 60, true, 1.4, [STONE, TIMBER_DARK] as Array[Color]),
 		BuildingDef.make("fishing_spot", "Fishing Spot", "Kitchen", L.OBJECT, S.JETTY,
 			Vector2i(2, 1), 30, true, 0.9, [TIMBER_LIGHT, TIMBER_DARK] as Array[Color]),
@@ -139,6 +143,11 @@ static func _build() -> void:
 	# range of the river and nothing else, which is the point.
 	if _by_id.has(&"well"):
 		_by_id[&"well"].needs_water_within = 6
+		# It fills with rain, and keeps water brought to it: water storage.
+		_by_id[&"well"].is_storage = true
+		_by_id[&"well"].stores_only = [&"water"] as Array[StringName]
+	if _by_id.has(&"river_pump"):
+		_by_id[&"river_pump"].needs_water_within = 1
 	# Fishing is done from the bank itself.
 	if _by_id.has(&"fishing_spot"):
 		_by_id[&"fishing_spot"].needs_water_within = 2

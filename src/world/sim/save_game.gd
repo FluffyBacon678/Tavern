@@ -31,6 +31,7 @@ static func capture(world: TavernWorld) -> Dictionary:
 		"version": FORMAT_VERSION,
 		"saved_at": int(Time.get_unix_time_from_system()),
 		"tavern_name": GameState.tavern_name,
+		"owner": GameState.owner_profile.to_save() if GameState.owner_profile != null else CharacterProfile.default_owner(world._world_seed).to_save(),
 		"world_seed": world._world_seed,
 		# Which designed level this is, if any. Without it a saved demo came back
 		# as a plain sandbox: no goal, no deadline, no way to win.
@@ -45,6 +46,7 @@ static func capture(world: TavernWorld) -> Dictionary:
 		"gold": GameState.gold,
 		"day": world.clock.day if world.clock != null else 1,
 		"clock_fraction": world.clock.fraction if world.clock != null else 0.0,
+		"farm_rain_remaining": world.farm._rain if world.farm != null else Farm.RAIN_EVERY,
 		"delivered": _stringify_keys(world.delivered),
 		"buildings": _capture_buildings(world),
 		"items": _capture_items(world),
@@ -78,6 +80,10 @@ static func _capture_buildings(world: TavernWorld) -> Array:
 			# about their tavern, not a detail of it. Losing it on load would be
 			# as annoying as losing the shelf.
 			"filter": _filter_ids(entry.get("filter", {})),
+			# A field keeps its crop and how far it has grown.
+			"crop": String(entry.get("crop", "")),
+			"growth": float(entry.get("growth", -1.0)),
+			"harvest_remaining": int(entry.get("harvest_remaining", -1)),
 		})
 	return out
 
@@ -141,6 +147,8 @@ static func _capture_pawns(world: TavernWorld) -> Array:
 					"quality": worker.carried_quality()}
 		out.append({
 			"name": pawn.pawn_name,
+			"appearance": pawn.appearance.to_save() if pawn.appearance != null else {},
+			"equipment": pawn.equipped.duplicate(),
 			# The seed their looks and habits come from, so a reload brings back
 			# the same person rather than a stranger with the same name.
 			"seed": str(pawn._rng.seed),
@@ -163,16 +171,38 @@ static func _stringify_keys(source: Dictionary) -> Dictionary:
 
 
 static func write(slot: int, data: Dictionary) -> bool:
+	last_error = _validation_error(data)
+	if not last_error.is_empty():
+		return false
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(GameState.save_dir()))
 	var path: String = GameState.slot_path(slot)
 	if path.is_empty():
+		last_error = "No save slot selected."
 		return false
-	var file := FileAccess.open(path, FileAccess.WRITE)
+	# Write and verify a temporary file before touching the player's last save.
+	var file := FileAccess.open(path + ".tmp", FileAccess.WRITE)
 	if file == null:
-		push_error("SaveGame: cannot write '%s' (%d)." % [path, FileAccess.get_open_error()])
+		last_error = "Cannot write save (%s)." % error_string(FileAccess.get_open_error())
 		return false
 	file.store_string(JSON.stringify(data, "  "))
+	file.flush()
+	var write_error: Error = file.get_error()
 	file.close()
+	if write_error != OK or _read_json(path + ".tmp").is_empty():
+		last_error = "The temporary save could not be verified. Previous save kept."
+		return false
+	# Only rotate a VALID primary. A corrupt primary must never replace the
+	# backup that was just used to recover the game.
+	if not _read_json(path).is_empty():
+		var backup_error: Error = DirAccess.rename_absolute(path, path + ".bak")
+		if backup_error != OK:
+			last_error = "Cannot preserve previous save (%s)." % error_string(backup_error)
+			return false
+	var commit_error: Error = DirAccess.rename_absolute(path + ".tmp", path)
+	if commit_error != OK:
+		last_error = "Cannot finish saving (%s). Previous save remains in backup." % error_string(commit_error)
+		return false
+	last_error = ""
 	return true
 
 
@@ -187,20 +217,20 @@ static func write(slot: int, data: Dictionary) -> bool:
 ## crashes on load is a special kind of bad, so the dependency runs one way now
 ## and only one way.
 static func read(slot: int) -> Dictionary:
-	var summary: Dictionary = _read_json(GameState.slot_path(slot))
+	last_error = ""
+	recovered_backup = false
+	var path: String = GameState.slot_path(slot)
+	if path.is_empty():
+		last_error = "No save slot selected."
+		return {}
+	var summary: Dictionary = _read_json(path)
 	# A half-written file from a crash mid-save. The backup is the previous
 	# good one, which is worth more than nothing.
 	if summary.is_empty():
-		summary = _read_json(GameState.slot_path(slot) + ".bak")
-	if summary.is_empty():
-		return {}
-	if int(summary.get("version", 0)) != FORMAT_VERSION:
-		# One format so far, so anything else is from a build that no longer
-		# exists. Refusing beats loading a tavern with missing walls.
-		push_warning("SaveGame: slot %d is format %s, expected %d; ignoring." % [
-			slot, summary.get("version", "?"), FORMAT_VERSION
-		])
-		return {}
+		summary = _read_json(path + ".bak")
+		recovered_backup = not summary.is_empty()
+	if not summary.is_empty():
+		last_error = ""
 	return summary
 
 
@@ -209,22 +239,117 @@ static func _read_json(path: String) -> Dictionary:
 		return {}
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		push_warning("SaveGame: cannot open '%s' (%d)." % [path, FileAccess.get_open_error()])
+		last_error = "Cannot open save (%s)." % error_string(FileAccess.get_open_error())
+		return {}
+	if file.get_length() > MAX_FILE_BYTES:
+		last_error = "Save file is too large."
 		return {}
 	var text: String = file.get_as_text()
 	file.close()
 
-	var parsed: Variant = JSON.parse_string(text)
-	if typeof(parsed) != TYPE_DICTIONARY:
-		push_warning("SaveGame: '%s' is not a save file; ignoring." % path)
+	var json := JSON.new()
+	# parse_string logs an engine error for expected corruption. Return a
+	# readable failure instead so recovery does not look like a script crash.
+	if json.parse(text) != OK or not json.data is Dictionary:
+		last_error = "Save file is incomplete or invalid JSON."
+		return {}
+	var parsed: Dictionary = json.data
+	last_error = _validation_error(parsed)
+	if not last_error.is_empty():
 		return {}
 	return parsed as Dictionary
+
+
+static func _integer(value: Variant) -> bool:
+	return (value is int or value is float) and is_finite(float(value)) and float(value) == float(int(value))
+
+
+## Reject missing collections rather than interpreting them as an empty tavern.
+## Validate placements on a scratch grid before rebuilding the real world.
+static func _validation_error(data: Dictionary) -> String:
+	if not _integer(data.get("version")) or int(data["version"]) != FORMAT_VERSION:
+		return "Save format is unsupported."
+	for field in ["world_seed", "gold", "day"]:
+		if not _integer(data.get(field)):
+			return "Save is missing a valid %s." % field
+	if not data.get("tavern_name") is String or not (data.get("clock_fraction") is int or data.get("clock_fraction") is float):
+		return "Saved tavern name or clock is invalid."
+	for field in ["buildings", "items", "pawns", "plot"]:
+		if not data.get(field) is Array:
+			return "Save is missing its %s." % field
+	for field in ["bills", "ledger", "delivered"]:
+		if not data.get(field) is Dictionary:
+			return "Save is missing its %s." % field
+	var plot: Array = data["plot"]
+	if plot.size() != 4:
+		return "Saved land boundary is invalid."
+	for n in plot:
+		if not _integer(n):
+			return "Saved land boundary is invalid."
+	var bounds := Rect2i(int(plot[0]), int(plot[1]), int(plot[2]), int(plot[3]))
+	if not bounds.has_area() or not Rect2i(0, 0, TavernWorld.MAP_TILES, TavernWorld.MAP_TILES).encloses(bounds):
+		return "Saved land lies outside the map."
+	var grid := BuildGrid.new()
+	grid.setup(TavernWorld.MAP_TILES, TavernWorld.MAP_TILES, bounds)
+	for row in data["buildings"]:
+		if not row is Dictionary or not row.get("def") is String or not row.get("built") is bool:
+			return "A saved building is invalid."
+		for field in ["x", "y", "rot"]:
+			if not _integer(row.get(field)):
+				return "A saved building position is invalid."
+		var def: BuildingDef = BuildingCatalog.get_def(StringName(row["def"]))
+		if def == null or grid.place(def, Vector2i(int(row["x"]), int(row["y"])), int(row["rot"]), bool(row["built"])) < 0:
+			return "Saved building '%s' cannot be restored." % row["def"]
+		if row.has("filter") and not row["filter"] is Array:
+			return "A saved storage filter is invalid."
+		for id in row.get("filter", []):
+			if not id is String:
+				return "A saved storage filter is invalid."
+	var tiles: Dictionary = {}
+	for row in data["items"]:
+		if not row is Dictionary or not row.get("id") is String:
+			return "A saved item is invalid."
+		for field in ["x", "y", "count"]:
+			if not _integer(row.get(field)):
+				return "A saved item position or count is invalid."
+		var def: ItemDef = ItemCatalog.get_def(StringName(row["id"]))
+		var tile := Vector2i(int(row["x"]), int(row["y"]))
+		if def == null or int(row["count"]) <= 0 or int(row["count"]) > def.stack_size or not grid.in_bounds(tile) or tiles.has(tile):
+			return "A saved item stack cannot be restored."
+		tiles[tile] = true
+		if row.has("quality") and not (row["quality"] is int or row["quality"] is float):
+			return "A saved item quality is invalid."
+	for row in data["pawns"]:
+		if not row is Dictionary or not row.get("name") is String or not _integer(row.get("x")) or not _integer(row.get("y")):
+			return "A saved worker is invalid."
+		if not row.get("priorities", {}) is Dictionary or not row.get("cargo", {}) is Dictionary:
+			return "Saved worker priorities or cargo are invalid."
+		for kind in row.get("priorities", {}):
+			if not kind is String or not kind.is_valid_int() or not _integer(row["priorities"][kind]):
+				return "Saved worker priorities are invalid."
+		var cargo: Dictionary = row.get("cargo", {})
+		if not cargo.is_empty():
+			if not cargo.get("id") is String or not _integer(cargo.get("count")):
+				return "Saved worker cargo is invalid."
+			var def: ItemDef = ItemCatalog.get_def(StringName(cargo["id"]))
+			if def == null or int(cargo["count"]) <= 0 or int(cargo["count"]) > def.stack_size:
+				return "Saved worker cargo cannot be restored."
+	for bill in data["bills"].values():
+		if not bill is Dictionary or not _integer(bill.get("target")) or not _integer(bill.get("resume_below")) \
+				or not bill.get("enabled") is bool or not bill.get("paused") is bool:
+			return "Saved production choices are invalid."
+	if not data["ledger"].get("today", {}) is Dictionary or not data["ledger"].get("history", []) is Array:
+		return "Saved accounts are invalid."
+	return ""
 
 
 ## Rebuild a world from saved data. The caller must already have run
 ## `generate(seed)` with the saved seed, so terrain and plot match.
 static func apply(world: TavernWorld, data: Dictionary) -> void:
 	GameState.tavern_name = String(data.get("tavern_name", ""))
+	# Additive optional cosmetics keep v2 and older taverns readable. An old
+	# save receives a stable default owner without changing its contents.
+	GameState.owner_profile = CharacterProfile.from_save(data.get("owner"), world._world_seed)
 	GameState.gold = int(data.get("gold", GameState.STARTING_GOLD))
 	# Empty the room first, quietly. The furniture is rebuilt piece by piece
 	# below, and any patron still seated would find their chair gone mid-way --
@@ -270,6 +395,8 @@ static func apply(world: TavernWorld, data: Dictionary) -> void:
 		# charged, books ruled off, and the next day already running with the
 		# player never asked.
 		world.clock.paused = world.clock.fraction >= 1.0
+	if world.farm != null:
+		world.farm._rain = clampf(float(data.get("farm_rain_remaining", Farm.RAIN_EVERY)), 0.001, Farm.RAIN_EVERY)
 
 	# Walls restored means walkability changed, and seating has to be re-derived
 	# from the furniture that just reappeared.
@@ -278,6 +405,10 @@ static func apply(world: TavernWorld, data: Dictionary) -> void:
 		world.customers.seating.refresh()
 		# Guests last: they need chairs to sit on and a nav grid to walk.
 		_apply_customers(world, data)
+	# Pausing DayClock alone does not stop jobs, workers or customer ticks;
+	# Open tomorrow also requires the world's hold flag. Restore the whole
+	# hold after guests/staff exist, without closing or charging the day again.
+	world.set_simulation_paused(world.clock.paused)
 	_apply_day_summary(world)
 	world.hud.refresh_stats()
 
@@ -354,6 +485,13 @@ static func _apply_buildings(world: TavernWorld, rows: Array) -> void:
 		)
 		if index >= 0 and row.has("filter"):
 			world.build.grid.set_filter(index, row["filter"])
+		if index >= 0 and def.id == &"farm_plot":
+			var entry: Dictionary = world.build.grid.placements[index]
+			if Farm.CROPS.has(StringName(row.get("crop", ""))):
+				entry["crop"] = StringName(row["crop"])
+			entry["growth"] = clampf(float(row.get("growth", -1.0)), -1.0, 1.0)
+			if Farm.growth_of(entry) >= 1.0 and int(row.get("harvest_remaining", -1)) > 0:
+				entry["harvest_remaining"] = clampi(int(row["harvest_remaining"]), 1, int(Farm.YIELD[Farm.crop_of(entry)]))
 
 
 static func _apply_items(world: TavernWorld, rows: Array) -> void:
@@ -363,10 +501,9 @@ static func _apply_items(world: TavernWorld, rows: Array) -> void:
 		if def == null:
 			push_warning("SaveGame: unknown item '%s'; skipped." % row["id"])
 			continue
-		world.items.place_near(
-			def, int(row["count"]), Vector2i(int(row["x"]), int(row["y"])),
-			6, float(row.get("quality", ItemWorld.BASE_QUALITY))
-		)
+		if not world.items.restore_stack(def, int(row["count"]), Vector2i(int(row["x"]), int(row["y"])),
+				float(row.get("quality", ItemWorld.BASE_QUALITY))):
+			push_error("SaveGame: could not restore saved stack '%s' at %s,%s." % [row["id"], row["x"], row["y"]])
 
 
 static func _apply_bills(world: TavernWorld, saved: Dictionary) -> void:
@@ -410,6 +547,9 @@ static func _apply_pawns(world: TavernWorld, rows: Array) -> void:
 			continue
 		var pawn: Pawn = world.pawns[world.pawns.size() - 1]
 		pawn.pawn_name = String(row["name"])
+		if row.has("appearance"):
+			pawn.set_appearance(CharacterAppearance.from_save(row["appearance"], pawn.appearance),
+				CharacterProfile.equipment_from_save(row.get("equipment", {})))
 		var tile := Vector2i(int(row["x"]), int(row["y"]))
 		if world.nav.is_walkable(tile):
 			pawn.tile = tile

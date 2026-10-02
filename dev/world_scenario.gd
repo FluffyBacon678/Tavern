@@ -4,6 +4,8 @@ var world: TavernWorld
 var _auto_days: int = 0
 var expected_days: int = 0
 var expected_built: int = 0
+## Fixtures with an explicitly funded opening (such as TestHouse).
+var opening_gold_override: int = -1
 
 
 ## Place a small starter tavern programmatically.
@@ -296,6 +298,8 @@ func reconcile(quit_on_failure: bool = true) -> bool:
 			def.id, received, made, used, eaten, on_ground, carried, difference])
 	# A level opens with its own purse, not the sandbox's.
 	var opening: int = world.level.starting_gold if world.level != null else GameState.STARTING_GOLD
+	if opening_gold_override >= 0:
+		opening = opening_gold_override
 	var expected_gold: int = opening + world.ledger.profit()
 	for entry in world.ledger.history:
 		expected_gold += entry["profit"]

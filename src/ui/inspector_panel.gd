@@ -262,8 +262,23 @@ func _building_extras() -> void:
 		# button never opens onto a kitchen that cannot do the work.
 		if world.generator.can_perform(building_index, recipe):
 			_extras.add_child(_do_it_button(recipe))
-	if def.is_storage:
+	if def.is_storage and def.stores_only.is_empty():
 		_present_filter(entry)
+	if def.id == &"farm_plot":
+		for crop in Farm.CROPS:
+			if crop == Farm.crop_of(entry):
+				continue
+			var b := Button.new()
+			b.text = "Grow %s instead" % ItemCatalog.get_def(crop).display_name.to_lower()
+			b.tooltip_text = "Turns the bed over: anything growing now is lost."
+			var index: int = building_index
+			var which: StringName = crop
+			b.pressed.connect(func() -> void:
+				world.farm.set_crop(index, which)
+				_rebuild_extras()
+				refresh()
+			)
+			_extras.add_child(b)
 
 
 ## The storage filter from design notes section 11.

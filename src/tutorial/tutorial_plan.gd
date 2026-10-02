@@ -16,7 +16,7 @@ extends RefCounted
 
 const LESSONS: Array[String] = [
 	"Looking around", "Building a room", "Kitchen and storage",
-	"Supplies and production", "Staff", "Service", "Money and reputation", "Fishing", "Growing",
+	"Supplies and production", "Staff", "Service", "Money and reputation", "Fishing", "Growing", "Farming and water",
 ]
 
 const TABLES: Array[Vector2i] = [Vector2i(1, 0), Vector2i(1, 2), Vector2i(1, 4)]
@@ -183,7 +183,51 @@ static func steps() -> Array[TutorialStep]:
 	out.append_array(_money())
 	out.append_array(_fishing())
 	out.append_array(_growing())
+	out.append_array(TutorialFarming.steps())
+	# A furnished test start must not silently tick off construction practice.
+	var practice: Dictionary = {
+		"floor": [[&"wood_floor", &"stone_floor"]], "walls": [[&"timber_wall", &"stone_wall"]],
+		"door": [[&"door"]], "tables": [[&"table"], [&"chair"]],
+		"kitchen": [[&"prep_table"], [&"oven"], [&"brewing_vat"]],
+		"storage": [[&"storage_shelf"], [&"barrel"]], "basin": [[&"sink"]],
+		"counter": [[&"serving_counter"]], "host_stand": [[&"host_stand"]],
+		"fishing_spot": [[&"fishing_spot"]], "well": [[&"well"]],
+		"farm_beds": [[&"farm_plot"]], "river_pump": [[&"river_pump"]],
+	}
+	for step in out:
+		if practice.has(step.id):
+			_require_construction_practice(step, practice[step.id])
 	return out
+
+
+## Preserve the normal lesson for an empty start. When its layout already
+## satisfies the lesson, require one newly placed piece of each requested kind.
+## Capture callables, not the RefCounted step itself (which would form a cycle).
+static func _require_construction_practice(step: TutorialStep, groups: Array) -> void:
+	var original_begin: Callable = step.begin
+	var original_done: Callable = step.done
+	var key: String = "practice_" + step.id
+	step.begin = func(w, ctx: Dictionary) -> void:
+		if original_begin.is_valid():
+			original_begin.call(w, ctx)
+		ctx[key] = w.build.grid.placements.size() if original_done.call(w, ctx) else -1
+		ctx["construction_practice"] = groups if int(ctx[key]) >= 0 else []
+	step.done = func(w, ctx: Dictionary) -> bool:
+		if not original_done.call(w, ctx):
+			return false
+		var start: int = int(ctx.get(key, -1))
+		if start < 0:
+			return true
+		for alternatives in groups:
+			var found: bool = false
+			for i in range(start, w.build.grid.placements.size()):
+				var entry = w.build.grid.placements[i]
+				if entry != null and alternatives.has(entry["def"].id):
+					found = true
+					break
+			if not found:
+				return false
+		return true
 
 
 static func _looking_around() -> Array[TutorialStep]:
@@ -389,17 +433,18 @@ static func _supplies_and_production() -> Array[TutorialStep]:
 	var L: String = LESSONS[3]
 	var out: Array[TutorialStep] = []
 	out.append(TutorialStep.make("order_open", L,
-		"Open Supplies to order ingredients from the merchant.",
+		"Open Stores to manage meals and their ingredients.",
 		"Flour, yeast and water make bread; malt, hops and water make beer.",
 		func(w, _ctx) -> bool: return w.hud._supply_panel.visible,
-		func(w, _ctx) -> void: PlayerActions.press(w.hud._hud, "Supplies")
-	).pointing_at({"button": "Supplies"}))
+		func(w, _ctx) -> void: PlayerActions.press(w.hud._hud, "Stores")
+	).pointing_at({"button": "Stores"}))
 	out.append(TutorialStep.make("order", L,
-		"Add two more flour with +, then press Confirm.",
+		"Choose Order ingredients manually, add two more flour with +, then press Confirm.",
 		"Nothing is paid until you confirm. The cart unloads by the road.",
 		func(w, _ctx) -> bool: return not w.delivered.is_empty(),
 		func(w, _ctx) -> void:
 			var panel: SupplyPanel = w.hud._supply_panel
+			panel.show_manual()
 			panel.order[&"flour"] = int(panel.order.get(&"flour", 0)) + 2
 			panel.refresh()
 			PlayerActions.press(panel, "Confirm")
@@ -415,25 +460,23 @@ static func _supplies_and_production() -> Array[TutorialStep]:
 		func(w, _ctx) -> void: w.sim.speed = 4
 	).running(360.0).pointing_at({"role": &"porter"}))
 	out.append(TutorialStep.make("production", L,
-		"Open Production%s and set Bake Bread to keep 6 in stock." % KeyBindings.hint("production"),
-		"Each recipe keeps a number in stock, and starts again when it falls below the lower number.",
+		"Open Stores and set Bread to restock below 6.",
+		"One meal target controls cooking and the ingredients to buy. Existing stock and home-grown goods count first.",
 		func(w, _ctx) -> bool:
-			return w.hud._production_panel.visible and int(w.bills.get_bill(&"bake_bread").get("target", 0)) == 6,
+			return w.hud._supply_panel.visible and int(w.bills.get_bill(&"bake_bread").get("target", 0)) == 6,
 		func(w, _ctx) -> void:
-			if not w.hud._production_panel.visible:
-				w.hud._production_panel.toggle()
-			w.bills.set_target(&"bake_bread", 6)
-	).pointing_at({"button": "Production"}))
+			if not w.hud._supply_panel.visible:
+				w.hud._supply_panel.toggle()
+			w.hud._supply_panel._adjust_meal(&"bake_bread", 6 - int(w.bills.get_bill(&"bake_bread")["target"]))
+	).pointing_at({"button": "Stores"}))
 	out.append(TutorialStep.make("auto_order", L,
-		"In Production, tick \"Order ingredients automatically\".",
-		"From now on the merchant brings what your stock targets need whenever the larder runs short. Untick anything you get yourself.",
+		"Keep Auto restock enabled in Stores.",
+		"Meal targets buy their missing ingredients in shared carts, keeping tonight's wages aside. Fish still needs a local catch.",
 		func(w, _ctx) -> bool: return w.auto_supply.enabled,
 		func(w, _ctx) -> void:
-			if not w.hud._production_panel.visible:
-				w.hud._production_panel.toggle()
-			w.hud._production_panel._auto_toggle.button_pressed = true
-			w.hud._production_panel.toggle()
-	).pointing_at({"button": "Production"}))
+			w.hud._supply_panel._auto_toggle.button_pressed = true
+			w.hud._supply_panel.hide()
+	).pointing_at({"button": "Stores"}))
 	out.append(TutorialStep.make("first_bread", L,
 		"Run time until the first bread comes out of the oven.",
 		"Cooks make dough at the prep table, then bake it. Beer brews at the vat meanwhile.",
@@ -576,17 +619,19 @@ static func _money() -> Array[TutorialStep]:
 	out.append(TutorialStep.make("day_end", L,
 		"Run time to midnight. The day closes, wages are paid and reviews are read.",
 		"A red panel on the right names whatever is costing you most, whenever something is.",
-		func(w, _ctx) -> bool: return w.ledger.history.size() >= 1,
+		func(w, ctx) -> bool: return w.ledger.history.size() > int(ctx["closed_days_before"]),
 		func(w, _ctx) -> void:
 			if w.hud._details_panel.visible:
 				w.hud._details_panel.visible = false
 			w.sim.speed = 4
-	).running(900.0))
+	).starting(func(w, ctx) -> void: ctx["closed_days_before"] = w.ledger.history.size()).running(900.0))
 	out.append(TutorialStep.make("reviews", L,
 		"Read the reviews, then open tomorrow.",
 		"Stars bring more guests. Slow service, dirty tables and a short menu cost stars.",
-		func(w, _ctx) -> bool: return w.clock.day >= 2 and not w.simulation_paused,
+		func(w, ctx) -> bool: return w.clock.day > int(ctx["reviews_day"]) and not w.simulation_paused,
 		func(w, _ctx) -> void: PlayerActions.press(w.hud._day_summary, "Open tomorrow")
+	).starting(func(w, ctx) -> void:
+		ctx["reviews_day"] = w.clock.day if w.simulation_paused else w.clock.day - 1
 	).pointing_at({"button": "Open tomorrow"}))
 	out.append(TutorialStep.make("host_stand", L,
 		"Place a Host's Stand on the marked spot, by the door.",
@@ -607,11 +652,11 @@ static func _money() -> Array[TutorialStep]:
 			w.hud._priority_panel.toggle()
 	).pointing_at({"button": "Staff"}))
 	out.append(TutorialStep.make("bookings", L,
-		"Run time. Before 11:00 the host takes today's bookings at the stand.",
+		"Run time. The host takes bookings before 11:00. If it is later, open tomorrow at the day summary and wait for morning.",
 		"The better your stars, the more tables are booked. Point at the stand to see who is coming when.",
 		func(w, _ctx) -> bool: return w.customers.bookings.taken_day == w.clock.day,
 		func(w, _ctx) -> void: w.sim.speed = 4
-	).running(400.0).pointing_at({"role": &"host"}))
+	).running(1200.0).pointing_at({"role": &"host"}))
 	return out
 
 
@@ -674,8 +719,8 @@ static func _growing() -> Array[TutorialStep]:
 		func(w, _ctx) -> void: PlayerActions.press(w.hud._hud, "Buy land")
 	).pointing_at({"button": "Buy land"}))
 	out.append(TutorialStep.make("well", L,
-		"Build a Draw Well on the marked spot, near the river.",
-		"Porters draw water from it for nothing, instead of buying it.",
+		"Build a Well on the marked spot, near the river.",
+		"It fills slowly with rain and stores water, so you buy less. A River Pump on the bank adds more, slowly.",
 		func(w, _ctx) -> bool: return placed_in(w, [&"well"], w.plot) >= 1,
 		func(w, _ctx) -> void:
 			w.hud._land_panel.visible = false
@@ -698,3 +743,4 @@ static func _growing() -> Array[TutorialStep]:
 			w.hud.pause_menu.close()
 	).starting(func(w, ctx) -> void: ctx["saved"] = w.saved_at_msec).pointing_at({"button": "Menu"}))
 	return out
+

@@ -21,10 +21,6 @@ var world
 var _rows: VBoxContainer
 ## recipe id -> { status: Label, target: Label, resume: Label }
 var _widgets: Dictionary = {}
-var _auto_toggle: CheckBox
-var _auto_note: Label
-## ingredient id -> CheckBox, ticked when it may be bought automatically
-var _auto_buy: Dictionary = {}
 
 
 func setup(p_bills: BillBook, p_items: ItemWorld) -> void:
@@ -61,7 +57,13 @@ func _build() -> void:
 	heading.add_theme_color_override("font_color", TavernTheme.CANDLE)
 	heading.add_theme_font_size_override("font_size", 18)
 	_rows.add_child(heading)
-	_rows.add_child(_auto_block())
+	var back := Button.new()
+	back.text = "‹ Meal targets in Stores"
+	back.pressed.connect(func() -> void:
+		hide()
+		world.hud._supply_panel.toggle()
+	)
+	_rows.add_child(back)
 
 	for recipe in RecipeCatalog.all():
 		if not bills.has_bill(recipe.id):
@@ -69,7 +71,7 @@ func _build() -> void:
 		_rows.add_child(_recipe_row(recipe))
 
 	var note := Label.new()
-	note.text = "Kitchens make up to the target, then wait until stock falls to the resume line."
+	note.text = "Meals restart below their stock target. Intermediate recipes keep a separate resume line."
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.add_theme_color_override("font_color", TavernTheme.PARCHMENT_DIM)
 	note.add_theme_font_size_override("font_size", 12)
@@ -83,83 +85,6 @@ func _build() -> void:
 		closed.emit()
 	)
 	layout.add_child(close)
-
-
-## Auto-order: the targets below buy their own ingredients when stock runs
-## short, except whatever the player gets for themselves.
-func _auto_block() -> Control:
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 4)
-	_auto_toggle = CheckBox.new()
-	_auto_toggle.text = "Order ingredients automatically"
-	_auto_toggle.tooltip_text = "Buys what the targets below need from the merchant when the larder runs short. Keeps tonight's wages in the purse."
-	_auto_toggle.toggled.connect(func(on: bool) -> void:
-		AudioDirector.play("ui_click")
-		if world != null:
-			world.auto_supply.enabled = on
-			if on:
-				world.auto_supply.check()
-		refresh()
-	)
-	box.add_child(_auto_toggle)
-	_auto_note = Label.new()
-	_auto_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_auto_note.custom_minimum_size = Vector2(custom_minimum_size.x - 40.0, 0)
-	_auto_note.add_theme_font_size_override("font_size", 12)
-	box.add_child(_auto_note)
-	var buy_label := Label.new()
-	buy_label.text = "Buy automatically (untick what you get yourself, like well water):"
-	buy_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	buy_label.custom_minimum_size = Vector2(custom_minimum_size.x - 40.0, 0)
-	buy_label.add_theme_color_override("font_color", TavernTheme.PARCHMENT_DIM)
-	buy_label.add_theme_font_size_override("font_size", 11)
-	box.add_child(buy_label)
-	var chips := HFlowContainer.new()
-	chips.add_theme_constant_override("h_separation", 6)
-	box.add_child(chips)
-	for id in AutoSupply.buyable_ingredients():
-		var def: ItemDef = ItemCatalog.get_def(id)
-		var chip := CheckBox.new()
-		chip.text = def.display_name
-		chip.add_theme_font_size_override("font_size", 12)
-		var which: StringName = id
-		chip.toggled.connect(func(on: bool) -> void:
-			AudioDirector.play("ui_click")
-			if world != null:
-				world.auto_supply.set_never(which, not on)
-		)
-		chips.add_child(chip)
-		_auto_buy[id] = chip
-	var rule := HSeparator.new()
-	box.add_child(rule)
-	return box
-
-
-func _refresh_auto() -> void:
-	if world == null or _auto_toggle == null:
-		return
-	var auto: AutoSupply = world.auto_supply
-	_auto_toggle.set_pressed_no_signal(auto.enabled)
-	for id in _auto_buy:
-		_auto_buy[id].set_pressed_no_signal(not auto.never.has(id))
-		_auto_buy[id].disabled = not auto.enabled
-	var text: String
-	var colour: Color = TavernTheme.PARCHMENT_DIM
-	if not auto.enabled:
-		text = "Off: order by hand under Supplies%s." % KeyBindings.hint("supplies")
-	elif not auto.started():
-		text = "Starts after your first delivery: order once under Supplies%s." % KeyBindings.hint("supplies")
-	elif not auto.note.is_empty():
-		text = auto.note
-		colour = TavernTheme.DANGER
-	elif not auto.last_order.is_empty():
-		text = "Last bought %s at %s (%dg)." % [AutoSupply.describe(auto.last_order), auto.last_time_text, auto.last_cost]
-		colour = TavernTheme.CANDLE
-	else:
-		var wanted: Dictionary = auto.shortfall()
-		text = "Nothing needed: the larder covers the targets." if wanted.is_empty() 			else "Will buy %s at the next delivery." % AutoSupply.describe(wanted)
-	_auto_note.text = text
-	_auto_note.add_theme_color_override("font_color", colour)
 
 
 func _recipe_row(recipe: Recipe) -> Control:
@@ -198,7 +123,13 @@ func _recipe_row(recipe: Recipe) -> Control:
 	var target_label := Label.new()
 	var resume_label := Label.new()
 	box.add_child(_stepper("Keep", target_label, recipe.id, true))
-	box.add_child(_stepper("Resume below", resume_label, recipe.id, false))
+	if not MealSupplyPlan.meals().has(recipe):
+		box.add_child(_stepper("Resume below", resume_label, recipe.id, false))
+	else:
+		# Kept in the tree for the shared refresh path, but meal restart is
+		# derived from its single stock target.
+		box.add_child(resume_label)
+		resume_label.hide()
 
 	_widgets[recipe.id] = {"status": status, "target": target_label, "resume": resume_label, "activity": activity}
 	return box
@@ -238,6 +169,8 @@ func _adjust(recipe_id: StringName, is_target: bool, delta: int) -> void:
 	var bill: Dictionary = bills.get_bill(recipe_id)
 	if is_target:
 		bills.set_target(recipe_id, bill.get("target", 0) + delta)
+		if MealSupplyPlan.meals().has(RecipeCatalog.get_recipe(recipe_id)):
+			bills.set_resume_below(recipe_id, int(bill["target"]) - 1)
 	else:
 		bills.set_resume_below(recipe_id, bill.get("resume_below", 0) + delta)
 
@@ -245,7 +178,6 @@ func _adjust(recipe_id: StringName, is_target: bool, delta: int) -> void:
 func refresh() -> void:
 	if bills == null or items == null:
 		return
-	_refresh_auto()
 	for recipe in RecipeCatalog.all():
 		if not _widgets.has(recipe.id):
 			continue
@@ -285,3 +217,4 @@ func toggle() -> void:
 	if visible:
 		theme = TavernTheme.build(TavernTheme.scale_for_control(self) * 0.85)
 		refresh()
+
