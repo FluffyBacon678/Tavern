@@ -147,7 +147,7 @@ func drag_shape() -> int:
 		return DragShape.NONE
 	if selected.layer == BuildingDef.Layer.FLOOR:
 		return DragShape.FILL
-	if selected.shape == BuildingDef.Shape.WALL:
+	if selected.shape == BuildingDef.Shape.WALL or selected.drag_outline:
 		return DragShape.OUTLINE
 	return DragShape.NONE
 
@@ -457,6 +457,9 @@ static func tile_turn(origin: Vector2i) -> int:
 
 func _rebuild_set(def: BuildingDef, built: bool, store: Dictionary, material: Material) -> void:
 	var entries: Array = grid.live_of(def.id, built)
+	if def.links:
+		_rebuild_linked(def, entries, store, material, built)
+		return
 	var mmi: MultiMeshInstance3D = store.get(def.id, null)
 
 	if entries.is_empty():
@@ -484,3 +487,50 @@ func _rebuild_set(def: BuildingDef, built: bool, store: Dictionary, material: Ma
 			turns = (turns + tile_turn(entries[i]["origin"])) % 4
 		mm.set_instance_transform(i, _placement_transform(def, entries[i]["origin"], turns))
 	mmi.multimesh = mm
+
+
+## A piece that joins its neighbours (a fence) is drawn with an arm toward
+## each side that has another of it, so corners, ends and crossings all meet
+## cleanly. One MultiMesh per shape of joint, keyed "id#mask".
+const LINK_SIDES: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
+
+
+func link_mask(def: BuildingDef, tile: Vector2i) -> int:
+	var mask: int = 0
+	for i in range(LINK_SIDES.size()):
+		var index: int = grid.object_index_at(tile + LINK_SIDES[i])
+		if index >= 0 and grid.placements[index] != null and grid.placements[index]["def"].id == def.id:
+			mask |= 1 << i
+	return mask
+
+
+func _rebuild_linked(def: BuildingDef, entries: Array, store: Dictionary, material: Material, built: bool) -> void:
+	var by_mask: Dictionary = {}
+	for entry in entries:
+		var mask: int = link_mask(def, entry["origin"])
+		if not by_mask.has(mask):
+			by_mask[mask] = []
+		by_mask[mask].append(entry)
+	for mask in range(16):
+		var key := StringName("%s#%d" % [def.id, mask])
+		var mmi: MultiMeshInstance3D = store.get(key, null)
+		if not by_mask.has(mask):
+			if mmi != null:
+				mmi.queue_free()
+				store.erase(key)
+			continue
+		if mmi == null:
+			mmi = MultiMeshInstance3D.new()
+			mmi.name = "%s_%d_%s" % [def.id, mask, "built" if built else "blueprint"]
+			mmi.material_override = material
+			if not built:
+				mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(mmi)
+			store[key] = mmi
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = _library.linked_mesh_for(def, mask)
+		mm.instance_count = by_mask[mask].size()
+		for i in range(by_mask[mask].size()):
+			mm.set_instance_transform(i, _placement_transform(def, by_mask[mask][i]["origin"], 0))
+		mmi.multimesh = mm

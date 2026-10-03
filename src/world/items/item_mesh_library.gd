@@ -58,6 +58,10 @@ func _build(def: ItemDef) -> ArrayMesh:
 			_bowl(mb, main, accent)
 		ItemDef.Shape.FISH_PLATE:
 			_fish_plate(mb, main, accent)
+		ItemDef.Shape.FRUIT:
+			_fruit(mb, main, accent)
+		ItemDef.Shape.JUG:
+			_jug(mb, main, accent)
 	return mb.commit()
 
 
@@ -328,3 +332,29 @@ func _fish_plate(mb: MeshBuilder, main: Color, accent: Color) -> void:
 	for x in [-0.14, 0.0, 0.14]:
 		mb.add_box(Vector3(x * s - s * 0.012, s * 0.185, -s * 0.09), Vector3(s * 0.024, s * 0.01, s * 0.18), main.darkened(0.45))
 	mb.add_tri(Vector3(-s * 0.30, s * 0.12, 0.0), Vector3(-s * 0.46, s * 0.20, 0.0), Vector3(-s * 0.46, s * 0.06, 0.0), main.darkened(0.2))
+
+
+## A shallow crate heaped with lemons.
+func _fruit(mb: MeshBuilder, main: Color, accent: Color) -> void:
+	var s: float = SCALE
+	mb.surface_style = Surface.WOOD
+	mb.add_box(Vector3(-s * 0.32, 0.0, -s * 0.24), Vector3(s * 0.64, s * 0.16, s * 0.48), accent)
+	mb.surface_style = Surface.PLAIN
+	for p in [Vector2(-0.16, -0.08), Vector2(0.0, -0.1), Vector2(0.16, -0.06), Vector2(-0.1, 0.1),
+			Vector2(0.08, 0.09), Vector2(0.0, 0.0)]:
+		var lift: float = 0.22 if p == Vector2(0.0, 0.0) else 0.17
+		mb.add_blob(Vector3(p.x * s, lift * s, p.y * s), Vector3(s * 0.1, s * 0.085, s * 0.085), 2, 6,
+			main.lightened(0.06) if int(p.x * 100.0) % 2 == 0 else main)
+
+
+## A jug of lemonade: a pale pitcher, yellow to the brim, with a handle.
+func _jug(mb: MeshBuilder, main: Color, accent: Color) -> void:
+	var s: float = SCALE
+	mb.surface_style = Surface.CERAMIC
+	mb.add_cylinder(Vector3.ZERO, s * 0.17, s * 0.13, s * 0.42, 8, accent)
+	_rim(mb, Vector3(0.0, s * 0.42, 0.0), s * 0.15, s * 0.12, s * 0.04, 8, accent.lightened(0.08))
+	mb.surface_style = Surface.PLAIN
+	mb.add_cylinder(Vector3(0.0, s * 0.38, 0.0), s * 0.12, s * 0.12, s * 0.05, 8, main)
+	mb.add_limb(Vector3(s * 0.16, s * 0.34, 0.0), Vector3(s * 0.26, s * 0.22, 0.0), s * 0.025, s * 0.025, 4, accent)
+	mb.add_limb(Vector3(s * 0.26, s * 0.22, 0.0), Vector3(s * 0.16, s * 0.1, 0.0), s * 0.025, s * 0.025, 4, accent)
+	mb.add_blob(Vector3(-s * 0.05, s * 0.47, s * 0.04), Vector3(s * 0.05, s * 0.02, s * 0.05), 2, 5, Color("f2cf3b"))

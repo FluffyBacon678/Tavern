@@ -123,6 +123,13 @@ static func build(mb: MeshBuilder, id: StringName, w: float, d: float, h: float,
 			_pine(mb)
 		&"lantern_post":
 			_lantern_post(mb)
+		&"market_stall":
+			_market_stall(mb, w)
+		&"parasol_table":
+			_parasol_table(mb, w)
+		&"garden_fence":
+			# Shown on its own (menu, placing ghost) as a straight run.
+			fence(mb, 2 | 8, main, accent)
 
 
 # --- tiles ------------------------------------------------------------------------
@@ -278,6 +285,133 @@ static func _lantern_post(mb: MeshBuilder) -> void:
 	mb.add_box(Vector3(0.75, 1.29, 0.43), Vector3(0.14, 0.18, 0.14), Color("ffd27a"))
 
 
+# --- the lemonade stand ------------------------------------------------------------
+
+const STRIPE_YELLOW := Color("f0c63a")
+const STRIPE_CREAM := Color("f4ecd8")
+const STALL_WOOD := Color("8a6239")
+const STALL_DARK := Color("5a3d24")
+const STALL_TOP := Color("a77c4a")
+const LEMON := Color("f2cf3b")
+
+
+## A lemonade stall: a plank counter under a striped awning on four posts.
+## The counter top is the pass, so it is left clear where the jugs and plates
+## stand (each tile's centre, at 0.95); a crate of lemons sits at one end and
+## a chalk board at the other.
+static func _market_stall(mb: MeshBuilder, w: float) -> void:
+	mb.surface_style = TavernMaterials.Surface.WOOD
+	# The body, with its planked front to +z, the guests' side.
+	mb.add_box(Vector3(0.1, 0.0, 0.3), Vector3(w - 0.2, 0.9, 0.55), STALL_WOOD)
+	var boards: int = 6
+	var board: float = (w - 0.24) / float(boards)
+	for i in range(boards):
+		mb.add_box(Vector3(0.12 + board * float(i), 0.06, 0.85), Vector3(board - 0.015, 0.8, 0.03),
+			STALL_WOOD.lightened(0.07 * float(i % 2)))
+	mb.add_box(Vector3(0.05, 0.9, 0.24), Vector3(w - 0.1, 0.05, 0.7), STALL_TOP)
+	for x in [0.06, w - 0.14]:
+		for z in [0.16, 0.86]:
+			mb.add_box(Vector3(x, 0.0, z), Vector3(0.08, 1.8, 0.08), STALL_DARK)
+	# A crate of lemons at the left end, a chalk board at the right.
+	mb.add_box(Vector3(0.1, 0.95, 0.36), Vector3(0.22, 0.09, 0.3), STALL_DARK)
+	mb.add_box(Vector3(w - 0.24, 0.95, 0.42), Vector3(0.04, 0.32, 0.22), STALL_DARK)
+	mb.surface_style = TavernMaterials.Surface.PLAIN
+	for p in [Vector3(0.16, 1.07, 0.44), Vector3(0.26, 1.07, 0.52), Vector3(0.17, 1.08, 0.58)]:
+		mb.add_blob(p, Vector3(0.055, 0.045, 0.045), 2, 5, LEMON)
+	mb.add_box(Vector3(w - 0.245, 0.99, 0.44), Vector3(0.005, 0.24, 0.18), Color("2e3a2f"))
+	# The sign on the front: a yellow board with a lemon on it.
+	mb.add_box(Vector3(0.55, 0.42, 0.885), Vector3(w - 1.1, 0.3, 0.02), STRIPE_YELLOW)
+	mb.add_blob(Vector3(w * 0.5, 0.57, 0.91), Vector3(0.11, 0.08, 0.025), 2, 6, LEMON.darkened(0.08))
+	mb.add_blob(Vector3(w * 0.5 + 0.1, 0.62, 0.915), Vector3(0.04, 0.02, 0.01), 1, 4, LEAF)
+	# The awning: yellow and cream stripes sloping to the front, scalloped.
+	mb.surface_style = TavernMaterials.Surface.CLOTH
+	var back_y: float = 1.86
+	var front_y: float = 1.6
+	var stripes: int = 8
+	for i in range(stripes):
+		var x0: float = w * float(i) / float(stripes)
+		var x1: float = w * float(i + 1) / float(stripes)
+		var colour: Color = STRIPE_YELLOW if i % 2 == 0 else STRIPE_CREAM
+		_canopy_quad(mb, Vector3(x0, back_y, 0.04), Vector3(x1, back_y, 0.04),
+			Vector3(x1, front_y, 1.0), Vector3(x0, front_y, 1.0), colour)
+		_both_sides(mb, Vector3(x0, front_y, 1.0), Vector3(x1, front_y, 1.0),
+			Vector3((x0 + x1) * 0.5, front_y - 0.1, 1.0), colour)
+
+
+## A table for the garden under a striped parasol. The pole stands between
+## the two places, so a plate sits either side of it (each tile's centre, at
+## 0.78) and the canopy shades both.
+static func _parasol_table(mb: MeshBuilder, w: float) -> void:
+	mb.surface_style = TavernMaterials.Surface.WOOD
+	for x in [0.16, w - 0.23]:
+		for z in [0.2, 0.73]:
+			mb.add_box(Vector3(x, 0.0, z), Vector3(0.07, 0.72, 0.07), STALL_DARK)
+	mb.add_box(Vector3(0.08, 0.72, 0.12), Vector3(w - 0.16, 0.06, 0.76), STALL_TOP)
+	mb.surface_style = TavernMaterials.Surface.METAL
+	var centre := Vector3(w * 0.5, 0.0, 0.5)
+	mb.add_cylinder(centre, 0.03, 0.025, 1.9, 5, Color("e9e4d6"))
+	mb.surface_style = TavernMaterials.Surface.PLAIN
+	mb.surface_style = TavernMaterials.Surface.CLOTH
+	var apex: Vector3 = centre + Vector3(0.0, 1.88, 0.0)
+	var panels: int = 8
+	var rim: Array = []
+	for i in range(panels):
+		var angle: float = TAU * float(i) / float(panels)
+		rim.append(centre + Vector3(cos(angle) * 1.05, 1.56, sin(angle) * 0.74))
+	for i in range(panels):
+		var a: Vector3 = rim[i]
+		var b: Vector3 = rim[(i + 1) % panels]
+		var colour: Color = STRIPE_YELLOW if i % 2 == 0 else STRIPE_CREAM
+		_up_tri(mb, apex, a, b, colour)
+		_down_tri(mb, apex, a, b, colour.darkened(0.25))
+		_both_sides(mb, a, b, (a + b) * 0.5 + Vector3(0.0, -0.08, 0.0), colour)
+	mb.surface_style = TavernMaterials.Surface.WOOD
+	mb.add_cone(apex, 0.05, 0.08, 4, STALL_DARK)
+
+
+## A low fence: a post in the middle of its tile and, toward each side with
+## more fence, two rails and a picket -- so runs join and corners turn
+## cleanly. `mask` bits: 1 north (-z), 2 east (+x), 4 south (+z), 8 west (-x).
+static func fence(mb: MeshBuilder, mask: int, main: Color, accent: Color) -> void:
+	mb.surface_style = TavernMaterials.Surface.WOOD
+	mb.add_box(Vector3(0.45, 0.0, 0.45), Vector3(0.1, 0.6, 0.1), accent)
+	mb.add_cone(Vector3(0.5, 0.6, 0.5), 0.075, 0.09, 4, accent)
+	var sides: Array[Vector2] = [Vector2(0, -1), Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0)]
+	for i in range(sides.size()):
+		if mask & (1 << i) == 0:
+			continue
+		var dir: Vector2 = sides[i]
+		var along_x: bool = dir.y == 0.0
+		# From the post's face to the tile's edge.
+		var lo: float = 0.55 if (dir.x > 0.0 or dir.y > 0.0) else 0.0
+		for y in [0.17, 0.4]:
+			if along_x:
+				mb.add_box(Vector3(lo, y, 0.48), Vector3(0.45, 0.06, 0.04), main)
+			else:
+				mb.add_box(Vector3(0.48, y, lo), Vector3(0.04, 0.06, 0.45), main)
+		var at: Vector2 = Vector2(0.5, 0.5) + dir * 0.27
+		if along_x:
+			mb.add_box(Vector3(at.x - 0.04, 0.04, 0.52), Vector3(0.08, 0.46, 0.03), main.lightened(0.06))
+			mb.add_cone(Vector3(at.x, 0.5, 0.535), 0.05, 0.07, 4, main.lightened(0.06))
+		else:
+			mb.add_box(Vector3(0.52, 0.04, at.y - 0.04), Vector3(0.03, 0.46, 0.08), main.lightened(0.06))
+			mb.add_cone(Vector3(0.535, 0.5, at.y), 0.05, 0.07, 4, main.lightened(0.06))
+
+
+## A sloping sheet seen from both sides: the colour on top, darker beneath.
+static func _canopy_quad(mb: MeshBuilder, a: Vector3, b: Vector3, c: Vector3, d: Vector3, colour: Color) -> void:
+	_up_tri(mb, a, b, c, colour)
+	_up_tri(mb, a, c, d, colour)
+	_down_tri(mb, a, b, c, colour.darkened(0.25))
+	_down_tri(mb, a, c, d, colour.darkened(0.25))
+
+
+## A hanging scallop, visible from in front and behind.
+static func _both_sides(mb: MeshBuilder, a: Vector3, b: Vector3, c: Vector3, colour: Color) -> void:
+	mb.add_tri(a, b, c, colour)
+	mb.add_tri(a, c, b, colour.darkened(0.12))
+
+
 # --- geometry helpers -------------------------------------------------------------
 
 ## A flat polygon facing up, fanned from `centre` (or from its first point).
@@ -297,6 +431,14 @@ static func _flat(mb: MeshBuilder, points: Array, colour: Color, centre: Variant
 ## points to; this one always points up.
 static func _up_tri(mb: MeshBuilder, a: Vector3, b: Vector3, c: Vector3, colour: Color) -> void:
 	if (b - a).cross(c - a).y >= 0.0:
+		mb.add_tri(a, b, c, colour)
+	else:
+		mb.add_tri(a, c, b, colour)
+
+
+## The same, facing the ground: the underside of an awning or a parasol.
+static func _down_tri(mb: MeshBuilder, a: Vector3, b: Vector3, c: Vector3, colour: Color) -> void:
+	if (b - a).cross(c - a).y <= 0.0:
 		mb.add_tri(a, b, c, colour)
 	else:
 		mb.add_tri(a, c, b, colour)

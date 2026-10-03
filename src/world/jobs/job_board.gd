@@ -61,6 +61,32 @@ func has_pickup(tile: Vector2i) -> bool:
 	return false
 
 
+## Free a stack held only by hauls nobody has set out on, so serving a guest or
+## feeding a bench can have it. Filing goods away is tidying: an unclaimed
+## haul loses nothing by going, and is posted again later if still wanted.
+## Returns whether nothing now holds the tile. Anything claimed, or anything
+## but a haul, keeps it.
+##
+## Without this, a busy porter was enough to stop the tavern: every dish in
+## the kitchen had a "store it" haul waiting on it, plating will not take from
+## a stack with a pickup on it, and for six hours of one evening nine guests
+## waited for food that was sitting by the oven.
+func yield_hauls(tile: Vector2i) -> bool:
+	var hauls: Array = []
+	for job in jobs:
+		if job.pickup_tile != tile:
+			continue
+		if job.claimant != null or job.kind != WorkType.Kind.HAUL:
+			return false
+		hauls.append(job)
+	for job in hauls:
+		_let_go(job)
+		jobs.erase(job)
+		_keys.erase(job.key)
+		job_cancelled.emit(job)
+	return true
+
+
 ## Best open job for a worker, or null.
 ##
 ## Priority dominates: a priority-1 job across the map beats a priority-2 job

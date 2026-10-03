@@ -32,6 +32,8 @@ enum Shape {
 	FISH_HEAD,
 	BOWL,
 	FISH_PLATE,
+	FRUIT,
+	JUG,
 }
 
 @export var id: StringName = &""

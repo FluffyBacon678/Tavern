@@ -141,6 +141,13 @@ static func _build() -> void:
 			Vector2i.ONE, 15, true, 1.8, [Color("468636"), Color("5e3f25")] as Array[Color]),
 		BuildingDef.make("lantern_post", "Lantern Post", "Garden", L.OBJECT, S.GARDEN_PROP,
 			Vector2i.ONE, 10, true, 1.7, [Color("ffd27a"), Color("5a3d24")] as Array[Color]),
+		# --- the stand: lemonade under a striped awning ---
+		BuildingDef.make("market_stall", "Market Stall", "Garden", L.OBJECT, S.GARDEN_PROP,
+			Vector2i(2, 1), 30, true, 1.9, [Color("f0c63a"), Color("8a6239")] as Array[Color]),
+		BuildingDef.make("parasol_table", "Parasol Table", "Garden", L.OBJECT, S.GARDEN_PROP,
+			Vector2i(2, 1), 16, true, 1.8, [Color("f0c63a"), Color("8a6239")] as Array[Color]),
+		BuildingDef.make("garden_fence", "Garden Fence", "Garden", L.OBJECT, S.GARDEN_PROP,
+			Vector2i.ONE, 2, true, 0.6, [Color("7a5634"), Color("5a3d24")] as Array[Color]),
 	] as Array[BuildingDef]
 
 	_by_id.clear()
@@ -153,7 +160,7 @@ static func _build() -> void:
 		&"table": 0.78, &"serving_counter": 1.0, &"prep_table": 0.95,
 		&"storage_shelf": 1.092, &"barrel": 0.95, &"sink": 0.76,
 		&"oven": 1.14, &"brewing_vat": 1.30, &"well": 0.448,
-		&"fishing_spot": 0.21,
+		&"fishing_spot": 0.21, &"market_stall": 0.95, &"parasol_table": 0.78,
 	}
 	for id in surfaces:
 		_by_id[id].item_surface_height = surfaces[id]
@@ -169,6 +176,30 @@ static func _build() -> void:
 		if _by_id.has(id):
 			_by_id[id].walk_cost = paces[id]
 			_by_id[id].vary_rotation = true
+
+	# What the guests and the service make of each piece.
+	var roles: Dictionary = {
+		&"table": &"table", &"parasol_table": &"table", &"chair": &"chair",
+		&"serving_counter": &"counter", &"market_stall": &"counter",
+	}
+	for id in roles:
+		if _by_id.has(id):
+			_by_id[id].furniture_role = roles[id]
+	# How much a seated guest enjoys having it nearby.
+	# Grass is the ground, not the view: a table on a bare lawn has nothing
+	# to look at. Flowers, trees and lanterns are what count.
+	var beauty: Dictionary = {
+		&"grass_tall_flowers": 1,
+		&"bed_daisy": 3, &"bed_mixed": 3, &"bed_border": 3,
+		&"garden_bench": 2, &"garden_rocks": 1, &"garden_tree": 3, &"garden_pine": 3,
+		&"lantern_post": 2, &"parasol_table": 2, &"market_stall": 2, &"garden_fence": 1,
+	}
+	for id in beauty:
+		if _by_id.has(id):
+			_by_id[id].beauty = beauty[id]
+	if _by_id.has(&"garden_fence"):
+		_by_id[&"garden_fence"].drag_outline = true
+		_by_id[&"garden_fence"].links = true
 
 	for id in [&"storage_shelf", &"barrel"]:
 		if _by_id.has(id):

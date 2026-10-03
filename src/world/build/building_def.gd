@@ -91,6 +91,19 @@ enum Shape {
 ## Turned a random quarter per tile (by its position), so a lawn of one tile
 ## kind does not repeat. Looks only; the footprint is 1 x 1 either way.
 @export var vary_rotation: bool = false
+## What the guests and the service make of a piece: &"table" seats guests at
+## it, &"chair" is a seat beside a table, &"counter" is a serving pass the
+## kitchen plates onto. Any piece may take a role -- a parasol table is a
+## table, a market stall is a counter -- so nothing checks for one exact piece.
+@export var furniture_role: StringName = &""
+## How much a guest seated near it enjoys it: flowers, trees, lanterns. Summed
+## within a few tiles of the seat for the review's Surroundings.
+@export var beauty: int = 0
+## Dragged round the edge of a rectangle, like walls (fences).
+@export var drag_outline: bool = false
+## Joins the same piece on its four sides: drawn with an arm toward each
+## neighbour, so a fence turns its corners instead of overhanging them.
+@export var links: bool = false
 ## Storage that only ever holds these (the well: water), whatever is ticked.
 @export var stores_only: Array[StringName] = []
 

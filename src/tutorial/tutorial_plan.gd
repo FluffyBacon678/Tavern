@@ -17,6 +17,7 @@ extends RefCounted
 const LESSONS: Array[String] = [
 	"Looking around", "Building a room", "Kitchen and storage",
 	"Supplies and production", "Staff", "Service", "Money and reputation", "Fishing", "Growing", "Farming and water",
+	"The garden stand",
 ]
 
 const TABLES: Array[Vector2i] = [Vector2i(1, 0), Vector2i(1, 2), Vector2i(1, 4)]
@@ -187,6 +188,7 @@ static func steps() -> Array[TutorialStep]:
 	out.append_array(_fishing())
 	out.append_array(_growing())
 	out.append_array(TutorialFarming.steps())
+	out.append_array(TutorialStand.steps())
 	# A furnished test start must not silently tick off construction practice.
 	var practice: Dictionary = {
 		"floor": [[&"wood_floor", &"stone_floor"]], "walls": [[&"timber_wall", &"stone_wall"]],
@@ -197,6 +199,7 @@ static func steps() -> Array[TutorialStep]:
 		"fishing_spot": [[&"fishing_spot"]], "well": [[&"well"]],
 		"farm_beds": [[&"farm_plot"]], "river_pump": [[&"river_pump"]],
 		"garden": [[&"garden_path"], [&"bed_daisy", &"bed_mixed", &"bed_border"]],
+		"stand": [[&"market_stall"], [&"parasol_table"]],
 	}
 	for step in out:
 		if practice.has(step.id):

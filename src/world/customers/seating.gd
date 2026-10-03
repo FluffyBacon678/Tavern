@@ -57,11 +57,11 @@ func refresh() -> void:
 	for entry in build.placements:
 		if entry == null or not entry["built"]:
 			continue
-		match String(entry["def"].id):
-			"table":
+		match entry["def"].furniture_role:
+			&"table":
 				for tile in entry["tiles"]:
 					tables[tile] = true
-			"chair":
+			&"chair":
 				for tile in entry["tiles"]:
 					chairs.append(tile)
 

@@ -125,7 +125,7 @@ func scan() -> void:
 					_bank_tiles_this_scan[tile] = true
 	_pass_tiles_this_scan.clear()
 	for entry in build.grid.placements:
-		if entry != null and entry["built"] and entry["def"].id == &"serving_counter":
+		if entry != null and entry["built"] and entry["def"].furniture_role == &"counter":
 			for tile in entry["tiles"]:
 				_pass_tiles_this_scan[tile] = true
 	if _reach_dirty:
@@ -235,9 +235,40 @@ func count_at_station(station: Dictionary, id: StringName) -> int:
 # --- production ----------------------------------------------------------
 
 func _generate_production(stations: Array) -> void:
-	for station in stations:
+	# Most needed first: the bench whose goods are furthest below target asks
+	# first. In the order they were built, a stall built last never won a
+	# barrel of water while the kitchen's benches took every one, and pressed
+	# nothing all day with its lemons beside it.
+	var order: Array = []
+	for i in range(stations.size()):
+		order.append([_fullness(stations[i]), i])
+	order.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1]))
+	for pair in order:
+		var station: Dictionary = stations[pair[1]]
 		for recipe in station["recipes"]:
 			_consider_recipe(station, recipe)
+
+
+## How full a bench's emptiest output is against its target: 0 empty, 1 met.
+func _fullness(station: Dictionary) -> float:
+	var least: float = 1.0
+	if bills == null:
+		return least
+	for recipe in station["recipes"]:
+		if not bills.has_bill(recipe.id):
+			continue
+		var bill: Dictionary = bills.get_bill(recipe.id)
+		if not bill.get("enabled", true) or int(bill.get("target", 0)) <= 0:
+			continue
+		# From the scan's stock count: a big hall has dozens of benches.
+		var stock: int = 0
+		if not recipe.pick_from.is_empty():
+			for id in recipe.pick_from:
+				stock += _in_stock(id)
+		elif not recipe.outputs.is_empty():
+			stock = _in_stock(recipe.outputs[0]["id"])
+		least = minf(least, float(stock) / float(bill["target"]))
+	return least
 
 
 func _consider_recipe(station: Dictionary, recipe: Recipe) -> void:
@@ -398,7 +429,7 @@ func _complete_recipe(station: Dictionary, recipe: Recipe, performance: float = 
 			completion_problem = "unknown recipe output"
 			return false
 		products.append({"def": def, "count": product["count"], "around": station["centre"],
-			"preferred": station["input_tiles"], "prefer_reachable": true})
+			"preferred": _output_tiles(station), "prefer_reachable": true})
 	var plan: Dictionary = items.plan_placement(products, removals)
 	if not plan["ok"]:
 		completion_problem = "waiting for space for finished goods"
@@ -458,16 +489,34 @@ func invalidate_reach() -> void:
 	_reach_dirty = true
 
 
-func _feed_source(station: Dictionary, id: StringName) -> Vector2i:
+## `take`: withdraw an idle haul in the way. False for diagnostics, which only
+## look: a report must never change the board, or what the screen showed would
+## change how the game plays.
+func _feed_source(station: Dictionary, id: StringName, take: bool = true) -> Vector2i:
 	for tile in items.tiles_with(id, station["centre"]):
-		if station["input_tiles"].has(tile) or board.has_pickup(tile):
+		if station["input_tiles"].has(tile):
 			continue
 		if items.available_at(tile) <= 0 or not _standable(tile):
 			continue
 		if _is_working_stock(tile, id, station):
 			continue
+		# Feeding a bench outranks filing the goods away.
+		if board.has_pickup(tile):
+			if not take:
+				if _only_idle_hauls(tile):
+					return tile
+				continue
+			if not board.yield_hauls(tile):
+				continue
 		return tile
 	return Vector2i(-1, -1)
+
+
+func _only_idle_hauls(tile: Vector2i) -> bool:
+	for job in board.jobs:
+		if job.pickup_tile == tile and (job.claimant != null or job.kind != WorkType.Kind.HAUL):
+			return false
+	return true
 
 
 ## Is this stack an ingredient some other bench is standing ready to use?
@@ -507,11 +556,7 @@ func _post_ingredient_haul(station: Dictionary, recipe: Recipe, id: StringName, 
 	if source == Vector2i(-1, -1):
 		return
 
-	var destination := Vector2i(-1, -1)
-	for tile in station["input_tiles"]:
-		if items.accepts(tile, def) and _standable(tile):
-			destination = tile
-			break
+	var destination: Vector2i = _feed_destination(station, def)
 	if destination == Vector2i(-1, -1):
 		return
 
@@ -548,7 +593,7 @@ func feed_problem(station: Dictionary, id: StringName) -> String:
 
 	if _stations_this_scan.is_empty():
 		_stations_this_scan = built_stations()
-	if _feed_source(station, id) == Vector2i(-1, -1):
+	if _feed_source(station, id, false) == Vector2i(-1, -1):
 		# Say which reason it was, because they want different fixes.
 		var anywhere: bool = false
 		var claimed: bool = false
@@ -567,10 +612,37 @@ func feed_problem(station: Dictionary, id: StringName) -> String:
 			return "every source is already claimed"
 		return "only other benches have any"
 
-	for tile in station["input_tiles"]:
-		if items.accepts(tile, def) and _standable(tile):
-			return "ready to post"
+	if _feed_destination(station, def) != Vector2i(-1, -1):
+		return "ready to post"
 	return "nowhere on the bench accepts it"
+
+
+## Where a bench puts down what it makes, best first. A stall keeps its first
+## tile for its own jugs and the rest of its top for the kitchen's plates;
+## more jugs than fit go on the ground beside it, to be stored. Spread over
+## the whole top, the jugs left the garden's food nowhere to be plated.
+func _output_tiles(station: Dictionary) -> Array:
+	if station["def"].furniture_role != &"counter":
+		return station["input_tiles"]
+	var out: Array = [station["tiles"][0]]
+	for tile in station["input_tiles"]:
+		if not station["tiles"].has(tile):
+			out.append(tile)
+	return out
+
+
+## Where at a bench an ingredient is put down, or (-1, -1) for nowhere. A
+## stall is also the pass: its top is for jugs and plates, so its lemons and
+## water wait on the ground beside it, as at any market. Stacked on top they
+## left nowhere to plate, and clearing the pass carried them off again.
+func _feed_destination(station: Dictionary, def: ItemDef) -> Vector2i:
+	var keep_top: bool = station["def"].furniture_role == &"counter"
+	for tile in station["input_tiles"]:
+		if keep_top and station["tiles"].has(tile):
+			continue
+		if items.accepts(tile, def) and _standable(tile):
+			return tile
+	return Vector2i(-1, -1)
 
 
 # --- doing it yourself ---------------------------------------------------

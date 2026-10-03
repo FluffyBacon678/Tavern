@@ -130,6 +130,13 @@ func _check_trouble(world: TavernWorld, scenario: Node) -> void:
 	world.customers.lost_no_service = Trouble.LOSSES_WORTH_NAMING
 	if before.is_empty():
 		check(Trouble.diagnose(world).contains("waiter"), "guests leaving unserved are named")
+		# A kitchen that cannot keep up outranks a few slow tables.
+		var no_menu: int = world.customers.lost_no_menu
+		world.customers.lost_no_menu = Trouble.LOSSES_WORTH_NAMING * 4
+		var said_menu: String = Trouble.diagnose(world)
+		check(said_menu.contains("nothing left to order") or said_menu.contains("Nothing to sell"),
+			"the day's biggest loss is the one named: '%s'" % said_menu)
+		world.customers.lost_no_menu = no_menu
 	world.customers.lost_no_service = unserved
 	check(scenario.reconcile(), "diagnosing trouble moves no goods")
 

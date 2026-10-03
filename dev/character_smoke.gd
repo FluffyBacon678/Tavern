@@ -214,11 +214,15 @@ func _read_copy(path: String) -> void:
 	var guests_before: Array = expected.get("customers", {}).get("guests", [])
 	var guests_after: Array = actual.get("customers", {}).get("guests", [])
 	var guests_kept: bool = guests_before.size() == guests_after.size()
+	var differs: String = "" if guests_kept else "%d saved, %d restored" % [guests_before.size(), guests_after.size()]
 	for i in range(mini(guests_before.size(), guests_after.size())):
 		for key in ["name", "appearance", "equipment", "adventurer"]:
-			if guests_before[i].has(key):
-				guests_kept = guests_kept and guests_before[i][key] == guests_after[i].get(key)
-	check(guests_kept, "fresh process preserves visiting character appearance and independent guest archetype")
+			if guests_before[i].has(key) and guests_before[i][key] != guests_after[i].get(key):
+				guests_kept = false
+				if differs.is_empty():
+					differs = "guest %d's %s" % [i, key]
+	check(guests_kept, "fresh process preserves visiting character appearance and independent guest archetype%s" % (
+		"" if differs.is_empty() else " (%s differs)" % differs))
 	await _finish_render()
 	world.queue_free()
 	await get_tree().process_frame

@@ -39,6 +39,7 @@ static func capture(director: CustomerDirector) -> Dictionary:
 		row["_waited_for_bill"] = brain._waited_for_bill
 		row["paid_at_door"] = brain._paid_at_door
 		row["booked"] = brain.booked
+		row["view"] = brain.view
 		out["guests"].append(row)
 	for review in director.day_reviews:
 		var parts: Dictionary = {}
@@ -105,6 +106,8 @@ static func restore(director: CustomerDirector, data: Dictionary) -> void:
 		# Saved before waiters took orders and brought bills: nothing owed yet.
 		brain._waited_for_bill = float(row.get("_waited_for_bill", 0.0))
 		brain._paid_at_door = bool(row.get("paid_at_door", false))
+		# Saved before guests enjoyed a view: none.
+		brain.view = clampf(float(row.get("view", 0.0)), 0.0, 1.0) if _number(row.get("view", 0.0)) else 0.0
 		var chair: Vector2i = _vector(row["chair"])
 		if director.seating.take(brain, chair):
 			brain.seat = chair
@@ -195,7 +198,9 @@ static func valid(data: Variant) -> bool:
 		if not row.get("parts") is Dictionary:
 			return false
 		for key in row["parts"]:
-			if not str(key).is_valid_int() or int(key) < 0 or int(key) > Review.Part.CLEANLINESS or not _integer(row["parts"][key], -100, 100):
+			# Bounded by the enum, not its last member: naming Cleanliness here
+			# dropped every guest from a save holding one garden review.
+			if not str(key).is_valid_int() or int(key) < 0 or int(key) >= Review.Part.size() or not _integer(row["parts"][key], -100, 100):
 				return false
 	return true
 
@@ -215,9 +220,9 @@ static func valid_seats(data: Dictionary, buildings: Array) -> bool:
 		for y in range(size.y):
 			for x in range(size.x):
 				var tile := Vector2i(int(row["x"]) + x, int(row["y"]) + y)
-				if def.id == &"chair":
+				if def.furniture_role == &"chair":
 					chairs[tile] = true
-				elif def.id == &"table":
+				elif def.furniture_role == &"table":
 					tables[tile] = true
 	for row in data["guests"]:
 		var chair: Vector2i = _vector(row["chair"])

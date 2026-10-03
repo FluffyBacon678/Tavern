@@ -14,7 +14,7 @@ extends RefCounted
 ## afresh, so a problem that has been fixed stops being reported the moment it
 ## is, and nothing needs saving.
 
-const INGREDIENTS: Array[StringName] = [&"flour", &"water", &"yeast", &"malt", &"hops"]
+const INGREDIENTS: Array[StringName] = [&"flour", &"water", &"yeast", &"malt", &"hops", &"lemons"]
 ## One or two lost guests in a day is ordinary bad luck. This many is a pattern
 ## worth interrupting the player about.
 const LOSSES_WORTH_NAMING: int = 3
@@ -92,12 +92,26 @@ static func diagnose(world) -> String:
 				return "Out of %s. Enable Auto restock in Stores%s, or order ingredients manually there." % [
 					_joined(out), KeyBindings.hint("supplies")]
 
-	if customers.lost_no_menu >= LOSSES_WORTH_NAMING and customers.menu_stock() <= 0:
-		return "Nothing to sell: %d guests left today without ordering." % customers.lost_no_menu
+	# The day's biggest loss, so the advice points at the real gap. A kitchen
+	# that could not keep up lost forty guests while six waited on a waiter,
+	# and the advice said to hire a waiter. Ties go to the earlier: a menu
+	# before a seat before service.
+	var losses: Array = []
+	if customers.lost_no_menu >= LOSSES_WORTH_NAMING:
+		if customers.menu_stock() <= 0:
+			losses.append([customers.lost_no_menu, "Nothing to sell: %d guests left today without ordering." % customers.lost_no_menu])
+		else:
+			losses.append([customers.lost_no_menu, ("%d guests found nothing left to order today: the kitchen is not keeping up. Hire a cook, or raise the meal targets in Stores" + KeyBindings.hint("supplies") + ".") % customers.lost_no_menu])
 	if customers.lost_no_seat >= LOSSES_WORTH_NAMING and seating.usable_free_count() == 0:
-		return "%d guests left today for want of a seat. More tables and chairs would keep them." % customers.lost_no_seat
+		losses.append([customers.lost_no_seat, "%d guests left today for want of a seat. More tables and chairs would keep them." % customers.lost_no_seat])
 	if customers.lost_no_service >= LOSSES_WORTH_NAMING:
-		return "%d guests left today waiting for a waiter or their food. Put more staff on Serve, or hire a waiter." % customers.lost_no_service
+		losses.append([customers.lost_no_service, "%d guests left today waiting for a waiter or their food. Put more staff on Serve, or hire a waiter." % customers.lost_no_service])
+	var worst: Array = []
+	for loss in losses:
+		if worst.is_empty() or int(loss[0]) > int(worst[0]):
+			worst = loss
+	if not worst.is_empty():
+		return worst[1]
 	# Last, because debt is where the other problems end up: anything above it
 	# is a cause worth fixing first.
 	if GameState.gold < 0:

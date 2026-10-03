@@ -182,7 +182,7 @@ static func _patron_rows(world, pawn: Pawn, brain: CustomerBrain) -> Array:
 		"colour": _mood_colour(mood.satisfaction), "hover": true})
 	rows.append(_rule())
 	rows.append(_sub("What they think so far"))
-	for part in [Review.Part.SEATING, Review.Part.SERVICE, Review.Part.FOOD, Review.Part.CLEANLINESS]:
+	for part in [Review.Part.SEATING, Review.Part.SERVICE, Review.Part.FOOD, Review.Part.CLEANLINESS, Review.Part.SURROUNDINGS]:
 		if not mood.parts.has(part):
 			continue
 		var value: int = int(mood.parts[part])
@@ -423,7 +423,7 @@ static func _seat_rows(world, entry: Dictionary) -> Array:
 		if entry["tiles"].has(seat["chair"]) or entry["tiles"].has(seat["table"]):
 			mine.append(i)
 	if mine.is_empty():
-		if entry["def"].id == &"chair":
+		if entry["def"].furniture_role == &"chair":
 			rows.append(_stat("Seat", "not beside a table, so nobody can sit here", TavernTheme.DANGER, true))
 		return rows
 
@@ -665,6 +665,12 @@ static func building_blurb(def: BuildingDef) -> String:
 			parts.append("the way in; walls round it make a room")
 		&"serving_counter":
 			parts.append("the pass: cooks plate orders here and waiters take them to the nearest tables")
+		&"market_stall":
+			parts.append("a stall: the garden's own serving counter and a lemonade press. Cooks press, waiters serve")
+		&"parasol_table":
+			parts.append("a table under a parasol: put chairs beside it, out on the lawn")
+		&"garden_fence":
+			parts.append("drag it round a garden, like a wall")
 		&"garden_path":
 			parts.append("the quickest ground there is: lay paths where people walk")
 		&"bed_daisy", &"bed_mixed", &"bed_border":

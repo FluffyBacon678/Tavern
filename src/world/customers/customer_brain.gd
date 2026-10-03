@@ -90,6 +90,9 @@ var _seat_tolerance: float = PATIENCE_FOR_SEAT
 ## have looked, so a patron who left before reading it is not recorded as having
 ## seen an empty board.
 var _menu_breadth: int = -1
+## How lovely the view from their seat was, taken as they sat down: by the
+## time the review is written the seat has already been given up.
+var view: float = 0.0
 var _did_order: bool = false
 ## What the food was actually like, weighted by how much of it they ate.
 var _food_quality_sum: float = 0.0
@@ -237,6 +240,7 @@ func _process_ordering(delta: float) -> void:
 	if _timer > 0.0:
 		return
 	_menu_breadth = _menu_on_offer()
+	view = surroundings()
 	if _menu_breadth == 0:
 		# Nothing on the menu. Leaving now is both more truthful and better for
 		# the tavern than sitting for a minute waiting for bread that does not
@@ -244,7 +248,7 @@ func _process_ordering(delta: float) -> void:
 		_give_up()
 		return
 	state = State.READY_TO_ORDER
-	_patience = PATIENCE_FOR_WAITER * guest_type.patience
+	_patience = PATIENCE_FOR_WAITER * guest_type.patience * calm()
 	_waited_for_order = 0.0
 
 
@@ -270,7 +274,7 @@ func take_order() -> bool:
 		return false
 	state = State.WAITING_FOR_ORDER
 	_did_order = true
-	_patience = PATIENCE_FOR_ORDER * guest_type.patience
+	_patience = PATIENCE_FOR_ORDER * guest_type.patience * calm()
 	ordered.emit(self)
 	return true
 
@@ -298,6 +302,10 @@ func _menu_on_offer() -> int:
 ## Stock nobody else is already waiting on.
 func _sellable(id: StringName) -> int:
 	if items == null:
+		return 0
+	# A stall's lemonade is for the tables it serves.
+	if director != null and director.has_method("offers") and seating != null \
+			and not director.offers(id, seating.table_for(seat)):
 		return 0
 	if director != null and director.has_method("unpromised"):
 		return director.unpromised(id)
@@ -389,7 +397,7 @@ func _process_eating(delta: float) -> void:
 	_timer -= delta
 	if _timer <= 0.0:
 		state = State.WAITING_FOR_BILL
-		_patience = PATIENCE_FOR_BILL * guest_type.patience
+		_patience = PATIENCE_FOR_BILL * guest_type.patience * calm()
 		_waited_for_bill = 0.0
 
 
@@ -414,7 +422,7 @@ func settle() -> bool:
 ## Waiting on the tavern, 0 (served at once) to 1 (every wait ran out). Tips
 ## and the review's service mark both read this, so they can never disagree.
 func service_wait() -> float:
-	return clampf((_waited_for_order + _waited_for_bill) / (PATIENCE_FOR_WAITER + PATIENCE_FOR_ORDER), 0.0, 1.0)
+	return clampf((_waited_for_order + _waited_for_bill) / ((PATIENCE_FOR_WAITER + PATIENCE_FOR_ORDER) * calm()), 0.0, 1.0)
 
 
 func _pay_and_go() -> void:
@@ -485,7 +493,8 @@ func write_review(satisfied: bool, spend: int) -> Review:
 		menu,
 		_dirt_sum / float(maxi(_dirt_samples, 1)),
 		food,
-		guest_type.cares
+		guest_type.cares,
+		view
 	)
 
 
@@ -576,11 +585,11 @@ func patience_fraction() -> float:
 		State.SEEKING_SEAT:
 			return clampf(_patience / maxf(_seat_tolerance, 1.0), 0.0, 1.0)
 		State.READY_TO_ORDER:
-			return clampf(_patience / (PATIENCE_FOR_WAITER * guest_type.patience), 0.0, 1.0)
+			return clampf(_patience / (PATIENCE_FOR_WAITER * guest_type.patience * calm()), 0.0, 1.0)
 		State.WAITING_FOR_ORDER:
-			return clampf(_patience / (PATIENCE_FOR_ORDER * guest_type.patience), 0.0, 1.0)
+			return clampf(_patience / (PATIENCE_FOR_ORDER * guest_type.patience * calm()), 0.0, 1.0)
 		State.WAITING_FOR_BILL:
-			return clampf(_patience / (PATIENCE_FOR_BILL * guest_type.patience), 0.0, 1.0)
+			return clampf(_patience / (PATIENCE_FOR_BILL * guest_type.patience * calm()), 0.0, 1.0)
 	return -1.0
 
 
@@ -618,3 +627,40 @@ func unserved() -> Array:
 		if line["served"] < line["count"]:
 			out.append({"id": line["id"], "count": line["count"] - line["served"]})
 	return out
+
+
+## How lovely the view from their seat is, 0 to 1: the beauty of every piece
+## with a tile within three of the chair, a well-planted corner filling it.
+## Nothing near the seat is 0, and the review leaves Surroundings out.
+const SURROUNDINGS_RADIUS: int = 3
+const SURROUNDINGS_FULL: float = 24.0
+## A lovely view makes the wait easier to bear: in a full garden, half as
+## patient again, and the wait counts for that much less in the review. The
+## garden's tables are the far ones from the kitchen; this is what pays for it.
+const VIEW_PATIENCE: float = 0.5
+
+
+func calm() -> float:
+	return 1.0 + VIEW_PATIENCE * view
+
+
+func surroundings() -> float:
+	if seat == Seating.NO_SEAT or seating == null or seating.build == null:
+		return 0.0
+	return view_from(seating.build, seat)
+
+
+static func view_from(grid: BuildGrid, chair: Vector2i) -> float:
+	var seen: Dictionary = {}
+	var total: int = 0
+	for dy in range(-SURROUNDINGS_RADIUS, SURROUNDINGS_RADIUS + 1):
+		for dx in range(-SURROUNDINGS_RADIUS, SURROUNDINGS_RADIUS + 1):
+			var tile: Vector2i = chair + Vector2i(dx, dy)
+			for index in [grid.floor_index_at(tile), grid.object_index_at(tile)]:
+				if index < 0 or seen.has(index):
+					continue
+				seen[index] = true
+				var entry = grid.placements[index]
+				if entry != null and entry["built"]:
+					total += int(entry["def"].beauty)
+	return clampf(float(total) / SURROUNDINGS_FULL, 0.0, 1.0)

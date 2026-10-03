@@ -4,8 +4,9 @@ extends RefCounted
 ## The sandbox's starting tavern, for now: a big finished house with one of
 ## everything, so every building and every position can be tried from the
 ## first minute. A 24 x 10 hall -- dining west, kitchen east, the counter and
-## host's stand by the door -- with a well, a river pump, a fishing spot and a
-## field outside, one of each position on the staff, and a stocked larder.
+## host's stand by the door -- with a well, a river pump, a fishing spot, a
+## field and a front garden with a lemonade stall outside, one of each
+## position on the staff, and a stocked larder.
 ##
 ## Everything is placed finished and free. Pieces that do not fit on a given
 ## map (no river bank in the plot, say) are simply left out.
@@ -24,12 +25,28 @@ const BARRELS: Array[Vector2i] = [Vector2i(23, 7), Vector2i(23, 8), Vector2i(21,
 ## Water barrels beside the vat and the prep table. Without them every barrel
 ## ended up in the well by the river, and the cooks walked there for each one.
 const WATER_BARRELS: Array[Vector2i] = [Vector2i(23, 1), Vector2i(23, 3), Vector2i(23, 5)]
+## A front garden east of the door, below the hall's south wall: T lawn, X mixed
+## flowers, B border flowers, D daisies. The lemonade stall and a parasol table
+## stand on the lawn, a lantern at the end, a fence along the front.
+const FRONT_GARDEN_AT := Vector2i(14, 11)
+const FRONT_GARDEN: Array[String] = [
+	"XTTTTTTTX",
+	"TTTTTTTTT",
+	"DBBBDBBBD",
+]
+const FRONT_KEYS: Dictionary = {"T": &"lawn_trimmed", "X": &"bed_mixed", "B": &"bed_border", "D": &"bed_daisy"}
+const STALL := Vector2i(15, 12)
+const PARASOL := Vector2i(19, 12)
+const LANTERN := Vector2i(21, 11)
 const DOOR_X: int = 12
-## The rest of a full crew, on top of the opening five.
-const EXTRA_CREW: Array[StringName] = [&"porter", &"cook", &"waiter", &"waiter", &"busser", &"host", &"fisherman", &"farmer"]
+## The rest of a full crew, on top of the opening five. The third waiter is
+## the garden's: tables out the front door are the far ones from the kitchen,
+## and without one the whole house served slower (five days at four seeds:
+## about 700g down without, 400g with).
+const EXTRA_CREW: Array[StringName] = [&"porter", &"cook", &"waiter", &"waiter", &"waiter", &"busser", &"host", &"fisherman", &"farmer"]
 ## Ingredients, and a first batch of bread and beer: without them the first
 ## guests found an empty menu while the kitchen warmed up.
-const STOCK: Dictionary = {&"flour": 10, &"yeast": 10, &"water": 12, &"malt": 8, &"hops": 8, &"bread": 8, &"beer": 12}
+const STOCK: Dictionary = {&"flour": 10, &"yeast": 10, &"water": 12, &"malt": 8, &"hops": 8, &"lemons": 8, &"bread": 8, &"beer": 12}
 const GOLD: int = 2000
 
 
@@ -68,6 +85,18 @@ static func build(world) -> void:
 		var index: int = _put(world, &"barrel", at.call(t))
 		if index >= 0:
 			world.build.grid.set_filter(index, [&"water"])
+
+	# The front garden and its lemonade stand.
+	for y in range(FRONT_GARDEN.size()):
+		for x in range(FRONT_GARDEN[y].length()):
+			_put(world, FRONT_KEYS[FRONT_GARDEN[y][x]], at.call(FRONT_GARDEN_AT + Vector2i(x, y)))
+	_put(world, &"market_stall", at.call(STALL))
+	_put(world, &"parasol_table", at.call(PARASOL))
+	_put(world, &"chair", at.call(PARASOL + Vector2i(-1, 0)))
+	_put(world, &"chair", at.call(PARASOL + Vector2i(2, 0)))
+	_put(world, &"lantern_post", at.call(LANTERN))
+	for x in range(FRONT_GARDEN[0].length()):
+		_put(world, &"garden_fence", at.call(FRONT_GARDEN_AT + Vector2i(x, FRONT_GARDEN.size())))
 
 	# Outside: water, fish and a field.
 	_put_first(world, &"fishing_spot", _bank_spots(world, &"fishing_spot"))

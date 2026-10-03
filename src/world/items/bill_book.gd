@@ -37,6 +37,7 @@ func reset_to_defaults() -> void:
 	# a working reserve rather than running flat out.
 	_set_default(&"pump_water", 10, 4)
 	_set_default(&"mill_flour", 6, 2)
+	_set_default(&"press_lemonade", 12, 9)
 	_set_default(&"make_dough", 3, 1)
 	_set_default(&"bake_bread", 10, 9)
 	_set_default(&"brew_beer", 12, 11)

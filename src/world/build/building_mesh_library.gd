@@ -25,6 +25,21 @@ func mesh_for(def: BuildingDef) -> ArrayMesh:
 	return mesh
 
 
+## A joining piece's mesh for one shape of joint (see BuildController.link_mask).
+func linked_mesh_for(def: BuildingDef, mask: int) -> ArrayMesh:
+	var key := StringName("%s#%d" % [def.id, mask])
+	if _meshes.has(key):
+		return _meshes[key]
+	var mb := MeshBuilder.new()
+	mb.use_textures = true
+	var main: Color = def.palette[0] if def.palette.size() > 0 else Color.WHITE
+	var accent: Color = def.palette[1] if def.palette.size() > 1 else main
+	GardenArt.fence(mb, mask, main, accent)
+	var mesh: ArrayMesh = mb.commit()
+	_meshes[key] = mesh
+	return mesh
+
+
 func _build(def: BuildingDef) -> ArrayMesh:
 	var mb := MeshBuilder.new()
 	mb.use_textures = true

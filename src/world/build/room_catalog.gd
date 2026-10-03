@@ -79,7 +79,7 @@ static func _build() -> void:
 			_need(["storage_shelf", "barrel"], 2),
 		], Color("6f7fa8")),
 		RoomKind.new("dining", "Dining Hall", [
-			_need(["table"]),
+			_need(["table", "parasol_table"]),
 			_need(["chair"]),
 		], Color("c06a86")),
 		RoomKind.new("brewery", "Brewery", [

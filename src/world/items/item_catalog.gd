@@ -59,6 +59,11 @@ static func _build() -> void:
 			["grain", "brewing"] as Array[String], [MALT_BROWN, GRAIN] as Array[Color]),
 		ItemDef.make("hops", "Hops", C.INGREDIENT, S.BUNDLE, 8, 2, 0,
 			["brewing"] as Array[String], [HOPS_GREEN, GRAIN] as Array[Color]),
+		# Bought by the crate; pressed into lemonade at a market stall.
+		ItemDef.make("lemons", "Lemons", C.INGREDIENT, S.FRUIT, 12, 2, 0,
+			["fruit"] as Array[String], [Color("f2cf3b"), Color("8a6239")] as Array[Color]),
+		ItemDef.make("lemonade", "Lemonade", C.PRODUCT, S.JUG, 12, 0, 7,
+			["drink"] as Array[String], [Color("f6dc63"), Color("e9e4d6")] as Array[Color]),
 		# Grown on a farm plot; ground to flour at the prep table.
 		ItemDef.make("wheat", "Wheat Sheaf", C.INGREDIENT, S.BUNDLE, 12, 0, 0,
 			["grain", "crop"] as Array[String], [Color("d9b45a"), Color("a8802e")] as Array[Color]),

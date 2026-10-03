@@ -51,9 +51,67 @@ daisy bed by the front door.
 - `dev/garden_showcase.tscn -- park <png>`: the park above, laid by the real
   build system beside the sandbox's tavern, with a back door where the path
   meets the hall.
+- `dev/garden_showcase.tscn -- stand <png>`: a fenced lemonade garden, laid the
+  same way.
 - `dev/regressions.tscn -- group=garden`: catalogue, budgets, faces-up, tiles
   stay inside their square, beds are walked round, idle staff stay indoors,
-  tile turns.
+  tile turns; the stand: roles, the press, lemons beside the stall and jugs
+  on its first tile, fence joints, the view, Surroundings in a save.
+- `dev/persona_playtest.tscn -- persona=idle|profit|garden [days=5] [sim=N]
+  [fence=0] [lemonade=0] [strip=ids] [hire=roles] [watch=day] [shots=dir]`:
+  scripted players on the sandbox house, with switches to measure each part.
 
-Not yet: fences, garden beauty affecting guests' mood, and neighbour-aware
-path edges (worn grass tiles stand in for ragged path borders).
+## The lemonade stand
+
+![A fenced lemonade garden, laid with the build system](../.verification/stand_20261004/stand_garden.png)
+
+![The garden player's garden on day 3, in the rain](../.verification/stand_20261004/persona_garden/garden_day3_morning.png)
+
+The tile sheet with the stand's row: `../.verification/stand_20261004/garden_sheet.png`.
+
+| Piece | Kind | Cost | Role | Triangles |
+|---|---|---:|---|---:|
+| Market Stall (2 x 1) | prop | 30g | serving counter and lemonade press | 282 |
+| Parasol Table (2 x 1) | prop | 16g | a table: chairs beside it seat guests | 115 |
+| Garden Fence | prop | 2g a tile | dragged like a wall; joins its neighbours | up to 196 |
+
+- **Lemonade**: lemons (2g, from the merchant) and water, pressed at a stall
+  into four jugs (sold at 7g). Lemonade has a meal target in Stores like
+  anything else (12 by default), so auto restock buys the lemons. Cooks press
+  it, and fetch the lemons and water to the ground beside the stall; the
+  stall's top is kept for jugs and plates.
+- **The stall is the garden's counter.** Each table is served from its nearest
+  counter: the garden's tables from the stall, the hall's from the hall's.
+  The stall keeps its first tile for its own jugs; the kitchen plates the
+  garden's food onto the other. Lemonade is sold at the stall's own tables
+  only: offered in the hall too, every jug was a cook's walk out and back.
+- **Pieces have roles, not names.** `BuildingDef.furniture_role` (table, chair,
+  counter) is what seating, plating, rooms and the guest card read, so any new
+  table or counter works without touching them.
+- **Fences** link to fence on each side (`BuildController.link_mask`), drawn
+  with one mesh per joint shape, so corners, ends and crossings meet cleanly.
+- **Surroundings.** Every piece has a `beauty` (flower beds 3, trees 3,
+  lanterns 2, benches 2, parasol tables and stalls 2, tall grass with flowers
+  and fences 1; lawns and paths are the ground, and count for nothing). A guest's
+  view is the beauty within three tiles of their chair, out of 24, taken as
+  they sit down. A view adds up to **+10** to the review (a new Surroundings
+  part, never negative, so a tavern without a garden scores exactly as
+  before) and makes the guest up to **50% more patient**, with the wait
+  counting for that much less. That is what pays for the garden's tables
+  being the far ones from the kitchen.
+
+The tutorial's last lesson, *The garden stand*, has the player build a stall
+and a parasol table, waits for the first lemonade, and watches a guest drink
+it. The sandbox's test house has a small front garden with a stall, a parasol
+table, flowers and a fence, and a third waiter to staff it.
+
+**What it costs.** Garden tables are the far ones from the kitchen, and
+footfall comes from reputation alone, so a garden adds walking before it adds
+guests. In the persona play tests (`dev/persona_playtest.tscn`, five days,
+four dice seeds) the sandbox's front garden cost an idle player about 700g
+without its waiter and 400g with one. A player who builds a big garden serves
+the most guests of all but, after five days, has not yet earned back its
+cost.
+
+Not yet: neighbour-aware path edges (worn grass tiles stand in for ragged path
+borders), and a gate for fences.
