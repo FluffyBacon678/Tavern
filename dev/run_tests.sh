@@ -61,6 +61,12 @@ for f in "$OUT"/*.txt; do
 	read -r _ code secs <<< "$(grep '^EXIT' "$f" | tail -1)"
 	total=$(grep -E "REGRESSIONS|SMOKE|TUTORIAL [0-9]|CHAOS TEST|LEVEL SMOKE|^SOAK|HOUSE SMOKE" "$f" | tail -1)
 	extra=$(grep -E "FINGERPRINT|Purse at the close" "$f" | sed 's/^ *//' | tr '\n' ' ')
+	# A script error fails the suite even when every check passed: a function
+	# that errors returns a default, and the checks after it can still hold.
+	if [ "$code" = "0" ] && grep -q "SCRIPT ERROR" "$f"; then
+		code="script-error"
+		total="$total ($(grep -c "SCRIPT ERROR" "$f") script errors)"
+	fi
 	if [ "$code" = "0" ]; then
 		printf "ok    %-12s %4ss  %s %s\n" "$name" "$secs" "$total" "$extra"
 	else

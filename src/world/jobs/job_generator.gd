@@ -623,10 +623,11 @@ func feed_problem(station: Dictionary, id: StringName) -> String:
 ## goes on the ground beside it, to be stored. Spread over the whole counter,
 ## the jugs left the beer nowhere to stand.
 func _output_tiles(station: Dictionary, id: StringName) -> Array:
-	if station["def"].furniture_role != &"bar":
+	var def: BuildingDef = station.get("def")
+	if def == null or def.furniture_role != &"bar":
 		return station["input_tiles"]
 	var out: Array = []
-	var slot: int = CustomerDirector.bar_drinks(station["def"]).find(id)
+	var slot: int = CustomerDirector.bar_drinks(def).find(id)
 	if slot >= 0 and slot < station["tiles"].size():
 		out.append(station["tiles"][slot])
 	for tile in station["input_tiles"]:
@@ -697,7 +698,7 @@ func _generate_bar_stock() -> void:
 ## beside it, as at any market. Stacked on top they left nowhere for the
 ## drinks, and the drinks nowhere to go but the floor.
 func _feed_destination(station: Dictionary, def: ItemDef) -> Vector2i:
-	var keep_top: bool = station["def"].furniture_role in [&"counter", &"bar"]
+	var keep_top: bool = station.get("def") != null and station["def"].furniture_role in [&"counter", &"bar"]
 	for tile in station["input_tiles"]:
 		if keep_top and station["tiles"].has(tile):
 			continue

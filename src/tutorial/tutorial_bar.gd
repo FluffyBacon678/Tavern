@@ -42,7 +42,8 @@ static func steps() -> Array[TutorialStep]:
 	out.append(TutorialStep.make("bar_guest", lesson,
 		"Watch for a guest who fetches their own drink from the bar.",
 		"Guests who want only a drink, and hate to wait, take it off the counter themselves and pay on the way out: no waiter, and no tip. Patient guests, and anyone wanting a meal, are waited on.",
-		func(w, _ctx) -> bool: return w.customers.bar_visits >= 1,
+		func(w, ctx) -> bool: return w.customers.bar_visits > int(ctx["visits"]),
 		func(w, _ctx) -> void: w.sim.speed = 4
+	).starting(func(w, ctx) -> void: ctx["visits"] = w.customers.bar_visits
 	).running(900.0).pointing_at(func(w) -> Dictionary: return {"tiles": TutorialPlan.area(w, BAR, Vector2i(2, 1))}))
 	return out
