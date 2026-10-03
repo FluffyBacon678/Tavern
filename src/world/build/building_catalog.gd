@@ -109,6 +109,38 @@ static func _build() -> void:
 			Vector2i(2, 1), 18, true, 1.2, [TIMBER, TIMBER_DARK] as Array[Color]),
 		BuildingDef.make("barrel", "Barrel", "Storage", L.OBJECT, S.BARREL,
 			Vector2i.ONE, 10, true, 0.95, [TIMBER_LIGHT, IRON] as Array[Color]),
+
+		# --- Garden: tiles and props for parks and paths by the tavern ---
+		BuildingDef.make("lawn_trimmed", "Trimmed Lawn", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 1, false, 0.05, [Color("6c9b3f"), Color("6b4a2e")] as Array[Color]),
+		BuildingDef.make("lawn_meadow", "Meadow Grass", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 1, false, 0.05, [Color("5f9139"), Color("6b4a2e")] as Array[Color]),
+		BuildingDef.make("lawn_worn", "Worn Grass", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 1, false, 0.05, [Color("a27b4b"), Color("5f9139")] as Array[Color]),
+		BuildingDef.make("garden_path", "Dirt Path", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 1, false, 0.05, [Color("a27b4b"), Color("54391f")] as Array[Color]),
+		BuildingDef.make("bed_daisy", "Daisy Bed", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 4, false, 0.05, [Color("f2efe6"), Color("547f33")] as Array[Color]),
+		BuildingDef.make("bed_mixed", "Mixed Flower Bed", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 5, false, 0.05, [Color("c8413a"), Color("547f33")] as Array[Color]),
+		BuildingDef.make("bed_border", "Border Flower Bed", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 5, false, 0.05, [Color("7a5cc0"), Color("547f33")] as Array[Color]),
+		BuildingDef.make("grass_tall", "Tall Grass", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 2, false, 0.05, [Color("5d9637"), Color("5f9139")] as Array[Color]),
+		BuildingDef.make("grass_tall_flowers", "Tall Grass with Flowers", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 2, false, 0.05, [Color("f2efe6"), Color("5d9637")] as Array[Color]),
+		BuildingDef.make("grass_overgrown", "Overgrown Plot", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 2, false, 0.05, [Color("8e8c86"), Color("3f6f2a")] as Array[Color]),
+		BuildingDef.make("garden_bench", "Park Bench", "Garden", L.OBJECT, S.GARDEN_PROP,
+			Vector2i(2, 1), 12, true, 0.72, [Color("8a6239"), Color("5a3d24")] as Array[Color]),
+		BuildingDef.make("garden_rocks", "Rocks", "Garden", L.OBJECT, S.GARDEN_PROP,
+			Vector2i.ONE, 6, true, 0.5, [Color("8e8c86"), Color("6f6d68")] as Array[Color]),
+		BuildingDef.make("garden_tree", "Leafy Tree", "Garden", L.OBJECT, S.GARDEN_PROP,
+			Vector2i.ONE, 15, true, 1.9, [Color("4f8a30"), Color("5e3f25")] as Array[Color]),
+		BuildingDef.make("garden_pine", "Pine", "Garden", L.OBJECT, S.GARDEN_PROP,
+			Vector2i.ONE, 15, true, 1.8, [Color("468636"), Color("5e3f25")] as Array[Color]),
+		BuildingDef.make("lantern_post", "Lantern Post", "Garden", L.OBJECT, S.GARDEN_PROP,
+			Vector2i.ONE, 10, true, 1.7, [Color("ffd27a"), Color("5a3d24")] as Array[Color]),
 	] as Array[BuildingDef]
 
 	_by_id.clear()
@@ -125,6 +157,18 @@ static func _build() -> void:
 	}
 	for id in surfaces:
 		_by_id[id].item_surface_height = surfaces[id]
+
+	# Garden tiles: how quickly people cross them. Paths are the quickest
+	# ground there is; flower beds are walked round unless there is no other way.
+	var paces: Dictionary = {
+		&"garden_path": 1.0, &"lawn_worn": 1.05, &"lawn_trimmed": 1.1, &"lawn_meadow": 1.2,
+		&"grass_tall": 1.8, &"grass_tall_flowers": 1.8, &"grass_overgrown": 2.2,
+		&"bed_daisy": 2.6, &"bed_mixed": 2.6, &"bed_border": 2.6,
+	}
+	for id in paces:
+		if _by_id.has(id):
+			_by_id[id].walk_cost = paces[id]
+			_by_id[id].vary_rotation = true
 
 	for id in [&"storage_shelf", &"barrel"]:
 		if _by_id.has(id):

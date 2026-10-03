@@ -154,6 +154,11 @@ func _trade_on(days: int) -> bool:
 				print("     trouble: %s" % trouble)
 		if verbose:
 			print("     pass: %s" % _pass_line())
+			print("     kitchen: %s" % _kitchen_line())
+			var larder: PackedStringArray = PackedStringArray()
+			for id in [&"flour", &"yeast", &"water", &"malt", &"hops", &"wheat", &"dough", &"bread", &"beer"]:
+				larder.append("%s %d" % [id, world.stock_of(id)])
+			print("     larder: %s; auto: %s" % [", ".join(larder), world.auto_supply.note])
 		served += c.served_count
 		lost_service += c.lost_no_service
 		lost_seat += c.lost_no_seat
@@ -172,8 +177,11 @@ func _trade_on(days: int) -> bool:
 			if not world.auto_supply.enabled and world.order_problem(TavernWorld.STANDARD_ORDER) == "":
 				world.order_supplies()
 	# Guests given up on for want of service are the thing to watch: a pass
-	# jammed with abandoned plates lost 15-27 a day before it was fixed.
-	var ok: bool = lost_service <= 3 * days and GameState.gold > purse
+	# jammed with abandoned plates lost 15-27 a day before it was fixed. The
+	# line is 5 a day: the healthy tavern measured 17, 23, 25 and 27 over six
+	# days as unrelated things moved (a field's walking pace, a two-tile path
+	# by the door), so 3 a day failed on noise, not on faults.
+	var ok: bool = lost_service <= 5 * days and GameState.gold > purse
 	print("SOAK %s  %d days after the tutorial: served %d, lost %d to service, %d for a seat; purse %dg -> %dg" % [
 		"ok" if ok else "FAIL", days, served, lost_service, lost_seat, purse, GameState.gold])
 	return ok

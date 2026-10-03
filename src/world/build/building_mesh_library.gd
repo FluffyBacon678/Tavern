@@ -64,6 +64,8 @@ func _build(def: BuildingDef) -> ArrayMesh:
 			_well(mb, w, d, def.height, main, accent)
 		BuildingDef.Shape.JETTY:
 			_jetty(mb, w, d, def.height, main, accent)
+		BuildingDef.Shape.GARDEN_TILE, BuildingDef.Shape.GARDEN_PROP:
+			GardenArt.build(mb, def.id, w, d, def.height, main, accent)
 		BuildingDef.Shape.FARM:
 			_farm_plot(mb, w, d, def.height, main, accent)
 		BuildingDef.Shape.PUMP:

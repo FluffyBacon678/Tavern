@@ -665,6 +665,14 @@ static func building_blurb(def: BuildingDef) -> String:
 			parts.append("the way in; walls round it make a room")
 		&"serving_counter":
 			parts.append("the pass: cooks plate orders here and waiters take them to the nearest tables")
+		&"garden_path":
+			parts.append("the quickest ground there is: lay paths where people walk")
+		&"bed_daisy", &"bed_mixed", &"bed_border":
+			parts.append("people step round flower beds unless there is no other way")
+		&"grass_tall", &"grass_tall_flowers", &"grass_overgrown":
+			parts.append("slow to wade through")
+		&"garden_bench", &"garden_rocks", &"garden_tree", &"garden_pine", &"lantern_post":
+			parts.append("for the look of the place: nobody can walk through it")
 		&"farm_plot":
 			parts.append("a farmer plants and harvests it; about two trading days to grow wheat for flour, or hops")
 		&"well":

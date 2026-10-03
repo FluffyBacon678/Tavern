@@ -37,6 +37,8 @@ enum Shape {
 	JETTY,
 	FARM,
 	PUMP,
+	GARDEN_TILE,
+	GARDEN_PROP,
 }
 
 @export var id: StringName = &""
@@ -83,6 +85,12 @@ enum Shape {
 ## catalog has anything for its id, so adding a recipe is the only step needed
 ## to make an existing piece useful.
 @export var is_storage: bool = false
+## Walking pace over this floor, as a cost: 1.0 is the quickest floor. A flower
+## bed is slow going, so people keep to the paths and lawns.
+@export var walk_cost: float = 1.0
+## Turned a random quarter per tile (by its position), so a lawn of one tile
+## kind does not repeat. Looks only; the footprint is 1 x 1 either way.
+@export var vary_rotation: bool = false
 ## Storage that only ever holds these (the well: water), whatever is ticked.
 @export var stores_only: Array[StringName] = []
 

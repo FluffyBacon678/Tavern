@@ -30,6 +30,9 @@ const COUNTER := Vector2i(5, 6)
 const SPARE_CHAIR := Vector2i(0, 6)
 const DOOR := Vector2i(4, 7)
 const HOST_STAND := Vector2i(3, 6)
+## Outside the front door: a short path south, and a flower bed beside it.
+const GARDEN_PATH := Vector2i(4, 8)
+const GARDEN_BED := Vector2i(2, 8)
 
 
 # --- layout ---------------------------------------------------------------------
@@ -193,6 +196,7 @@ static func steps() -> Array[TutorialStep]:
 		"counter": [[&"serving_counter"]], "host_stand": [[&"host_stand"]],
 		"fishing_spot": [[&"fishing_spot"]], "well": [[&"well"]],
 		"farm_beds": [[&"farm_plot"]], "river_pump": [[&"river_pump"]],
+		"garden": [[&"garden_path"], [&"bed_daisy", &"bed_mixed", &"bed_border"]],
 	}
 	for step in out:
 		if practice.has(step.id):
@@ -733,6 +737,17 @@ static func _growing() -> Array[TutorialStep]:
 		func(w, _ctx) -> bool: return w.customers.bookings.arrived_guests() >= 1,
 		func(w, _ctx) -> void: w.sim.speed = 4
 	).running(700.0))
+	out.append(TutorialStep.make("garden", L,
+		"In the Garden tab, lay a Dirt Path out from the front door and a Daisy Bed beside it.",
+		"Garden tiles are floors: paths are the quickest ground, and people step round flower beds. Benches, trees and lanterns are there too.",
+		func(w, _ctx) -> bool:
+			return placed_in(w, [&"garden_path"], w.plot) >= 1 and placed_in(w, [&"bed_daisy", &"bed_mixed", &"bed_border"], w.plot) >= 1,
+		func(w, _ctx) -> void:
+			PlayerActions.select(w, &"garden_path")
+			PlayerActions.drag(w, at(w, GARDEN_PATH), at(w, GARDEN_PATH + Vector2i(0, 1)))
+			PlayerActions.place_all(w, &"bed_daisy", [at(w, GARDEN_BED)])
+			PlayerActions.stop_building(w)
+	).pointing_at(func(w) -> Dictionary: return {"tiles": area(w, GARDEN_BED, Vector2i(4, 2))}))
 	out.append(TutorialStep.make("save", L,
 		"Press Esc for the pause menu, and choose Save game.",
 		"The game also saves itself at every close of day. Settings are in the same menu.",

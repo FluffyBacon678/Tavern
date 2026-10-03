@@ -449,6 +449,12 @@ func _rebuild_instances(def: BuildingDef) -> void:
 	_rebuild_set(def, false, _blueprints, _blueprint_material)
 
 
+## A tile's own quarter turn, from its position: the same every time, so a
+## lawn looks the same after a reload.
+static func tile_turn(origin: Vector2i) -> int:
+	return absi((origin.x * 73856093) ^ (origin.y * 19349663)) % 4
+
+
 func _rebuild_set(def: BuildingDef, built: bool, store: Dictionary, material: Material) -> void:
 	var entries: Array = grid.live_of(def.id, built)
 	var mmi: MultiMeshInstance3D = store.get(def.id, null)
@@ -473,5 +479,8 @@ func _rebuild_set(def: BuildingDef, built: bool, store: Dictionary, material: Ma
 	mm.mesh = _library.mesh_for(def)
 	mm.instance_count = entries.size()
 	for i in range(entries.size()):
-		mm.set_instance_transform(i, _placement_transform(def, entries[i]["origin"], entries[i]["rotation"]))
+		var turns: int = int(entries[i]["rotation"])
+		if def.vary_rotation:
+			turns = (turns + tile_turn(entries[i]["origin"])) % 4
+		mm.set_instance_transform(i, _placement_transform(def, entries[i]["origin"], turns))
 	mmi.multimesh = mm

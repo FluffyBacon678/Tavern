@@ -84,7 +84,10 @@ func refresh_area(area: Rect2i) -> void:
 ## across the mud.
 func cost_at(tile: Vector2i) -> float:
 	if _build != null and _build.floor_index_at(tile) >= 0:
-		return FLOOR_COST
+		# Each floor its own pace: 1.0 for the house floors, slower through a
+		# flower bed or tall grass, so people keep to paths and lawns.
+		var entry = _build.placements[_build.floor_index_at(tile)]
+		return entry["def"].walk_cost * FLOOR_COST if entry != null else FLOOR_COST
 	if _terrain != null and (_terrain.water_flags[_terrain.index(tile.x, tile.y)] & TerrainGrid.FLAG_PATH) != 0:
 		return PATH_COST
 	return ROUGH_COST
@@ -214,7 +217,7 @@ func random_floor_in(area: Rect2i, rng: RandomNumberGenerator) -> Vector2i:
 		if _build != null:
 			for entry in _build.placements:
 				if entry == null or not entry["built"] or entry["def"].layer != BuildingDef.Layer.FLOOR \
-						or entry["def"].id == &"farm_plot":
+						or entry["def"].category != "Structure":
 					continue
 				var weight: int = 2 if entry["def"].id == &"stone_floor" else 1
 				for tile in entry["tiles"]:
