@@ -62,6 +62,8 @@ static func build(mb: MeshBuilder, id: StringName, w: float, d: float, h: float,
 				_pebble(mb, rng, Vector2(rng.randf_range(0.35, 0.75), rng.randf_range(0.3, 0.75)))
 			for spot in [Vector2(0.14, 0.16), Vector2(0.86, 0.86), Vector2(0.16, 0.86), Vector2(0.86, 0.12)]:
 				_tuft(mb, rng, spot, 4, 0.08, 0.14)
+		&"stone_path":
+			_stone_path(mb, rng)
 		&"garden_path":
 			_base(mb, DIRT, SOIL_DARK)
 			for i in range(5):
@@ -123,8 +125,8 @@ static func build(mb: MeshBuilder, id: StringName, w: float, d: float, h: float,
 			_pine(mb)
 		&"lantern_post":
 			_lantern_post(mb)
-		&"market_stall":
-			_market_stall(mb, w)
+		&"bar_table":
+			_bar(mb, w)
 		&"parasol_table":
 			_parasol_table(mb, w)
 		&"garden_fence":
@@ -285,7 +287,7 @@ static func _lantern_post(mb: MeshBuilder) -> void:
 	mb.add_box(Vector3(0.75, 1.29, 0.43), Vector3(0.14, 0.18, 0.14), Color("ffd27a"))
 
 
-# --- the lemonade stand ------------------------------------------------------------
+# --- the bar and the garden table ------------------------------------------------
 
 const STRIPE_YELLOW := Color("f0c63a")
 const STRIPE_CREAM := Color("f4ecd8")
@@ -295,11 +297,11 @@ const STALL_TOP := Color("a77c4a")
 const LEMON := Color("f2cf3b")
 
 
-## A lemonade stall: a plank counter under a striped awning on four posts.
-## The counter top is the pass, so it is left clear where the jugs and plates
-## stand (each tile's centre, at 0.95); a crate of lemons sits at one end and
-## a chalk board at the other.
-static func _market_stall(mb: MeshBuilder, w: float) -> void:
+## A bar: a plank counter under a striped awning on four posts. The counter
+## top is where the drinks stand, a tile's worth each (each tile's centre, at
+## 0.95), so it is left clear there; a crate of lemons sits at one end and a
+## chalk board at the other.
+static func _bar(mb: MeshBuilder, w: float) -> void:
 	mb.surface_style = TavernMaterials.Surface.WOOD
 	# The body, with its planked front to +z, the guests' side.
 	mb.add_box(Vector3(0.1, 0.0, 0.3), Vector3(w - 0.2, 0.9, 0.55), STALL_WOOD)
@@ -410,6 +412,26 @@ static func _canopy_quad(mb: MeshBuilder, a: Vector3, b: Vector3, c: Vector3, d:
 static func _both_sides(mb: MeshBuilder, a: Vector3, b: Vector3, c: Vector3, colour: Color) -> void:
 	mb.add_tri(a, b, c, colour)
 	mb.add_tri(a, c, b, colour.darkened(0.12))
+
+
+# --- the stone path ---------------------------------------------------------------
+
+## Flagstones in a bed of grit: the dearer path, and as quick underfoot as a
+## laid floor. Stones stay inside the tile, so a path joins its neighbours.
+static func _stone_path(mb: MeshBuilder, rng: RandomNumberGenerator) -> void:
+	_base(mb, Color("8a8478"), SOIL_DARK)
+	var stones: Array = [
+		Rect2(0.06, 0.06, 0.4, 0.38), Rect2(0.52, 0.06, 0.42, 0.26), Rect2(0.52, 0.38, 0.42, 0.28),
+		Rect2(0.06, 0.5, 0.28, 0.44), Rect2(0.4, 0.72, 0.54, 0.22), Rect2(0.4, 0.5, 0.06, 0.16),
+	]
+	mb.surface_style = TavernMaterials.Surface.STONE
+	for r in stones:
+		var inset := Vector2(rng.randf_range(0.0, 0.015), rng.randf_range(0.0, 0.015))
+		var shade: Color = Color("b3ada1").darkened(rng.randf() * 0.14)
+		# Set a little into the grit, so a stone's underside is never on show.
+		mb.add_box(Vector3(r.position.x + inset.x, TILE_HEIGHT - 0.004, r.position.y + inset.y),
+			Vector3(r.size.x - inset.x * 2.0, 0.016 + rng.randf() * 0.006, r.size.y - inset.y * 2.0), shade)
+	mb.surface_style = TavernMaterials.Surface.PLAIN
 
 
 # --- geometry helpers -------------------------------------------------------------

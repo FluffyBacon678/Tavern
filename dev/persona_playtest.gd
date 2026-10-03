@@ -5,7 +5,7 @@ extends Node
 ##   profit  plays for the purse: cuts idle wages, keeps the menu stocked,
 ##           adds seats when guests are turned away, hires where told to.
 ##   garden  makes the place feel like a lemonade stand in a garden: a back
-##           garden with lawns, flower beds, a path, an outdoor stall, tables
+##           garden with lawns, flower beds, a path, an outdoor bar, tables
 ##           on the grass, lanterns and trees, and checks off a wishlist.
 ##   idle    does nothing at all, for comparison.
 ##
@@ -29,6 +29,7 @@ var _garden_site := Vector2i(-1, -1)
 var watch_day: int = -1
 var _last_hour: int = -1
 var _lemonade_before: int = 0
+var _bar_before: int = 0
 var _advice: String = ""
 ## `fence=0`, `lemonade=0`: leave one part of the stand out, to measure it.
 var with_fence: bool = true
@@ -37,8 +38,10 @@ var with_lemonade: bool = true
 var strip: PackedStringArray = PackedStringArray()
 ## `sim=N`: the same house and map with other dice, for a spread of runs.
 var sim_seed: int = 0
-## `hire=role,role`: take these on before the first morning.
+## `hire=role,role`: take these on before the first morning; `fire=role,role`:
+## let one of each go.
 var first_hires: PackedStringArray = PackedStringArray()
+var first_fires: PackedStringArray = PackedStringArray()
 
 
 func _ready() -> void:
@@ -55,6 +58,8 @@ func _ready() -> void:
 			with_lemonade = false
 		elif arg.begins_with("hire="):
 			first_hires = arg.trim_prefix("hire=").split(",")
+		elif arg.begins_with("fire="):
+			first_fires = arg.trim_prefix("fire=").split(",")
 		elif arg.begins_with("sim="):
 			sim_seed = int(arg.trim_prefix("sim="))
 		elif arg.begins_with("strip="):
@@ -79,6 +84,12 @@ func _ready() -> void:
 	for role in first_hires:
 		var refused: String = world.hire(StringName(role))
 		_note("  hired a %s before opening: %s" % [role, refused if not refused.is_empty() else "ok"])
+	for role in first_fires:
+		for worker in world.workers:
+			if is_instance_valid(worker) and worker.role.id == StringName(role):
+				var why: String = world.dismiss_worker(worker)
+				_note("  let a %s go before opening: %s" % [role, why if not why.is_empty() else "ok"])
+				break
 	if not strip.is_empty():
 		var gone: int = 0
 		for i in range(world.build.grid.placements.size()):
@@ -143,13 +154,15 @@ func _evening() -> void:
 		"reputation": c.reputation.score, "staff": world.workers.size(), "idle": idle,
 		"outdoors": _outdoor_sitters.size(),
 		"lemonade": int(c.consumed.get(&"lemonade", 0)) - _lemonade_before,
+		"bar": c.bar_visits - _bar_before,
 	}
 	_lemonade_before = int(c.consumed.get(&"lemonade", 0))
+	_bar_before = c.bar_visits
 	_rows.append(row)
 	_outdoor_sitters.clear()
-	_note("DAY %d  profit %+5dg  purse %5dg  served %2d  lost %d seat/%d service/%d menu  %.1f stars  rep %d  staff %d (%d idle)  outdoors %d  lemonade %d" % [
+	_note("DAY %d  profit %+5dg  purse %5dg  served %2d  lost %d seat/%d service/%d menu  %.1f stars  rep %d  staff %d (%d idle)  outdoors %d  lemonade %d  bar %d" % [
 		row["day"], row["profit"], row["purse"], row["served"], row["lost_seat"], row["lost_service"],
-		row["lost_menu"], row["stars"], int(row["reputation"]), row["staff"], row["idle"], row["outdoors"], row["lemonade"]])
+		row["lost_menu"], row["stars"], int(row["reputation"]), row["staff"], row["idle"], row["outdoors"], row["lemonade"], row["bar"]])
 	var trouble: String = Trouble.diagnose(world)
 	_advice = trouble
 	if not trouble.is_empty():
@@ -242,16 +255,16 @@ func _watch_line() -> void:
 		blocked.append("table %s holds %s; wants %s" % [table, "%s x%d" % [on_table.id, world.items.count_at(table)] if on_table != null else "nothing", ",".join(lines)])
 	if not blocked.is_empty():
 		_note("        waiting: " + " | ".join(blocked))
-	# The stall: what it holds, what it waits on, and why.
+	# The bar: what it holds, what it waits on, and why.
 	for station in world.generator.built_stations():
-		if station["def"].id != &"market_stall":
+		if station["def"].id != &"bar_table":
 			continue
 		var press: Recipe = RecipeCatalog.get_recipe(&"press_lemonade")
 		var needs: PackedStringArray = PackedStringArray()
 		for need in press.inputs:
 			needs.append("%s %d here, %d in the house (%s)" % [need["id"], world.generator.count_at_station(station, need["id"]),
 				world.stock_of(need["id"]), world.generator.feed_problem(station, need["id"])])
-		_note("        stall: %s [%s]; auto: %s" % ["; ".join(needs),
+		_note("        bar: %s [%s]; auto: %s" % ["; ".join(needs),
 			world.bills.status_text(press.id, world.generator._output_stock(press)), world.auto_supply.note])
 	var passes2: Array = world.customers.pass_tiles()
 	var pass_text: PackedStringArray = PackedStringArray()
@@ -382,7 +395,7 @@ const GARDEN_KEYS: Dictionary = {
 }
 ## What a lemonade-stand garden wants, and what would stand for it here.
 const WISHLIST: Array = [
-	["market_stall", "a market stall with a striped awning", "building"],
+	["bar_table", "a bar with a striped awning", "building"],
 	["parasol_table", "a table under a parasol", "building"],
 	["garden_fence", "a low fence round the garden", "building"],
 	["lemonade", "lemonade on the menu", "item"],
@@ -421,8 +434,8 @@ func _garden_morning(day: int) -> void:
 					tiles.append(at + Vector2i(x, y))
 		PlayerActions.place_all(world, GARDEN_KEYS[key], tiles)
 	# The stand: a counter on the paved square, tables on the lawn.
-	var stall: StringName = &"market_stall" if BuildingCatalog.get_def(&"market_stall") != null else &"serving_counter"
-	PlayerActions.place_all(world, stall, [at + Vector2i(5, 3)])
+	var bar: StringName = &"bar_table" if BuildingCatalog.get_def(&"bar_table") != null else &"serving_counter"
+	PlayerActions.place_all(world, bar, [at + Vector2i(5, 3)])
 	var table: StringName = &"parasol_table" if BuildingCatalog.get_def(&"parasol_table") != null else &"table"
 	for spot in [Vector2i(2, 2), Vector2i(8, 2), Vector2i(2, 5), Vector2i(8, 5)]:
 		PlayerActions.place_all(world, table, [at + spot])
@@ -450,7 +463,7 @@ func _garden_morning(day: int) -> void:
 			PlayerActions.place_all(world, &"door", [wall])
 			break
 	PlayerActions.stop_building(world)
-	_note("  garden: laid a back garden with an outdoor stall and four tables at %s for %dg" % [at, gold - GameState.gold])
+	_note("  garden: laid a back garden with an outdoor bar and four tables at %s for %dg" % [at, gold - GameState.gold])
 	if ItemCatalog.get_def(&"lemonade") != null:
 		# A lemonade stand keeps plenty pressed.
 		world.auto_supply.set_meal(&"press_lemonade", with_lemonade, 20 if with_lemonade else 0)

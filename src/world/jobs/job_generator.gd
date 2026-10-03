@@ -125,7 +125,7 @@ func scan() -> void:
 					_bank_tiles_this_scan[tile] = true
 	_pass_tiles_this_scan.clear()
 	for entry in build.grid.placements:
-		if entry != null and entry["built"] and entry["def"].furniture_role == &"counter":
+		if entry != null and entry["built"] and entry["def"].furniture_role in [&"counter", &"bar"]:
 			for tile in entry["tiles"]:
 				_pass_tiles_this_scan[tile] = true
 	if _reach_dirty:
@@ -141,6 +141,7 @@ func scan() -> void:
 		if def != null:
 			_stock_this_scan[def.id] = int(_stock_this_scan.get(def.id, 0)) + items.count_at(tile)
 	_generate_production(stations)
+	_generate_bar_stock()
 	# Cleaning before hauling, for the same reason production comes first: a
 	# stack already claimed by a wash job should not also be filed away.
 	_generate_cleaning()
@@ -429,7 +430,7 @@ func _complete_recipe(station: Dictionary, recipe: Recipe, performance: float = 
 			completion_problem = "unknown recipe output"
 			return false
 		products.append({"def": def, "count": product["count"], "around": station["centre"],
-			"preferred": _output_tiles(station), "prefer_reachable": true})
+			"preferred": _output_tiles(station, product["id"]), "prefer_reachable": true})
 	var plan: Dictionary = items.plan_placement(products, removals)
 	if not plan["ok"]:
 		completion_problem = "waiting for space for finished goods"
@@ -617,26 +618,86 @@ func feed_problem(station: Dictionary, id: StringName) -> String:
 	return "nowhere on the bench accepts it"
 
 
-## Where a bench puts down what it makes, best first. A stall keeps its first
-## tile for its own jugs and the rest of its top for the kitchen's plates;
-## more jugs than fit go on the ground beside it, to be stored. Spread over
-## the whole top, the jugs left the garden's food nowhere to be plated.
-func _output_tiles(station: Dictionary) -> Array:
-	if station["def"].furniture_role != &"counter":
+## Where a bench puts down what it makes, best first. A bar puts each drink on
+## its own tile of the counter (CustomerDirector.bar_drinks); more than fits
+## goes on the ground beside it, to be stored. Spread over the whole counter,
+## the jugs left the beer nowhere to stand.
+func _output_tiles(station: Dictionary, id: StringName) -> Array:
+	if station["def"].furniture_role != &"bar":
 		return station["input_tiles"]
-	var out: Array = [station["tiles"][0]]
+	var out: Array = []
+	var slot: int = CustomerDirector.bar_drinks(station["def"]).find(id)
+	if slot >= 0 and slot < station["tiles"].size():
+		out.append(station["tiles"][slot])
 	for tile in station["input_tiles"]:
 		if not station["tiles"].has(tile):
 			out.append(tile)
 	return out
 
 
+## A bar keeps the drinks it does not make on its counter: beer from the vat
+## or the cellar, a few at a time, for whoever comes up for one. Portering.
+const BAR_STOCK: int = 6
+
+
+func _generate_bar_stock() -> void:
+	var tables: Dictionary = {}
+	for entry in build.grid.placements:
+		if entry != null and entry["built"] and entry["def"].furniture_role == &"table":
+			for tile in entry["tiles"]:
+				tables[tile] = true
+	for entry in build.grid.placements:
+		if entry == null or not entry["built"] or entry["def"].furniture_role != &"bar":
+			continue
+		var made: Array = []
+		for recipe in RecipeCatalog.for_station(entry["def"].id):
+			for output in recipe.outputs:
+				made.append(output["id"])
+		var drinks: Array[StringName] = CustomerDirector.bar_drinks(entry["def"])
+		for slot in range(mini(drinks.size(), entry["tiles"].size())):
+			if made.has(drinks[slot]):
+				continue
+			var tile: Vector2i = entry["tiles"][slot]
+			var def: ItemDef = ItemCatalog.get_def(drinks[slot])
+			var here: ItemDef = items.def_at(tile)
+			if here != null and here != def:
+				continue
+			var have: int = items.count_at(tile) if here == def else 0
+			if have >= BAR_STOCK or not items.accepts(tile, def):
+				continue
+			var key: String = "bar:%d,%d" % [tile.x, tile.y]
+			_wanted_keys[key] = true
+			if board.has_key(key):
+				continue
+			var source := Vector2i(-1, -1)
+			for from in items.tiles_with(def.id, tile):
+				if _pass_tiles_this_scan.has(from) or tables.has(from) or items.available_at(from) <= 0:
+					continue
+				if not _standable(from) or (board.has_pickup(from) and not board.yield_hauls(from)):
+					continue
+				source = from
+				break
+			if source == Vector2i(-1, -1):
+				continue
+			var job := Job.new()
+			job.kind = WorkType.Kind.HAUL
+			job.pickup_tile = source
+			job.target = tile
+			job.carry_def = def
+			job.carry_count = mini(BAR_STOCK - have, mini(items.available_at(source), def.stack_size))
+			job.work_amount = 0.0
+			job.label = "Stock the bar with %s" % def.display_name.to_lower()
+			job.urgency = 1
+			job.key = key
+			board.post(job)
+
+
 ## Where at a bench an ingredient is put down, or (-1, -1) for nowhere. A
-## stall is also the pass: its top is for jugs and plates, so its lemons and
-## water wait on the ground beside it, as at any market. Stacked on top they
-## left nowhere to plate, and clearing the pass carried them off again.
+## bar's counter is for drinks, so its lemons and water wait on the ground
+## beside it, as at any market. Stacked on top they left nowhere for the
+## drinks, and the drinks nowhere to go but the floor.
 func _feed_destination(station: Dictionary, def: ItemDef) -> Vector2i:
-	var keep_top: bool = station["def"].furniture_role == &"counter"
+	var keep_top: bool = station["def"].furniture_role in [&"counter", &"bar"]
 	for tile in station["input_tiles"]:
 		if keep_top and station["tiles"].has(tile):
 			continue

@@ -85,20 +85,22 @@ enum Shape {
 ## catalog has anything for its id, so adding a recipe is the only step needed
 ## to make an existing piece useful.
 @export var is_storage: bool = false
-## Walking pace over this floor, as a cost: 1.0 is the quickest floor. A flower
-## bed is slow going, so people keep to the paths and lawns.
+## Walking pace over this floor, as a cost: 1.0 is a laid floor, the quickest
+## going. Garden tiles are for looks and walk like open ground; only the
+## dearer paths are quicker.
 @export var walk_cost: float = 1.0
+## How much people would rather go round it, when there is a way round: flower
+## beds and tall grass. A preference only -- a step on it is no slower.
+@export var keep_off: float = 1.0
 ## Turned a random quarter per tile (by its position), so a lawn of one tile
 ## kind does not repeat. Looks only; the footprint is 1 x 1 either way.
 @export var vary_rotation: bool = false
 ## What the guests and the service make of a piece: &"table" seats guests at
 ## it, &"chair" is a seat beside a table, &"counter" is a serving pass the
-## kitchen plates onto. Any piece may take a role -- a parasol table is a
-## table, a market stall is a counter -- so nothing checks for one exact piece.
+## kitchen plates onto, &"bar" keeps drinks on its counter for anyone to
+## fetch. Any piece may take a role -- a parasol table is a table -- so
+## nothing checks for one exact piece.
 @export var furniture_role: StringName = &""
-## How much a guest seated near it enjoys it: flowers, trees, lanterns. Summed
-## within a few tiles of the seat for the review's Surroundings.
-@export var beauty: int = 0
 ## Dragged round the edge of a rectangle, like walls (fences).
 @export var drag_outline: bool = false
 ## Joins the same piece on its four sides: drawn with an arm toward each

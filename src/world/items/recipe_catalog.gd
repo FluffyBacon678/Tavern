@@ -53,9 +53,9 @@ static func _build() -> void:
 		Recipe.make("pump_water", "Pump Water", "river_pump", 25.0, WorkType.Kind.GATHER,
 			[],
 			[Recipe.ingredient("water", 1)]),
-		# The stand's drink, pressed where it is sold. Kitchen work: at the busy
-		# hour the waiters have their hands full and the cooks have a minute.
-		Recipe.make("press_lemonade", "Press Lemonade", "market_stall", 3.0, WorkType.Kind.COOK,
+		# The bar's own drink, pressed where it is sold. Kitchen work: at the
+		# busy hour the waiters have their hands full and the cooks have a minute.
+		Recipe.make("press_lemonade", "Press Lemonade", "bar_table", 3.0, WorkType.Kind.COOK,
 			[Recipe.ingredient("lemons", 2), Recipe.ingredient("water", 1)],
 			[Recipe.ingredient("lemonade", 4)]),
 		# Home-grown flour: two sheaves ground by hand make one sack.

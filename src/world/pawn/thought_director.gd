@@ -88,6 +88,10 @@ static func guest_icon(brain: CustomerBrain) -> String:
 			return "eat"
 		CustomerBrain.State.WAITING_FOR_BILL, CustomerBrain.State.PAYING:
 			return "coin"
+		CustomerBrain.State.GOING_TO_BAR:
+			return "order"
+		CustomerBrain.State.BACK_FROM_BAR:
+			return "serve" if brain.at_bar else "hand"
 		CustomerBrain.State.LEAVING:
 			return "happy" if brain._food_eaten > 0 else "angry"
 	return ""

@@ -27,6 +27,13 @@ var tip: float = 1.0
 ## only the choice on the menu is weighted, not the cooking.
 var cares: Dictionary = {}
 
+
+## Would rather fetch a drink from a bar than wait for a waiter to bring it:
+## anyone no more patient than the ordinary traveller. With a meal to order,
+## they are waited on like everybody else.
+func prefers_bar() -> bool:
+	return patience <= 1.0
+
 static var _types: Dictionary = {}
 
 

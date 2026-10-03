@@ -163,15 +163,15 @@ const TAKE_ORDER_WORK: float = 2.0
 const BILL_WORK: float = 1.5
 
 
-## The counter: every built serving counter's tiles. With one, the kitchen plates
-## each order there and waiters collect from it; without, waiters fetch from
-## wherever the stock is, as they always did.
+## Every tile a waiter collects from: the serving counters, where the kitchen
+## plates each order, and the bars, which keep drinks. Without a counter,
+## waiters fetch from wherever the stock is, as they always did.
 func pass_tiles() -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	if build_grid == null:
 		return out
 	for entry in build_grid.placements:
-		if entry == null or not entry["built"] or entry["def"].furniture_role != &"counter":
+		if entry == null or not entry["built"] or not (entry["def"].furniture_role in [&"counter", &"bar"]):
 			continue
 		for tile in entry["tiles"]:
 			out.append(tile)
@@ -273,9 +273,6 @@ func _generate_plating(counter: Array[Vector2i], wanted: Dictionary) -> void:
 			continue
 		var target := Vector2i(-1, -1)
 		for tile in here["tiles"]:
-			# A stall's first tile is for its own jugs (JobGenerator._output_tiles).
-			if here["stall"] and tile == here["tiles"][0] and not _makes(tile, id):
-				continue
 			if items.accepts(tile, def):
 				target = tile
 				break
@@ -286,8 +283,9 @@ func _generate_plating(counter: Array[Vector2i], wanted: Dictionary) -> void:
 		for tile in items.tiles_with(id, target):
 			if here["tiles"].has(tile) or tables.has(tile) or items.available_at(tile) <= 0:
 				continue
-			# What another counter holds was plated for its own tables -- but a
-			# stall's own lemonade is stock, fetched like any other.
+			# What another counter holds was plated for its own tables, and a
+			# bar keeps its stock for its own guests -- but the drink a bar
+			# makes itself is fetched like any other.
 			if counter.has(tile) and not _makes(tile, id):
 				continue
 			# A waiting guest outranks filing the dish away.
@@ -318,9 +316,6 @@ func _clear_the_pass(here: Dictionary, demand: Dictionary, wanted: Dictionary) -
 	for tile in here["tiles"]:
 		var def: ItemDef = items.def_at(tile)
 		if def == null or demand.has("%d:%s" % [int(here["index"]), def.id]):
-			continue
-		# A stall's own jugs are its stock, not in the way.
-		if here.get("stall", false) and _makes(tile, def.id):
 			continue
 		var key: String = "plate:clear:%d,%d" % [tile.x, tile.y]
 		wanted[key] = true
@@ -368,41 +363,97 @@ func _off_the_pass(def: ItemDef, from: Vector2i, counter: Array) -> Vector2i:
 	return Vector2i(-1, -1)
 
 
-## Can this table be served `id`? A stall's own lemonade is sold at the tables
-## it serves, the garden's. Offered in the hall too, every jug was a cook's
-## walk out to the stall and back, half the hall's drinks were lemonade, and
-## the kitchen fell behind on everything else.
-func offers(id: StringName, table: Vector2i) -> bool:
-	if table == Seating.NO_SEAT or not _stall_only(id):
-		return true
-	var counters: Array = _counters()
-	if counters.is_empty():
-		return true
-	var near: Dictionary = _nearest_counter(counters, table)
-	return bool(near["stall"]) and _makes(near["tiles"][0], id)
+## Every built bar: {index, tiles, drinks}, a drink to each tile of its counter.
+func bars() -> Array:
+	var out: Array = []
+	if build_grid == null:
+		return out
+	for i in range(build_grid.placements.size()):
+		var entry = build_grid.placements[i]
+		if entry != null and entry["built"] and entry["def"].furniture_role == &"bar":
+			out.append({"index": i, "tiles": entry["tiles"], "drinks": bar_drinks(entry["def"])})
+	return out
 
 
-static var _stall_only_cache: Dictionary = {}
-
-
-## Made only at stalls: every recipe for it is worked at a counter.
-static func _stall_only(id: StringName) -> bool:
-	if _stall_only_cache.has(id):
-		return _stall_only_cache[id]
-	var any: bool = false
-	var only: bool = true
-	for recipe in RecipeCatalog.all():
+## The drinks a bar keeps, one to each tile of its counter in order: what it
+## makes itself first, then the other drinks on the menu.
+static func bar_drinks(def: BuildingDef) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for recipe in RecipeCatalog.for_station(def.id):
 		for output in recipe.outputs:
-			if output["id"] != id:
-				continue
-			any = true
-			var station: BuildingDef = BuildingCatalog.get_def(recipe.station_id)
-			only = only and station != null and station.furniture_role == &"counter"
-	_stall_only_cache[id] = any and only
-	return any and only
+			var made: ItemDef = ItemCatalog.get_def(output["id"])
+			if made != null and made.tags.has("drink") and not out.has(made.id):
+				out.append(made.id)
+	for id in menu_ids():
+		if not out.has(id) and ItemCatalog.get_def(id).tags.has("drink"):
+			out.append(id)
+	return out
 
 
-## Is the piece at `tile` a stall that makes `id` itself?
+## Is there a drink to be had on any bar?
+func has_bar_drinks() -> bool:
+	if items == null:
+		return false
+	for bar in bars():
+		for tile in bar["tiles"]:
+			var def: ItemDef = items.def_at(tile)
+			if def != null and def.tags.has("drink") and items.available_at(tile) > 0:
+				return true
+	return false
+
+
+## Where to stand to fetch `order` at the nearest bar holding every line of
+## it, or (-1, -1) when no bar does.
+func bar_stand(order: Array, from: Vector2i) -> Vector2i:
+	var best := Vector2i(-1, -1)
+	var best_distance: int = 1 << 30
+	for bar in bars():
+		var has_all: bool = true
+		for line in order:
+			var found: bool = false
+			for tile in bar["tiles"]:
+				var def: ItemDef = items.def_at(tile)
+				found = found or (def != null and def.id == line["id"] and items.available_at(tile) > 0)
+			has_all = has_all and found
+		if not has_all:
+			continue
+		for tile in bar["tiles"]:
+			for d in TerrainGrid.NEIGHBOURS:
+				var stand: Vector2i = tile + d
+				if bar["tiles"].has(stand) or nav == null or not nav.is_walkable(stand):
+					continue
+				var distance: int = ItemWorld._chebyshev(stand, from)
+				if distance < best_distance:
+					best_distance = distance
+					best = stand
+	return best
+
+
+## The tiles holding `id` on the bar that a guest standing at `tile` is at.
+func bar_tiles_at(tile: Vector2i, id: StringName) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for bar in bars():
+		var here: bool = false
+		for t in bar["tiles"]:
+			here = here or ItemWorld._chebyshev(t, tile) <= 1
+		if not here:
+			continue
+		for t in bar["tiles"]:
+			var def: ItemDef = items.def_at(t)
+			if def != null and def.id == id:
+				out.append(t)
+	return out
+
+
+## Guests who fetched their own drinks from a bar, since the game began.
+var bar_visits: int = 0
+
+
+func count_bar_visit() -> void:
+	bar_visits += 1
+
+
+## Is the piece at `tile` a bar that makes `id` itself?
 func _makes(tile: Vector2i, id: StringName) -> bool:
 	var index: int = build_grid.object_index_at(tile) if build_grid != null else -1
 	if index < 0 or build_grid.placements[index] == null:
@@ -414,8 +465,8 @@ func _makes(tile: Vector2i, id: StringName) -> bool:
 	return false
 
 
-## Every built counter, a stall included: {index, tiles}. Each plates for the
-## tables nearest it.
+## Every built serving counter: {index, tiles}. Each plates for the tables
+## nearest it.
 func _counters() -> Array:
 	var out: Array = []
 	if build_grid == null:
@@ -423,8 +474,7 @@ func _counters() -> Array:
 	for i in range(build_grid.placements.size()):
 		var entry = build_grid.placements[i]
 		if entry != null and entry["built"] and entry["def"].furniture_role == &"counter":
-			out.append({"index": i, "tiles": entry["tiles"],
-				"stall": not RecipeCatalog.for_station(entry["def"].id).is_empty()})
+			out.append({"index": i, "tiles": entry["tiles"]})
 	return out
 
 
@@ -587,6 +637,10 @@ func _generate_serve_jobs() -> void:
 	var counter: Array[Vector2i] = pass_tiles()
 	var counters: Array = _counters()
 	var plated: bool = not counters.is_empty()
+	var bar_tiles: Dictionary = {}
+	for bar in bars():
+		for tile in bar["tiles"]:
+			bar_tiles[tile] = true
 	if plated:
 		_generate_plating(counter, wanted)
 	for brain in customers:
@@ -595,9 +649,9 @@ func _generate_serve_jobs() -> void:
 		var table: Vector2i = brain.seating.table_for(brain.seat)
 		if table == Seating.NO_SEAT:
 			continue
-		# Each table is served from its own counter, the nearest: the garden's
-		# from the stall, the hall's from the hall's. Fetching from whichever
-		# counter held the dish sent waiters out to the garden for every jug.
+		# Each table is served from its own counter, the nearest, and from the
+		# bars, whose drinks are for anyone. Fetching from whichever counter held
+		# the dish sent waiters across the house for every plate.
 		var own: Array = _nearest_counter(counters, table)["tiles"] if plated else []
 
 		for line in brain.unserved():
@@ -620,7 +674,7 @@ func _generate_serve_jobs() -> void:
 			# kitchen's business.
 			var source := Vector2i(-1, -1)
 			for tile in items.tiles_with(def.id, table):
-				if tile == table or (plated and not own.has(tile)):
+				if tile == table or (plated and not own.has(tile) and not bar_tiles.has(tile)):
 					continue
 				source = tile
 				break
@@ -772,7 +826,7 @@ func promised(id: StringName) -> int:
 	for brain in customers:
 		if not is_instance_valid(brain):
 			continue
-		for line in brain.unserved():
+		for line in brain.owed():
 			if line["id"] == id:
 				n += int(line["count"])
 	return n

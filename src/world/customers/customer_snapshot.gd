@@ -39,7 +39,7 @@ static func capture(director: CustomerDirector) -> Dictionary:
 		row["_waited_for_bill"] = brain._waited_for_bill
 		row["paid_at_door"] = brain._paid_at_door
 		row["booked"] = brain.booked
-		row["view"] = brain.view
+		row["at_bar"] = brain.at_bar
 		out["guests"].append(row)
 	for review in director.day_reviews:
 		var parts: Dictionary = {}
@@ -106,14 +106,14 @@ static func restore(director: CustomerDirector, data: Dictionary) -> void:
 		# Saved before waiters took orders and brought bills: nothing owed yet.
 		brain._waited_for_bill = float(row.get("_waited_for_bill", 0.0))
 		brain._paid_at_door = bool(row.get("paid_at_door", false))
-		# Saved before guests enjoyed a view: none.
-		brain.view = clampf(float(row.get("view", 0.0)), 0.0, 1.0) if _number(row.get("view", 0.0)) else 0.0
+		brain.at_bar = bool(row.get("at_bar", false))
 		var chair: Vector2i = _vector(row["chair"])
 		if director.seating.take(brain, chair):
 			brain.seat = chair
 		brain.left.connect(director._on_customer_left)
 		director.customers.append(brain)
-		if brain.state in [CustomerBrain.State.ARRIVING, CustomerBrain.State.WALKING_TO_SEAT, CustomerBrain.State.LEAVING]:
+		if brain.state in [CustomerBrain.State.ARRIVING, CustomerBrain.State.WALKING_TO_SEAT, CustomerBrain.State.LEAVING,
+				CustomerBrain.State.GOING_TO_BAR, CustomerBrain.State.BACK_FROM_BAR]:
 			pawn.goto(_vector(row["target"]))
 	for row in data["reviews"]:
 		var review := Review.new()
@@ -124,7 +124,8 @@ static func restore(director: CustomerDirector, data: Dictionary) -> void:
 		review.stars = int(row["stars"])
 		review.quote = row["quote"]
 		for part in row["parts"]:
-			review.parts[int(part)] = int(row["parts"][part])
+			if int(part) < Review.Part.size():
+				review.parts[int(part)] = int(row["parts"][part])
 		director.day_reviews.append(review)
 
 
@@ -152,7 +153,7 @@ static func valid(data: Variant) -> bool:
 			return false
 	var occupied: Dictionary = {}
 	for row in data["guests"]:
-		if not row is Dictionary or not row.get("name") is String or not _integer(row.get("state"), 0, CustomerBrain.State.WAITING_FOR_BILL):
+		if not row is Dictionary or not row.get("name") is String or not _integer(row.get("state"), 0, CustomerBrain.State.size() - 1):
 			return false
 		if int(row["state"]) == CustomerBrain.State.GONE:
 			return false
@@ -198,9 +199,10 @@ static func valid(data: Variant) -> bool:
 		if not row.get("parts") is Dictionary:
 			return false
 		for key in row["parts"]:
-			# Bounded by the enum, not its last member: naming Cleanliness here
-			# dropped every guest from a save holding one garden review.
-			if not str(key).is_valid_int() or int(key) < 0 or int(key) >= Review.Part.size() or not _integer(row["parts"][key], -100, 100):
+			# Any part a review has ever had. One the game no longer scores (a
+			# garden's Surroundings, for a while) is dropped on load: refusing
+			# it here dropped every guest in the save with it.
+			if not str(key).is_valid_int() or int(key) < 0 or int(key) > 15 or not _integer(row["parts"][key], -100, 100):
 				return false
 	return true
 
@@ -229,7 +231,8 @@ static func valid_seats(data: Dictionary, buildings: Array) -> bool:
 		var seated: bool = int(row["state"]) in [CustomerBrain.State.WALKING_TO_SEAT,
 			CustomerBrain.State.ORDERING, CustomerBrain.State.READY_TO_ORDER,
 			CustomerBrain.State.WAITING_FOR_ORDER, CustomerBrain.State.EATING,
-			CustomerBrain.State.WAITING_FOR_BILL, CustomerBrain.State.PAYING]
+			CustomerBrain.State.WAITING_FOR_BILL, CustomerBrain.State.PAYING,
+			CustomerBrain.State.GOING_TO_BAR, CustomerBrain.State.BACK_FROM_BAR]
 		if not seated and chair == Vector2i(-1, -1):
 			continue
 		if not chairs.has(chair):

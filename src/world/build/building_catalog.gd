@@ -32,10 +32,14 @@ static func all() -> Array[BuildingDef]:
 	return _catalog
 
 
+## Pieces renamed since a save could have been made: the old name still loads.
+const RENAMED: Dictionary = {&"market_stall": &"bar_table"}
+
+
 static func get_def(id: StringName) -> BuildingDef:
 	if _catalog.is_empty():
 		_build()
-	return _by_id.get(id, null)
+	return _by_id.get(RENAMED.get(id, id), null)
 
 
 ## Distinct categories, in catalog order, for grouping the build bar.
@@ -119,6 +123,8 @@ static func _build() -> void:
 			Vector2i.ONE, 1, false, 0.05, [Color("a27b4b"), Color("5f9139")] as Array[Color]),
 		BuildingDef.make("garden_path", "Dirt Path", "Garden", L.FLOOR, S.GARDEN_TILE,
 			Vector2i.ONE, 1, false, 0.05, [Color("a27b4b"), Color("54391f")] as Array[Color]),
+		BuildingDef.make("stone_path", "Stone Path", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 3, false, 0.05, [Color("b3ada1"), Color("8a8478")] as Array[Color]),
 		BuildingDef.make("bed_daisy", "Daisy Bed", "Garden", L.FLOOR, S.GARDEN_TILE,
 			Vector2i.ONE, 4, false, 0.05, [Color("f2efe6"), Color("547f33")] as Array[Color]),
 		BuildingDef.make("bed_mixed", "Mixed Flower Bed", "Garden", L.FLOOR, S.GARDEN_TILE,
@@ -141,8 +147,9 @@ static func _build() -> void:
 			Vector2i.ONE, 15, true, 1.8, [Color("468636"), Color("5e3f25")] as Array[Color]),
 		BuildingDef.make("lantern_post", "Lantern Post", "Garden", L.OBJECT, S.GARDEN_PROP,
 			Vector2i.ONE, 10, true, 1.7, [Color("ffd27a"), Color("5a3d24")] as Array[Color]),
-		# --- the stand: lemonade under a striped awning ---
-		BuildingDef.make("market_stall", "Market Stall", "Garden", L.OBJECT, S.GARDEN_PROP,
+		# --- the bar: drinks on its counter, inside or out, its own lemonade
+		# pressed behind it ---
+		BuildingDef.make("bar_table", "Bar Table", "Dining", L.OBJECT, S.GARDEN_PROP,
 			Vector2i(2, 1), 30, true, 1.9, [Color("f0c63a"), Color("8a6239")] as Array[Color]),
 		BuildingDef.make("parasol_table", "Parasol Table", "Garden", L.OBJECT, S.GARDEN_PROP,
 			Vector2i(2, 1), 16, true, 1.8, [Color("f0c63a"), Color("8a6239")] as Array[Color]),
@@ -160,43 +167,43 @@ static func _build() -> void:
 		&"table": 0.78, &"serving_counter": 1.0, &"prep_table": 0.95,
 		&"storage_shelf": 1.092, &"barrel": 0.95, &"sink": 0.76,
 		&"oven": 1.14, &"brewing_vat": 1.30, &"well": 0.448,
-		&"fishing_spot": 0.21, &"market_stall": 0.95, &"parasol_table": 0.78,
+		&"fishing_spot": 0.21, &"bar_table": 0.95, &"parasol_table": 0.78,
 	}
 	for id in surfaces:
 		_by_id[id].item_surface_height = surfaces[id]
 
-	# Garden tiles: how quickly people cross them. Paths are the quickest
-	# ground there is; flower beds are walked round unless there is no other way.
+	# Garden tiles are for looks: lawns, flower beds and grass are walked like
+	# the open ground they are laid on. Only the paths are quicker, and the
+	# dearer path the quicker: a dirt path like the road, stone like a floor.
+	var ground: float = NavGrid.ROUGH_COST / NavGrid.FLOOR_COST
 	var paces: Dictionary = {
-		&"garden_path": 1.0, &"lawn_worn": 1.05, &"lawn_trimmed": 1.1, &"lawn_meadow": 1.2,
-		&"grass_tall": 1.8, &"grass_tall_flowers": 1.8, &"grass_overgrown": 2.2,
-		&"bed_daisy": 2.6, &"bed_mixed": 2.6, &"bed_border": 2.6,
+		&"garden_path": NavGrid.PATH_COST / NavGrid.FLOOR_COST, &"stone_path": 1.0,
+		&"lawn_trimmed": ground, &"lawn_meadow": ground, &"lawn_worn": ground,
+		&"grass_tall": ground, &"grass_tall_flowers": ground, &"grass_overgrown": ground,
+		&"bed_daisy": ground, &"bed_mixed": ground, &"bed_border": ground,
 	}
 	for id in paces:
 		if _by_id.has(id):
 			_by_id[id].walk_cost = paces[id]
 			_by_id[id].vary_rotation = true
+	# Nobody tramples a flower bed when there is a way round, which is a matter
+	# of where they walk, not how fast.
+	var keep_off: Dictionary = {
+		&"bed_daisy": 2.5, &"bed_mixed": 2.5, &"bed_border": 2.5,
+		&"grass_tall": 1.4, &"grass_tall_flowers": 1.4, &"grass_overgrown": 1.6,
+	}
+	for id in keep_off:
+		if _by_id.has(id):
+			_by_id[id].keep_off = keep_off[id]
 
 	# What the guests and the service make of each piece.
 	var roles: Dictionary = {
 		&"table": &"table", &"parasol_table": &"table", &"chair": &"chair",
-		&"serving_counter": &"counter", &"market_stall": &"counter",
+		&"serving_counter": &"counter", &"bar_table": &"bar",
 	}
 	for id in roles:
 		if _by_id.has(id):
 			_by_id[id].furniture_role = roles[id]
-	# How much a seated guest enjoys having it nearby.
-	# Grass is the ground, not the view: a table on a bare lawn has nothing
-	# to look at. Flowers, trees and lanterns are what count.
-	var beauty: Dictionary = {
-		&"grass_tall_flowers": 1,
-		&"bed_daisy": 3, &"bed_mixed": 3, &"bed_border": 3,
-		&"garden_bench": 2, &"garden_rocks": 1, &"garden_tree": 3, &"garden_pine": 3,
-		&"lantern_post": 2, &"parasol_table": 2, &"market_stall": 2, &"garden_fence": 1,
-	}
-	for id in beauty:
-		if _by_id.has(id):
-			_by_id[id].beauty = beauty[id]
 	if _by_id.has(&"garden_fence"):
 		_by_id[&"garden_fence"].drag_outline = true
 		_by_id[&"garden_fence"].links = true

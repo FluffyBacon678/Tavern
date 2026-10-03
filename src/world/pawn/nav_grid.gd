@@ -93,9 +93,16 @@ func cost_at(tile: Vector2i) -> float:
 	return ROUGH_COST
 
 
-## The same figure in the form A* wants: 1.0 on the quickest ground.
+## The same figure in the form A* wants: 1.0 on the quickest ground. A floor
+## people would rather keep off (a flower bed) weighs more here, so routes go
+## round it, without a step on it being any slower.
 func weight_at(tile: Vector2i) -> float:
-	return cost_at(tile) / FLOOR_COST
+	var weight: float = cost_at(tile) / FLOOR_COST
+	if _build != null and _build.floor_index_at(tile) >= 0:
+		var entry = _build.placements[_build.floor_index_at(tile)]
+		if entry != null:
+			weight *= entry["def"].keep_off
+	return weight
 
 
 ## Every tile reachable on foot from `start`, treating `also_solid` as walls.

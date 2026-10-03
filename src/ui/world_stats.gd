@@ -182,7 +182,7 @@ static func _patron_rows(world, pawn: Pawn, brain: CustomerBrain) -> Array:
 		"colour": _mood_colour(mood.satisfaction), "hover": true})
 	rows.append(_rule())
 	rows.append(_sub("What they think so far"))
-	for part in [Review.Part.SEATING, Review.Part.SERVICE, Review.Part.FOOD, Review.Part.CLEANLINESS, Review.Part.SURROUNDINGS]:
+	for part in [Review.Part.SEATING, Review.Part.SERVICE, Review.Part.FOOD, Review.Part.CLEANLINESS]:
 		if not mood.parts.has(part):
 			continue
 		var value: int = int(mood.parts[part])
@@ -665,18 +665,20 @@ static func building_blurb(def: BuildingDef) -> String:
 			parts.append("the way in; walls round it make a room")
 		&"serving_counter":
 			parts.append("the pass: cooks plate orders here and waiters take them to the nearest tables")
-		&"market_stall":
-			parts.append("a stall: the garden's own serving counter and a lemonade press. Cooks press, waiters serve")
+		&"bar_table":
+			parts.append("a bar: drinks wait on its counter, its own lemonade and beer the porters bring. Guests who want only a drink, and hate to wait, fetch their own; waiters fetch from it too")
 		&"parasol_table":
 			parts.append("a table under a parasol: put chairs beside it, out on the lawn")
 		&"garden_fence":
 			parts.append("drag it round a garden, like a wall")
+		&"stone_path":
+			parts.append("as quick underfoot as a laid floor: the dearest path, and the quickest")
 		&"garden_path":
-			parts.append("the quickest ground there is: lay paths where people walk")
+			parts.append("a little quicker than open ground, like the road")
 		&"bed_daisy", &"bed_mixed", &"bed_border":
-			parts.append("people step round flower beds unless there is no other way")
+			parts.append("for the look of the place: people step round it when they can")
 		&"grass_tall", &"grass_tall_flowers", &"grass_overgrown":
-			parts.append("slow to wade through")
+			parts.append("for the look of the place: people keep to shorter grass when they can")
 		&"garden_bench", &"garden_rocks", &"garden_tree", &"garden_pine", &"lantern_post":
 			parts.append("for the look of the place: nobody can walk through it")
 		&"farm_plot":

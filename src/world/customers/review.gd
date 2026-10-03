@@ -22,9 +22,6 @@ enum Part {
 	SEATING,
 	## Dirty tables, averaged over the whole visit.
 	CLEANLINESS,
-	## A garden to look at: flowers, trees and lanterns near the seat. Never
-	## a complaint, only a pleasure; added only when there is something there.
-	SURROUNDINGS,
 }
 
 ## A visit where nothing went wrong and nothing was special.
@@ -38,7 +35,6 @@ const SWING: Dictionary = {
 	Part.SERVICE: [18, -32],
 	Part.SEATING: [8, -28],
 	Part.CLEANLINESS: [8, -24],
-	Part.SURROUNDINGS: [10, 0],
 }
 
 var patron: String = ""
@@ -73,8 +69,7 @@ static func write(
 	menu: int,
 	dirt: float,
 	food_quality: float = -1.0,
-	cares: Dictionary = {},
-	beauty: float = 0.0
+	cares: Dictionary = {}
 ) -> Review:
 	var r := Review.new()
 	r.patron = p_patron
@@ -116,11 +111,6 @@ static func write(
 	for part in [Part.SERVICE, Part.SEATING, Part.CLEANLINESS]:
 		if cares.has(part):
 			r.parts[part] = int(round(float(r.parts[part]) * float(cares[part])))
-
-	# Surroundings only when there is something to look at, so a tavern with
-	# no garden scores exactly as it always did.
-	if beauty > 0.0:
-		r.parts[Part.SURROUNDINGS] = int(round(lerpf(0.0, float(SWING[Part.SURROUNDINGS][0]), clampf(beauty, 0.0, 1.0))))
 
 	var total: int = BASE
 	for part in r.parts:
@@ -171,8 +161,6 @@ static func _quote_for(review: Review) -> String:
 ## three times running. Several phrasings each, and the food complaint says
 ## which fix it wants: a longer menu, or better cooking.
 const LINES: Dictionary = {
-	"garden_good": ["Ate in the garden among the flowers. Lovely.", "Sat under the parasol with a cold drink. Perfect.",
-		"Flowers, lanterns, a breeze. I will be back."],
 	"food_good": ["Best bread I have had this side of the river.", "The beer alone is worth the walk.",
 		"Good plain food, and plenty of it."],
 	"food_menu": ["Bread or beer, and not always both. A longer menu would bring me back.",
@@ -205,8 +193,6 @@ static func _line(part: int, good: bool, pick: int = 0, food_reason: String = ""
 			key = "seating_good" if good else "seating_bad"
 		Part.CLEANLINESS:
 			key = "clean_good" if good else "clean_bad"
-		Part.SURROUNDINGS:
-			key = "garden_good" if good else ""
 	if key.is_empty():
 		return ""
 	var options: Array = LINES[key]
@@ -219,7 +205,6 @@ static func part_name(part: int) -> String:
 		Part.SERVICE: return "Service"
 		Part.SEATING: return "Seating"
 		Part.CLEANLINESS: return "Cleanliness"
-		Part.SURROUNDINGS: return "Surroundings"
 	return "Visit"
 
 

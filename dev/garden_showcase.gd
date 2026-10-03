@@ -6,36 +6,36 @@ extends Node
 ##   godot --path . --resolution 1600x1200 res://dev/garden_showcase.tscn -- stand <out.png>
 ##
 ## sheet: every tile on a soil block, labelled, in the reference sheet's rows
-##        (grass, flower plots, high grass), the path and the park props, and
-##        the lemonade stand's pieces.
+##        (grass, flower plots, high grass), the paths and the park props, and
+##        the bar and the garden table.
 ## park:  a small park beside the sandbox's tavern, laid with the real build
 ##        system exactly as a player would, seen from the management camera.
-## stand: a fenced lemonade garden the same way: a stall on a paved square,
-##        parasol tables on the lawn, lanterns, flower borders.
+## stand: a fenced garden the same way: a bar on a stone square, parasol
+##        tables on the lawn, lanterns, flower borders.
 
 const SHEET_ROWS: Array = [
 	["GRASS TILES", [&"lawn_trimmed", &"lawn_meadow", &"lawn_worn"]],
 	["FLOWER PLOTS", [&"bed_daisy", &"bed_mixed", &"bed_border"]],
 	["HIGH GRASS PLOTS", [&"grass_tall", &"grass_tall_flowers", &"grass_overgrown"]],
-	["PATH & PROPS", [&"garden_path", &"garden_bench", &"garden_rocks", &"garden_tree", &"garden_pine", &"lantern_post"]],
-	["LEMONADE STAND", [&"market_stall", &"parasol_table", &"garden_fence"]],
+	["PATHS & PROPS", [&"garden_path", &"stone_path", &"garden_bench", &"garden_rocks", &"garden_tree", &"garden_pine", &"lantern_post"]],
+	["BAR & GARDEN TABLE", [&"bar_table", &"parasol_table", &"garden_fence"]],
 ]
 
-## The lemonade garden, 12 x 8, the tavern side along the bottom row; fenced
-## round the other three sides.
+## The bar garden, 12 x 8, the tavern side along the bottom row; fenced round
+## the other three sides. S is the stone square the bar stands on.
 const STAND: Array[String] = [
 	"FFBBBBBBBBFF",
 	"DTTTTTTTTTTD",
 	"DTTTTPPTTTTD",
-	"XTTTPPPPTTTX",
-	"XTTTPPPPTTTX",
+	"XTTTSSSSTTTX",
+	"XTTTSSSSTTTX",
 	"DTTTTPPTTTTD",
 	"DTTTTPPTTTTD",
 	"TTTTTPPTTTTT",
 ]
-## [id, x, y, quarter turns]. The stall faces the camera, across the square.
+## [id, x, y, quarter turns]. The bar faces the camera, across the square.
 const STAND_PROPS: Array = [
-	[&"market_stall", 5, 3, 2],
+	[&"bar_table", 5, 3, 2],
 	[&"parasol_table", 2, 2, 0], [&"chair", 1, 2, 0], [&"chair", 4, 2, 0],
 	[&"parasol_table", 8, 2, 0], [&"chair", 7, 2, 0], [&"chair", 10, 2, 0],
 	[&"parasol_table", 2, 5, 0], [&"chair", 1, 5, 0], [&"chair", 4, 5, 0],
@@ -58,7 +58,7 @@ const PARK: Array[String] = [
 	"TTTTPPTTBBBB",
 ]
 const KEYS: Dictionary = {
-	"T": &"lawn_trimmed", "M": &"lawn_meadow", "W": &"lawn_worn", "P": &"garden_path",
+	"T": &"lawn_trimmed", "M": &"lawn_meadow", "W": &"lawn_worn", "P": &"garden_path", "S": &"stone_path",
 	"D": &"bed_daisy", "X": &"bed_mixed", "B": &"bed_border",
 	"G": &"grass_tall", "F": &"grass_tall_flowers", "O": &"grass_overgrown",
 }
@@ -249,7 +249,7 @@ func _park() -> void:
 	get_viewport().get_texture().get_image().save_png(out_path)
 
 
-## The lemonade garden, laid like the park, with a fence dragged round it.
+## The bar garden, laid like the park, with a fence round it.
 func _stand() -> void:
 	if not GameState.begin_test_session():
 		return
@@ -291,11 +291,14 @@ func _stand() -> void:
 		world.build._rebuild_instances(def)
 	world.nav.refresh_all()
 	world.customers.seating.refresh()
-	# Jugs on the stall, lemons in a crate beside it, a jug on two tables.
-	var stall_index: int = world.build.grid.object_index_at(at + Vector2i(5, 3))
-	if stall_index >= 0:
-		var tiles: Array = world.build.grid.placements[stall_index]["tiles"]
-		world.items.add(ItemCatalog.get_def(&"lemonade"), 8, tiles[0])
+	# Jugs and mugs on the bar, a drink to each part of the counter, lemons in
+	# a crate beside it, and a drink on two tables.
+	var bar_index: int = world.build.grid.object_index_at(at + Vector2i(5, 3))
+	if bar_index >= 0:
+		var entry: Dictionary = world.build.grid.placements[bar_index]
+		var drinks: Array[StringName] = CustomerDirector.bar_drinks(entry["def"])
+		for slot in range(mini(drinks.size(), entry["tiles"].size())):
+			world.items.add(ItemCatalog.get_def(drinks[slot]), 6, entry["tiles"][slot])
 		world.items.add(ItemCatalog.get_def(&"lemons"), 6, at + Vector2i(4, 4))
 	world.items.add(ItemCatalog.get_def(&"lemonade"), 1, at + Vector2i(2, 2))
 	world.items.add(ItemCatalog.get_def(&"lemonade"), 2, at + Vector2i(9, 5))
