@@ -4,6 +4,8 @@ extends RefCounted
 ## Explicit cosmetic data shared by an owner, employee and visiting traveller.
 ## Parsing and copying never draw randomness from a world or pawn stream.
 const VERSION: int = 1
+const FACE_TYPES: Array[String] = ["Balanced", "Soft", "Angular", "Broad"]
+const EXPRESSIONS: Array[String] = ["Warm smile", "Grin", "Calm", "Smirk", "Stern"]
 const SKIN_COLORS: Array[Color] = [Color("f0c39c"), Color("d9a77c"), Color("c08a5e"), Color("8a5f3c"), Color("63412e")]
 const HAIR_COLORS: Array[Color] = [Color("36291e"), Color("614127"), Color("ac7c37"), Color("853e25"), Color("c0b49a")]
 const TOP_COLORS: Array[Color] = [Color("e8e0cc"), Color("587442"), Color("345793"), Color("853c52"), Color("ab7730")]
@@ -14,6 +16,9 @@ var body_type: int = 0
 var skin: Color = SKIN_COLORS[1]
 var hair: Color = HAIR_COLORS[1]
 var hair_style: int = 0
+## Optional version-one cosmetics: older profiles retain a balanced warm smile.
+var face_type: int = 0
+var expression: int = 0
 var top: Color = TOP_COLORS[0]
 var trousers: Color = TROUSER_COLORS[0]
 var boots: Color = BOOT_COLORS[0]
@@ -28,7 +33,8 @@ var uniform: Color = Color(0, 0, 0, 0)
 
 func to_save() -> Dictionary:
 	return {"version": VERSION, "body_type": body_type, "skin": skin.to_html(),
-		"hair": hair.to_html(), "hair_style": hair_style, "top": top.to_html(),
+		"hair": hair.to_html(), "hair_style": hair_style, "face_type": face_type,
+		"expression": expression, "top": top.to_html(),
 		"trousers": trousers.to_html(), "boots": boots.to_html(), "family": family,
 		"style": style, "cape_index": cape_index, "variant": variant, "uniform": uniform.to_html()}
 
@@ -46,6 +52,8 @@ static func from_save(data: Variant, fallback: CharacterAppearance = null) -> Ch
 		out.skin = fallback.skin
 		out.hair = fallback.hair
 		out.hair_style = fallback.hair_style
+		out.face_type = fallback.face_type
+		out.expression = fallback.expression
 		out.top = fallback.top
 		out.trousers = fallback.trousers
 		out.boots = fallback.boots
@@ -56,9 +64,10 @@ static func from_save(data: Variant, fallback: CharacterAppearance = null) -> Ch
 		out.uniform = fallback.uniform
 	if not data is Dictionary or not _valid_integer(data.get("version"), VERSION, VERSION):
 		return out
-	for key in ["body_type", "hair_style", "family", "style", "cape_index", "variant"]:
+	for key in ["body_type", "hair_style", "face_type", "expression", "family", "style", "cape_index", "variant"]:
 		var low: int = -1 if key == "family" else 0
-		var high: int = {"body_type": 1, "hair_style": 3, "family": 6, "style": 63, "cape_index": 7, "variant": 3}[key]
+		var high: int = {"body_type": 1, "hair_style": 3, "face_type": FACE_TYPES.size() - 1,
+			"expression": EXPRESSIONS.size() - 1, "family": 6, "style": 63, "cape_index": 7, "variant": 3}[key]
 		if _valid_integer(data.get(key), low, high):
 			out.set(key, int(data[key]))
 	for key in ["skin", "hair", "top", "trousers", "boots", "uniform"]:

@@ -198,6 +198,16 @@ func _sphere_point(phi: float, theta: float, radius: Vector3) -> Vector3:
 	)
 
 
+## Shape the geometry accumulated so far, leaving subsequently added parts in
+## their own coordinates. Positive scales preserve the authored winding; the
+## inverse transpose keeps flat lighting correct after changing proportions.
+func transform_geometry(shape: Transform3D) -> void:
+	var normal_basis: Basis = shape.basis.inverse().transposed()
+	for i in range(_verts.size()):
+		_verts[i] = shape * _verts[i]
+		_normals[i] = (normal_basis * _normals[i]).normalized()
+
+
 ## Commit to an ArrayMesh. Returns null if nothing was added, so callers can
 ## skip creating empty MeshInstances.
 func commit() -> ArrayMesh:

@@ -18,6 +18,9 @@ const EQUIPMENT_IDS: Dictionary = {
 	"leather_boots": "feet", "work_shoes": "feet",
 	"work_gloves": "hands", "copper_pendant": "neck", "copper_ring": "ring",
 	"travel_cape": "cape", "travel_pack": "backpack",
+	"server_cap": "head", "work_cap": "head", "host_hat": "head",
+	"headscarf": "head", "fishing_hat": "head", "straw_hat": "head",
+	"house_waistcoat": "body", "waist_apron": "outer",
 }
 const ITEM_NAMES: Dictionary = {
 	"felt_hat": "Felt travelling hat", "cook_hat": "Cook's hat",
@@ -27,6 +30,9 @@ const ITEM_NAMES: Dictionary = {
 	"leather_boots": "Leather boots", "work_shoes": "Work shoes",
 	"work_gloves": "Work gloves", "copper_pendant": "Copper pendant", "copper_ring": "Copper ring",
 	"travel_cape": "Traveller's cape", "travel_pack": "Road pack",
+	"server_cap": "Server's cap", "work_cap": "Work cap", "host_hat": "Host's dress cap",
+	"headscarf": "Tied headscarf", "fishing_hat": "Fishing hat", "straw_hat": "Straw hat",
+	"house_waistcoat": "House waistcoat", "waist_apron": "Waist apron",
 }
 ## The demo lets players try every original garment freely. Existing saves
 ## receive these only through an explicit draft grant, never during load.
@@ -34,6 +40,8 @@ const STARTER_ITEMS: Array[String] = [
 	"felt_hat", "cook_hat", "linen_shirt", "short_sleeve_shirt", "leather_vest",
 	"linen_apron", "olive_trousers", "rolled_trousers", "leather_boots", "work_shoes",
 	"work_gloves", "copper_pendant", "copper_ring", "travel_cape", "travel_pack",
+	"server_cap", "work_cap", "host_hat", "headscarf", "fishing_hat", "straw_hat",
+	"house_waistcoat", "waist_apron",
 ]
 
 

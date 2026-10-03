@@ -27,8 +27,8 @@ var wage: int = 0
 var kinds: Array[int] = []
 ## Starting order inside the allowed kinds, lower first.
 var starting: Dictionary = {}
-## The house uniform's waistcoat, in the colour of the position, so a cook can
-## be told from a porter across the room.
+## The position's cloth colour. StaffUniforms pairs it with an identifying cut
+## and hat so the crew reads from the tavern camera.
 var uniform: Color = Color("6e2233")
 ## False only for the legacy all-rounder, which exists so older saves load.
 var hireable: bool = true

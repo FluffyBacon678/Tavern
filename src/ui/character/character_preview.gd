@@ -17,6 +17,7 @@ var _picture: TextureRect
 var _material: StandardMaterial3D
 var _angle: float = 0.12
 var _dragging: bool = false
+var _short_sleeves: bool = false
 
 
 func _ready() -> void:
@@ -51,6 +52,7 @@ func set_character(appearance: CharacterAppearance, equipped: Dictionary = {}) -
 		rig.root.get_parent().remove_child(rig.root)
 		rig.root.queue_free()
 	rig = PawnMesh.build_appearance(appearance, _material, equipped)
+	_short_sleeves = equipped.get("body", "") == "short_sleeve_shirt"
 	stage.add_child(rig.root)
 	rig.root.rotation.y = _angle
 	# A static, slightly asymmetric keeper stance keeps the cuffs and fingers
@@ -61,6 +63,7 @@ func set_character(appearance: CharacterAppearance, equipped: Dictionary = {}) -
 		rig.arm_l.rotation.x = -0.04
 		rig.arm_r.rotation.x = -0.015
 	rig.sync_pose()
+	_update_camera()
 	_request_draw()
 
 
@@ -108,14 +111,19 @@ func _update_camera() -> void:
 	var vertical_span: float = 1.18
 	var horizontal_span: float = 1.05
 	var offset := Vector3(0.65, 0.25, 3.1)
+	# A tall cook's hat is still part of the character. Keep the usual close-up
+	# for bare heads and extend its top only when actual head geometry needs it.
+	var extra_height: float = maxf(0.0, _head_top() - 1.075)
+	target.y += extra_height * 0.5
+	vertical_span += extra_height
 	if framing == Framing.FACE:
-		target = Vector3(0, 0.885, 0)
-		vertical_span = 0.49
+		target = Vector3(0, 0.885 + extra_height * 0.5, 0)
+		vertical_span = 0.43 + extra_height
 		horizontal_span = 0.47
 		offset = Vector3(0.52, 0.055, 3.1)
 	elif framing == Framing.HANDS:
-		target = Vector3(0, 0.46, 0)
-		vertical_span = 0.39
+		target = Vector3(0, 0.55 if _short_sleeves else 0.46, 0)
+		vertical_span = 0.42 if _short_sleeves else 0.39
 		horizontal_span = 0.62
 		offset = Vector3(0.45, 0.09, 3.1)
 	# Keep a useful vertical portrait, then widen only when a narrow panel would
@@ -123,6 +131,19 @@ func _update_camera() -> void:
 	camera.size = maxf(vertical_span, horizontal_span / aspect)
 	camera.position = target + offset
 	camera.look_at(target)
+
+
+func _head_top() -> float:
+	if rig == null or rig.body == null:
+		return 0.0
+	var arrays: Array = rig.body.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+	var top: float = 0.0
+	for i in range(vertices.size()):
+		if bones[i * 4] == 1:
+			top = maxf(top, vertices[i].y)
+	return top
 
 
 func _request_draw() -> void:

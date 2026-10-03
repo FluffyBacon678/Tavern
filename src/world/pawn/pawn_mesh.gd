@@ -9,8 +9,8 @@ extends RefCounted
 ## pivot: a shoulder for arms, a hip for legs. Rotating the node then swings the
 ## limb from the right place instead of about its middle.
 ##
-## Who someone is shows in what they wear. Staff share one formal house
-## uniform; patrons are adventurers off the road, with original old-school
+## Who someone is shows in what they wear. Staff have job-specific house
+## uniforms; patrons are adventurers off the road, with original old-school
 ## fantasy kit -- saturated colours, metal by tier, capes and hats that read at
 ## the management camera's distance. Telling the two apart at a glance is not
 ## decoration: it is the difference between reading a busy room and squinting.
@@ -32,8 +32,15 @@ const BODY_W: float = 0.36
 const BODY_D: float = 0.24
 const LIMB_W: float = 0.12
 
+## Adult ordinary silhouette: the waist rises inside the existing torso while
+## its neck remains at the shoulder. Joints, seat height and cargo stay fixed.
+const ORDINARY_TORSO_Y: float = 0.80
+const ORDINARY_WAIST_RISE: float = TORSO_H * (1.0 - ORDINARY_TORSO_Y)
+const ORDINARY_HEAD_SCALE := Vector3(0.78, 0.82, 0.86)
+
 ## The house uniform: a burgundy waistcoat over a white shirt, a long apron,
-## dark trousers and polished boots. Identical on everybody, which is the point.
+## dark trousers and polished boots. Retained as the legacy/default staff cut;
+## StaffUniforms supplies the identifying cuts and hats for current positions.
 const UNIFORM_VEST := Color("6e2233")
 const UNIFORM_SHIRT := Color("e8e0cc")
 const UNIFORM_TROUSER := Color("2f2b2e")
@@ -135,6 +142,10 @@ static func generate_appearance(rng: RandomNumberGenerator, is_customer: bool = 
 	appearance.hair = HAIR_COLORS[(style + variant * 2) % HAIR_COLORS.size()]
 	appearance.body_type = (style + variant) % 2
 	appearance.hair_style = variant if is_customer else style % 4
+	# Derive facial variety from the established two draws; never advance a
+	# worker's movement stream to choose a cosmetic expression.
+	appearance.face_type = (floori(style / 4.0) + variant) % CharacterAppearance.FACE_TYPES.size()
+	appearance.expression = (style + variant * 2) % CharacterAppearance.EXPRESSIONS.size()
 	appearance.top = outfit["body"]
 	appearance.trousers = outfit["legs"]
 	appearance.boots = outfit["boots"]
@@ -149,15 +160,16 @@ static func generate_appearance(rng: RandomNumberGenerator, is_customer: bool = 
 ## The creator, staff and patrons all use this pure, single-surface builder.
 ## Equipment here is cosmetic attachment data, independent of a guest's class.
 static func build_appearance(appearance: CharacterAppearance, material: Material,
-		equipped: Dictionary = {}) -> Rig:
-	var outfit: Dictionary = _outfit_for(appearance, equipped)
+		equipped: Dictionary = {}, staff_role_id: StringName = &"") -> Rig:
+	var outfit: Dictionary = _outfit_for(appearance, equipped, staff_role_id)
 	var slender: bool = appearance.body_type == 1
 	# A leaner old-school silhouette, baked into the same rig and equipment.
 	# Heights and the carry point stay fixed so chairs, walking and cargo fit.
 	var torso_scale := Vector3(0.79 if slender else 0.90, 1.0, 0.87 if slender else 0.90)
-	var arm_scale := Vector3(0.78 if slender else 0.85, 1.0, 0.87)
+	var ordinary: bool = outfit.get("ordinary", false)
+	var arm_scale := Vector3(0.72 if slender else 0.80, 1.05, 0.82) if ordinary else Vector3(0.78 if slender else 0.85, 1.0, 0.87)
 	var leg_scale := Vector3(0.84 if slender else 0.92, 1.0, 0.92)
-	var head_scale := Vector3(0.84, 0.92, 0.90) if appearance.family < 0 else Vector3(0.94, 0.96, 0.94)
+	var head_scale: Vector3 = ORDINARY_HEAD_SCALE if ordinary else Vector3(0.94, 0.96, 0.94)
 
 	var rig := Rig.new()
 	rig.description = outfit["description"]
@@ -179,7 +191,7 @@ static func build_appearance(appearance: CharacterAppearance, material: Material
 	# Arms and legs hang below their pivots so rotation swings from the joint.
 	var hands: Color = outfit.get("hands", appearance.skin)
 	var shoulder_half: float = BODY_W * 0.5
-	if appearance.family < 0:
+	if outfit.get("ordinary", false):
 		shoulder_half -= 0.030
 	elif appearance.family != Look.WARRIOR:
 		shoulder_half -= 0.014
@@ -208,9 +220,34 @@ static func build_appearance(appearance: CharacterAppearance, material: Material
 	return rig
 
 
-static func _outfit_for(appearance: CharacterAppearance, equipped: Dictionary) -> Dictionary:
+static func _outfit_for(appearance: CharacterAppearance, equipped: Dictionary,
+		staff_role_id: StringName = &"") -> Dictionary:
+	# Slot IDs select a visual cut. They never change the stored appearance
+	# family or the pawn's independent staff role/customer archetype.
+	var wardrobe: Dictionary = StaffUniforms.equipment_for(staff_role_id) if appearance.family == Look.STAFF else {}
+	var role_uniform: bool = not wardrobe.is_empty()
+	var uniform_colour: Color = appearance.top
+	if role_uniform:
+		var role: StaffRole = StaffRole.of(staff_role_id)
+		if role != null:
+			uniform_colour = role.uniform
+	for slot in WardrobeCatalog.SLOTS:
+		if equipped.has(slot):
+			# An explicit missing/unknown cosmetic suppresses the default too;
+			# ownership is retained by the save parser, with a safe visual fallback.
+			wardrobe.erase(slot)
+		var value: Variant = equipped.get(slot, "")
+		if not value is String:
+			continue
+		var item: String = value
+		if WardrobeCatalog.known(item) and WardrobeCatalog.slot_for(item) == slot:
+			wardrobe[slot] = item
+	var modular: bool = wardrobe.has("body")
+	for slot in ["outer", "legs", "feet", "hands", "neck", "ring"]:
+		modular = modular or wardrobe.has(slot)
+	modular = modular or wardrobe.get("head", "") == "cook_hat" or wardrobe.get("head", "") in KeeperWardrobeArt.STAFF_HATS
 	var outfit: Dictionary
-	if appearance.family < 0:
+	if appearance.family < 0 or modular:
 		outfit = {
 			"look": -1, "description": "in a linen travelling tunic", "ordinary": true,
 			"body": appearance.top, "sleeve": appearance.top,
@@ -232,23 +269,55 @@ static func _outfit_for(appearance: CharacterAppearance, equipped: Dictionary) -
 		outfit["legs"] = appearance.trousers
 		outfit["boots"] = appearance.boots
 	outfit["hair_style"] = appearance.hair_style
+	outfit["face_type"] = appearance.face_type
+	outfit["expression"] = appearance.expression
 	outfit["skin"] = appearance.skin
-	if String(equipped.get("head", "")) == "felt_hat":
-		outfit["headgear"] = "felt_hat"
-		outfit["headgear_colour"] = Color("65513e")
-	if String(equipped.get("cape", "")) == "travel_cape":
+	outfit["wardrobe"] = wardrobe
+	if role_uniform and not equipped.has("body"):
+		outfit["body"] = uniform_colour
+		outfit["sleeve"] = uniform_colour
+		outfit["cuff"] = uniform_colour.lightened(0.1)
+	for entry in [["body", "body_item"], ["outer", "outer_item"], ["legs", "legs_item"],
+		["feet", "feet_item"], ["hands", "hands_item"], ["neck", "neck_item"], ["ring", "ring_item"]]:
+		outfit[String(entry[1])] = String(wardrobe.get(String(entry[0]), ""))
+	if wardrobe.get("body", "") == "leather_vest":
+		outfit["body"] = LEATHER
+		outfit["sleeve"] = appearance.top
+		outfit["cuff"] = appearance.top.lightened(0.1)
+	elif wardrobe.get("body", "") == "house_waistcoat":
+		outfit["sleeve"] = UNIFORM_SHIRT
+		outfit["cuff"] = outfit["body"].lightened(0.1)
+	if wardrobe.get("hands", "") == "work_gloves":
+		outfit["hands"] = LEATHER.darkened(0.12)
+	if wardrobe.get("head", "") in KeeperWardrobeArt.COVERED_HATS:
+		outfit["headgear"] = wardrobe["head"]
+		outfit["headgear_colour"] = UNIFORM_SHIRT if wardrobe["head"] == "cook_hat" else Color("65513e")
+		if wardrobe["head"] == "straw_hat":
+			outfit["headgear_colour"] = Color("c9a45b")
+		elif wardrobe["head"] == "headscarf":
+			outfit["headgear_colour"] = Color("8eb7b4")
+		elif wardrobe["head"] == "fishing_hat":
+			outfit["headgear_colour"] = Color("2f5d62")
+		if role_uniform and not equipped.has("head"):
+			outfit["headgear_colour"] = StaffUniforms.hat_colour(staff_role_id, uniform_colour)
+	if wardrobe.get("cape", "") == "travel_cape":
 		outfit["cape"] = CAPE_COLORS[posmod(appearance.cape_index, CAPE_COLORS.size())]
 		outfit["edge"] = BRASS.darkened(0.15)
 		outfit["short_cape"] = false
 		outfit["cape_pattern"] = 0
-	if String(equipped.get("backpack", "")) == "travel_pack":
+	if wardrobe.get("backpack", "") == "travel_pack":
 		outfit["back"] = "pack"
 		outfit["trim"] = Color("667953")
+	if modular:
+		var main_piece: String = String(wardrobe.get("outer", wardrobe.get("body", "linen_shirt")))
+		outfit["description"] = "wearing %s" % WardrobeCatalog.item_name(main_piece).to_lower()
+		if role_uniform:
+			outfit["description"] = "in the %s's uniform" % String(staff_role_id)
 	return outfit
 
 
-## The house uniform. `vest` is the position's colour (StaffRole.uniform):
-## the cut is the same for everybody, only the waistcoat says who does what.
+## The original house uniform, still used without an explicit role context.
+## Current position uniforms are composed from StaffUniforms' clothing slots.
 static func staff_outfit(vest: Color = Color(0, 0, 0, 0)) -> Dictionary:
 	if vest.a <= 0.0:
 		vest = UNIFORM_VEST
@@ -408,7 +477,15 @@ static func _torso_mesh(outfit: Dictionary) -> ArrayMesh:
 	var body: Color = outfit["body"]
 	var robe: bool = outfit.get("robe", false)
 	if outfit.get("ordinary", false):
-		KeeperMesh.tunic(mb, TORSO_H, body, outfit["skin"], BELT, BRASS)
+		KeeperWardrobeArt.torso(mb, TORSO_H, outfit)
+		# Shift the complete garment, apron, buttons and ties together before
+		# adding luggage. Cape/pack shoulder attachments keep their old fit.
+		mb.transform_geometry(Transform3D(Basis.from_scale(Vector3(1, ORDINARY_TORSO_Y, 1)),
+			Vector3(0, ORDINARY_WAIST_RISE, 0)))
+		# Upper trousers belong to the hips, rather than projecting above each
+		# swinging leg. This closed section bridges the higher hem at full stride
+		# and during the existing torso bob, without changing either hip pivot.
+		KeeperWardrobeArt.hips(mb, outfit["legs"])
 	else:
 		# Uniforms and armor retain their authored seams, beneath the same lean
 		# body scales. Robes keep their longer hem and recognizable silhouette.
@@ -501,7 +578,7 @@ static func _head_mesh(skin: Color, hair: Color, style: int, outfit: Dictionary)
 	var gear: String = String(outfit.get("headgear", ""))
 	var gear_colour: Color = outfit.get("headgear_colour", hair)
 	if outfit.get("ordinary", false):
-		return KeeperMesh.head(skin, hair, int(outfit.get("hair_style", 0)), gear == "felt_hat", gear_colour, VISOR)
+		return KeeperWardrobeArt.head(skin, hair, int(outfit.get("hair_style", 0)), outfit, VISOR)
 	_tapered_box(mb, -0.006, 0.049, Vector2(0.035, 0.035), Vector2(0.041, 0.037), skin.darkened(0.08))
 	if gear == "full_helm":
 		_chamfered_head(mb, 0.026, HEAD_H, 0.122, 0.11, gear_colour)
@@ -716,7 +793,7 @@ static func _hair_tuft(mb: MeshBuilder, a: Vector3, b: Vector3, c: Vector3, d: V
 static func _arm_mesh(sleeve: Color, cuff: Color, hand: Color, outfit: Dictionary, thumb_side: float = -1.0) -> ArrayMesh:
 	var mb := MeshBuilder.new()
 	if outfit.get("ordinary", false):
-		KeeperMesh.arm(mb, ARM_H, sleeve, cuff, hand, thumb_side)
+		KeeperWardrobeArt.arm(mb, ARM_H, outfit, thumb_side)
 		return mb.commit()
 	if int(outfit["look"]) == Look.WARRIOR:
 		_tapered_box(mb, -ARM_H * 0.65, 0.006, Vector2(0.047, 0.051), Vector2(0.064, 0.064), sleeve)
@@ -743,7 +820,7 @@ static func _arm_mesh(sleeve: Color, cuff: Color, hand: Color, outfit: Dictionar
 static func _leg_mesh(trouser: Color, boot: Color, outfit: Dictionary) -> ArrayMesh:
 	var mb := MeshBuilder.new()
 	if outfit.get("ordinary", false):
-		KeeperMesh.leg(mb, LEG_H, trouser, boot)
+		KeeperWardrobeArt.leg(mb, LEG_H, outfit)
 		return mb.commit()
 	_tapered_box(mb, -LEG_H * 0.67, 0.015, Vector2(0.047, 0.052), Vector2(0.060, 0.065), trouser)
 	_tapered_box(mb, -LEG_H + 0.025, -LEG_H + LEG_H * 0.42,

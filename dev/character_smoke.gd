@@ -40,11 +40,14 @@ func _fixture_profile() -> CharacterProfile:
 	profile.appearance.skin = CharacterAppearance.SKIN_COLORS[4]
 	profile.appearance.hair = CharacterAppearance.HAIR_COLORS[3]
 	profile.appearance.hair_style = 2
+	profile.appearance.face_type = 3
+	profile.appearance.expression = 1
 	profile.appearance.top = CharacterAppearance.TOP_COLORS[2]
 	profile.appearance.trousers = CharacterAppearance.TROUSER_COLORS[2]
 	profile.appearance.boots = CharacterAppearance.BOOT_COLORS[1]
-	profile.owned.append_array(["felt_hat", "travel_cape", "travel_pack"])
-	profile.equipped.merge({"head": "felt_hat", "cape": "travel_cape", "backpack": "travel_pack"})
+	profile.equipped = {"head": "cook_hat", "body": "short_sleeve_shirt", "outer": "linen_apron",
+		"legs": "rolled_trousers", "feet": "work_shoes", "hands": "work_gloves",
+		"neck": "copper_pendant", "ring": "copper_ring", "cape": "travel_cape", "backpack": "travel_pack"}
 	return profile
 
 
@@ -75,7 +78,7 @@ func _check_profiles() -> void:
 	var arrays: Array = rig.body.mesh.surface_get_arrays(0)
 	var face_colours: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
 	check(face_colours.has(PawnMesh.VISOR), "small pupil geometry survives the facial detail build")
-	check(face_colours.has(Color("55432e")) and face_colours.has(Color("e8dfc9")), "warm iris and tiny eye highlights survive the facial detail build")
+	check(face_colours.has(Color("aea68f")) and not face_colours.has(Color("e8dfc9")), "small muted eyes survive the adult face build without bright eye glints")
 	var finite := true
 	for vertex in arrays[Mesh.ARRAY_VERTEX]:
 		finite = finite and vertex.is_finite() and vertex.y >= -0.001 and vertex.y < 1.6
@@ -121,7 +124,7 @@ func _check_world_and_restart() -> void:
 	var role_before: StringName = world.workers[0].role.id
 	var cargo := Node3D.new()
 	worker.carry(cargo)
-	worker.set_appearance(_fixture_profile().appearance)
+	worker.set_appearance(_fixture_profile().appearance, _fixture_profile().equipped)
 	check(worker._rng.state == random_before and worker.pawn_name == name_before and world.workers[0].role.id == role_before, "staff appearance edits preserve RNG, identity and job role")
 	check(worker.is_carrying() and cargo.get_parent() == worker._rig.carry_anchor, "wardrobe rebuild retains carried geometry on the new anchor")
 	worker.carry(null)

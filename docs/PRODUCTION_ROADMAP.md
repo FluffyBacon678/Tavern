@@ -5,6 +5,22 @@ gameplay, prices, saves or artwork. Read with [CURRENT_GAME_VISION.md](CURRENT_G
 The owner's latest vision takes precedence over the historical restaurant/demo
 scope. The two supplied images are art targets, not evidence of the current game.
 
+**Implementation update, 2026-10-03:** [CHARACTER_WARDROBE.md](CHARACTER_WARDROBE.md)
+records ten usable clothing slots, fifteen original free demo garments and a
+further face pass. Shared rendering, editor bounds and wardrobe save restarts
+pass. Clothing acquisition, progression, animation and direct avatar control
+remain open; this does not complete the art or purchase-loop gate.
+
+The following [staff-uniform pass](STAFF_UNIFORMS.md) gives all eight positions
+recognizable clothes and hats while preserving explicit outfits and saved roles.
+The shared free demo wardrobe now contains 23 items.
+
+The subsequent [adult-character reference pass](CHARACTER_REFERENCE_PASS.md)
+raises the ordinary waist, refines head/face proportions and clothing clearance,
+and keeps all outfits within the existing 1,400-triangle ceiling. UI and gameplay
+are unchanged. The older bespoke adventurer cuts and articulated animation
+remain subsequent work; this does not close the full character-art gate.
+
 **Implementation update, 2026-10-01:** [CHARACTER_FOUNDATION.md](CHARACTER_FOUNDATION.md)
 records the first functional character slice: shared appearance data, saved
 owner/wardrobe references, creator and Keeper editing. Old and new saves and the

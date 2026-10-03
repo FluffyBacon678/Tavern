@@ -35,6 +35,9 @@ run layout hud_layout_smoke
 run atmosphere atmosphere_smoke
 run adventurers adventurer_mesh_smoke
 run characters character_smoke
+run faces face_smoke
+run wardrobe wardrobe_smoke
+run uniforms staff_uniform_smoke
 run tutorial tutorial_smoke
 run soak tutorial_smoke --days 6
 run house house_smoke

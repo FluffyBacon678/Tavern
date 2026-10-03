@@ -58,9 +58,11 @@ signal path_failed(target: Vector2i)
 var pawn_name: String = ""
 ## What they are wearing, in words: "a mithril-clad warrior".
 var look: String = ""
-## Staff only: the waistcoat colour of their position, set before setup().
+## Staff only: the cloth colour of their position, set before setup().
 ## Transparent means the plain house uniform.
 var uniform: Color = Color(0, 0, 0, 0)
+## Render context supplied by Worker; its existing saved role is authoritative.
+var staff_role_id: StringName = &""
 ## Stored cosmetics, independent of role, habits and the customer's tastes.
 var appearance: CharacterAppearance
 var equipped: Dictionary = {}
@@ -131,7 +133,7 @@ func setup(p_nav: NavGrid, p_terrain: TerrainMeshBuilder, start_tile: Vector2i, 
 
 	_pawn_material = material
 	appearance = PawnMesh.generate_appearance(_rng, is_customer, uniform)
-	_rig = PawnMesh.build_appearance(appearance, material, equipped)
+	_rig = PawnMesh.build_appearance(appearance, material, equipped, staff_role_id)
 	add_child(_rig.root)
 	look = _rig.description
 	adventurer = appearance.family
@@ -159,7 +161,7 @@ func set_appearance(next: CharacterAppearance, equipment: Variant = null) -> voi
 	if _rig == null:
 		return
 	var previous: PawnMesh.Rig = _rig
-	_rig = PawnMesh.build_appearance(appearance, _pawn_material, equipped)
+	_rig = PawnMesh.build_appearance(appearance, _pawn_material, equipped, staff_role_id)
 	add_child(_rig.root)
 	_rig.root.transform = previous.root.transform
 	var old_parts: Array[Node3D] = [previous.torso, previous.head, previous.arm_l,
@@ -177,6 +179,14 @@ func set_appearance(next: CharacterAppearance, equipment: Variant = null) -> voi
 	look = _rig.description
 	set_outline(GameSettings.outline_people)
 	_rig.sync_pose()
+
+
+func set_staff_role(role_id: StringName) -> void:
+	if staff_role_id == role_id:
+		return
+	staff_role_id = role_id
+	if _rig != null and appearance != null:
+		set_appearance(appearance)
 
 
 func world_position_of(t: Vector2i) -> Vector3:

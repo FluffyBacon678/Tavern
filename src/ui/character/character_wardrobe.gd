@@ -38,7 +38,11 @@ func setup(profile: CharacterProfile) -> void:
 			continue
 		var button := Button.new()
 		button.name = "Slot%s" % slot.capitalize()
-		button.text = "Outerwear" if slot == "outer" else WardrobeCatalog.label(slot)
+		button.text = "Apron" if slot == "outer" else ("Boots" if slot == "feet" else WardrobeCatalog.label(slot))
+		button.icon = WardrobeSlotIcons.texture(slot)
+		button.expand_icon = true
+		button.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		button.clip_text = true
 		button.toggle_mode = true
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -123,6 +127,8 @@ func set_ui_scale(value: float) -> void:
 	for button in _slot_buttons.values():
 		(button as Button).custom_minimum_size = Vector2(82, 42) * _s
 		(button as Button).add_theme_font_size_override("font_size", int(13.0 * _s))
+		(button as Button).add_theme_constant_override("icon_max_width", int(round(18.0 * _s)))
+		(button as Button).add_theme_constant_override("h_separation", int(round(5.0 * _s)))
 		var slot: String = String(button.get_meta("slot"))
 		_style_slot(button, slot == active_slot, not String(_profile.equipped.get(slot, "")).is_empty())
 	if choice != null:

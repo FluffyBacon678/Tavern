@@ -82,13 +82,15 @@ func setup(p_pawn: Pawn, p_board: JobBoard, p_nav: NavGrid, p_items: ItemWorld =
 	board = p_board
 	nav = p_nav
 	items = p_items
-	set_role(StaffRole.of(&"hand"))
+	set_role(StaffRole.of(pawn.staff_role_id if not pawn.staff_role_id.is_empty() else &"hand"))
 
 
 ## Hire into a position: its rules, and its starting order of work.
 func set_role(p_role: StaffRole) -> void:
 	role = p_role if p_role != null else StaffRole.of(&"hand")
 	priorities = role.starting_priorities()
+	if pawn != null:
+		pawn.set_staff_role(role.id)
 
 
 ## Whether the position allows this kind of work at all.

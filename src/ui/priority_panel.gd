@@ -104,7 +104,14 @@ func _build() -> void:
 	_grid.columns = WorkType.COUNT + 2
 	_grid.add_theme_constant_override("h_separation", 6)
 	_grid.add_theme_constant_override("v_separation", 4)
-	rows.add_child(_grid)
+	# The staff list scrolls once it is taller than the screen leaves room for.
+	# Thirteen staff ran the panel off both edges: the hire cards above the
+	# top, the last rows below the bottom, and nothing could reach them.
+	_scroll = ScrollContainer.new()
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_scroll.add_child(_grid)
+	rows.add_child(_scroll)
+	_rows = rows
 
 	var close := Button.new()
 	close.text = "Close"
@@ -117,10 +124,30 @@ func _build() -> void:
 	rows.add_child(close)
 
 
+var _scroll: ScrollContainer
+var _rows: VBoxContainer
+
+
+## The list as tall as it needs, but never taller than the window allows.
+func _fit_height() -> void:
+	if _scroll == null or not is_inside_tree():
+		return
+	var needed: float = _grid.get_combined_minimum_size().y
+	var fixed: float = _rows.get_combined_minimum_size().y - _scroll.custom_minimum_size.y
+	var frame: float = get_combined_minimum_size().y - _rows.get_combined_minimum_size().y
+	var room: float = get_viewport_rect().size.y - 32.0 - fixed - frame
+	_scroll.custom_minimum_size.y = clampf(needed, 120.0, maxf(room, 120.0))
+	# Centred again on the new size: shrinking alone kept the old corner and
+	# put the panel off the screen.
+	reset_size()
+	set_anchors_and_offsets_preset(Control.PRESET_CENTER, Control.PRESET_MODE_MINSIZE)
+
+
 func rebuild() -> void:
 	if world == null or _grid == null:
 		return
 	for child in _grid.get_children():
+		_grid.remove_child(child)
 		child.queue_free()
 	_status_lines.clear()
 	_staff_shown = world.workers.size()
@@ -143,6 +170,7 @@ func rebuild() -> void:
 	if world.workers.is_empty():
 		_grid.add_child(_header("No staff hired."))
 	_refresh_hire_cards()
+	_fit_height.call_deferred()
 
 
 func _header(text: String) -> Label:

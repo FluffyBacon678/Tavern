@@ -1,5 +1,9 @@
 # Keeper face, hands and editor detail — 2026-10-02
 
+**Later follow-up:** [CHARACTER_WARDROBE.md](CHARACTER_WARDROBE.md) adds usable
+clothing slots, original cook/travel garments and further face refinement.
+Measurements below describe the October 2 pass.
+
 This continues [the keeper/editor sculpt](CHARACTER_EDITOR_POLISH.md). The
 ordinary keeper gets a warmer face, clearer hands and a dedicated Hands view
 for judging future cuffs and held-item art. Geometry remains original procedural

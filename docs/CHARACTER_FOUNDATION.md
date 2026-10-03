@@ -1,5 +1,9 @@
 # Character foundation — 2026-10-01
 
+**Current wardrobe:** [CHARACTER_WARDROBE.md](CHARACTER_WARDROBE.md) adds an
+independent outerwear slot, ten usable editor slots and fifteen free demo items.
+The initial ownership/selector description below is historical.
+
 **Later visual follow-up:** [CHARACTER_POLISH.md](CHARACTER_POLISH.md) records
 the owner's requested slimmer proportions, fitted tunic, cuffs/boots/hair and
 updated rendering totals. Measurements below describe the initial foundation.

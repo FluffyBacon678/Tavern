@@ -243,7 +243,8 @@ static func building_rows(world, index: int) -> Array:
 		return rows
 
 	if def.layer == BuildingDef.Layer.FLOOR and world.nav != null:
-		rows.append(_stat("Underfoot", pace_text(world.nav.cost_at(entry["tiles"][0])) + ", the quickest ground there is",
+		var cost: float = world.nav.cost_at(entry["tiles"][0])
+		rows.append(_stat("Underfoot", pace_text(cost) + (", the quickest ground there is" if cost <= NavGrid.FLOOR_COST else ", slow going"),
 			TavernTheme.PARCHMENT, true))
 
 	var recipes: Array = RecipeCatalog.for_station(def.id)

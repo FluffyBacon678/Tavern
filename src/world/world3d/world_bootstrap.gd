@@ -448,6 +448,7 @@ func _add_pawn(holder: Node, rng_seed: int, role: StaffRole = null) -> void:
 	var pawn := Pawn.new()
 	holder.add_child(pawn)
 	pawn.uniform = role.uniform
+	pawn.staff_role_id = role.id
 	pawn.setup(world.nav, world.terrain, start, world._pawn_material, rng_seed)
 	pawn.wander_area = world.plot
 	world.pawns.append(pawn)

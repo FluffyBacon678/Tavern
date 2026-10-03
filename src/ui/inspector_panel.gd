@@ -269,7 +269,7 @@ func _building_extras() -> void:
 			if crop == Farm.crop_of(entry):
 				continue
 			var b := Button.new()
-			b.text = "Grow %s instead" % ItemCatalog.get_def(crop).display_name.to_lower()
+			b.text = "Grow %s instead" % String(crop)
 			b.tooltip_text = "Turns the bed over: anything growing now is lost."
 			var index: int = building_index
 			var which: StringName = crop

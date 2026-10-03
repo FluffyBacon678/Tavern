@@ -36,6 +36,10 @@ static func mesh(crop: StringName, stage: int) -> Mesh:
 					mb.add_tri(Vector3(x, tall * 0.22, z), Vector3(x + side * 0.09, tall * 0.65, z + 0.03), Vector3(x + side * 0.018, tall * 0.48, z - 0.02), stem.lightened(0.12))
 				if stage >= 2:
 					mb.add_blob(tip, Vector3(0.031, 0.087 if stage == 3 else 0.05, 0.035), 3, 4, Color("e6c878") if stage == 3 else Color("8ba34d"))
+				else:
+					# A low leaf tuft, so a newly planted bed reads green from the
+					# management camera instead of looking like bare earth.
+					mb.add_blob(Vector3(x, tall * 0.55, z), Vector3(0.06, 0.04, 0.06), 2, 5, Color("6fa040"))
 	var result: Mesh = mb.commit()
 	_cache[key] = result
 	return result

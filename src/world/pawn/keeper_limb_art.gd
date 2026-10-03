@@ -23,7 +23,7 @@ static func arm(mb: MeshBuilder, height: float, sleeve: Color, cuff: Color,
 	# forearm, so it also reads from the side when carrying or walking.
 	var levels: Array[float] = [-height, -height * 0.89, -height * 0.81,
 		-height * 0.72, -height * 0.62, -0.025, 0.002]
-	var radii: Array[Vector2] = [Vector2(0.027, 0.018), Vector2(0.035, 0.027),
+	var radii: Array[Vector2] = [Vector2(0.027, 0.018), Vector2(0.032, 0.027),
 		Vector2(0.026, 0.028), Vector2(0.046, 0.047), Vector2(0.049, 0.052),
 		Vector2(0.055, 0.056), Vector2(0.039, 0.043)]
 	var offsets: Array[Vector2] = [Vector2(0, 0.038), Vector2(0, 0.032),
@@ -48,13 +48,13 @@ static func arm(mb: MeshBuilder, height: float, sleeve: Color, cuff: Color,
 				# The front edge has four slight finger curves. Subdividing only
 				# this band gives their tips a silhouette without adding hidden
 				# rings, projecting creases or independently animated fingers.
-				for finger in range(8):
-					var t0: float = float(finger) / 8.0
-					var t1: float = float(finger + 1) / 8.0
+				for finger in range(4):
+					var t0: float = float(finger) / 4.0
+					var t1: float = float(finger + 1) / 4.0
 					var lower0: Vector3 = a.lerp(b, t0)
 					var lower1: Vector3 = a.lerp(b, t1)
-					lower0.y = -height + _finger_height(finger, thumb_side)
-					lower1.y = -height + _finger_height(finger + 1, thumb_side)
+					lower0.y = -height + _finger_height(finger * 2, thumb_side)
+					lower1.y = -height + _finger_height((finger + 1) * 2, thumb_side)
 					_quad(mb, lower0, lower1, d.lerp(c, t1), d.lerp(c, t0), interior, skin)
 					bottom.append(lower0)
 			else:
@@ -72,7 +72,8 @@ static func arm(mb: MeshBuilder, height: float, sleeve: Color, cuff: Color,
 		_triangle(mb, tip_centre, bottom[i], bottom[(i + 1) % bottom.size()],
 			cap_interior, skin.darkened(0.015))
 	_thumb(mb, height, thumb_side, skin)
-	# 127 arm/hand triangles plus 20 thumb triangles: 147 emitted in total.
+	# Four broad finger-edge facets avoid unnecessary sub-pixel scalloping.
+	# 115 arm/hand triangles plus 20 thumb triangles: 135 emitted in total.
 	# Two coincident shoulder edges emit no area; the six-corner cap needs four
 	# triangles. Hand contours retain their original detail and closed surfaces.
 

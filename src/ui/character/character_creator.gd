@@ -25,12 +25,20 @@ var _choices: Dictionary = {}
 var _swatches: Dictionary = {}
 var _buttons: Array[Button] = []
 var _rng := RandomNumberGenerator.new()
+var _form_scroll: ScrollContainer
+var _appearance_pane: VBoxContainer
+var _clothing_pane: VBoxContainer
+var _tab_buttons: Dictionary = {}
+var _active_tab: String = "appearance"
+var _wardrobe: CharacterWardrobe
+var _dye_panes: Dictionary = {}
 
 
 static func open(host: Node, profile: CharacterProfile, existing_owner: bool = false) -> CharacterCreator:
 	var screen := CharacterCreator.new()
 	screen.name = "CharacterCreator"
 	screen.draft = profile.clone() if profile != null else CharacterProfile.default_owner(0)
+	screen.draft.grant_starter_wardrobe()
 	screen.editing = existing_owner
 	host.add_child(screen)
 	return screen
@@ -39,6 +47,7 @@ static func open(host: Node, profile: CharacterProfile, existing_owner: bool = f
 func _ready() -> void:
 	if draft == null:
 		draft = CharacterProfile.default_owner(0)
+		draft.grant_starter_wardrobe()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -63,7 +72,7 @@ func _build() -> void:
 	_frame.add_child(column)
 	_heading = UiKit.heading("Your tavern keeper" if editing else "Create your tavern keeper", 1.0, 26, TavernTheme.PARCHMENT)
 	column.add_child(_heading)
-	_subtitle = UiKit.caption("Make a face for your story. You can revisit your look from Keeper.", 1.0, 14)
+	_subtitle = UiKit.caption("Choose your look and outfit. You can revisit both from Keeper.", 1.0, 14)
 	column.add_child(_subtitle)
 	column.add_child(UiKit.rule(1.0))
 	var content := HBoxContainer.new()
@@ -73,15 +82,10 @@ func _build() -> void:
 	_form_frame = PanelContainer.new()
 	_form_frame.add_theme_stylebox_override("panel", _inset_style())
 	content.add_child(_form_frame)
-	var scroll := ScrollContainer.new()
-	scroll.name = "AppearanceScroll"
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_form_frame.add_child(scroll)
 	var form := VBoxContainer.new()
-	form.name = "AppearanceChoices"
-	form.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	form.name = "CharacterControls"
 	form.add_theme_constant_override("separation", 6)
-	scroll.add_child(form)
+	_form_frame.add_child(form)
 	form.add_child(_section("IDENTITY"))
 	form.add_child(_label("Character name"))
 	name_field = LineEdit.new()
@@ -94,18 +98,44 @@ func _build() -> void:
 		_refresh_name()
 	)
 	form.add_child(name_field)
-	form.add_child(UiKit.rule(1.0))
-	_option(form, "body_type", "Build", ["Broad", "Slender"])
-	_palette(form, "skin", "Skin tone", CharacterAppearance.SKIN_COLORS)
-	_option(form, "hair_style", "Hair style", ["Cropped fringe", "Swept", "Tied back", "Close crop"])
-	_palette(form, "hair", "Hair colour", CharacterAppearance.HAIR_COLORS)
-	form.add_child(UiKit.rule(1.0))
-	form.add_child(_section("STARTER CLOTHING"))
-	_palette(form, "top", "Shirt colour", CharacterAppearance.TOP_COLORS)
-	_palette(form, "trousers", "Trouser colour", CharacterAppearance.TROUSER_COLORS)
-	_palette(form, "boots", "Boot leather", CharacterAppearance.BOOT_COLORS)
-	if editing:
-		_build_wardrobe(form)
+	var tabs := HBoxContainer.new()
+	tabs.name = "CustomizationTabs"
+	tabs.add_theme_constant_override("separation", 6)
+	form.add_child(tabs)
+	for tab in ["appearance", "clothing"]:
+		var button: Button = _button(String(tab).capitalize(), Vector2(124, 34))
+		button.name = "%sTab" % String(tab).capitalize()
+		button.toggle_mode = true
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var selected_tab: String = String(tab)
+		button.pressed.connect(func() -> void: choose_tab(selected_tab))
+		tabs.add_child(button)
+		_tab_buttons[tab] = button
+	_form_scroll = ScrollContainer.new()
+	_form_scroll.name = "AppearanceScroll"
+	_form_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_form_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	form.add_child(_form_scroll)
+	var panes := VBoxContainer.new()
+	panes.name = "CustomizationPages"
+	panes.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_form_scroll.add_child(panes)
+	_appearance_pane = VBoxContainer.new()
+	_appearance_pane.name = "AppearanceChoices"
+	_appearance_pane.add_theme_constant_override("separation", 6)
+	panes.add_child(_appearance_pane)
+	_option(_appearance_pane, "body_type", "Build", ["Broad", "Slender"])
+	_palette(_appearance_pane, "skin", "Skin tone", CharacterAppearance.SKIN_COLORS)
+	_option(_appearance_pane, "face_type", "Face shape", CharacterAppearance.FACE_TYPES)
+	_option(_appearance_pane, "expression", "Expression", CharacterAppearance.EXPRESSIONS)
+	_option(_appearance_pane, "hair_style", "Hair style", ["Cropped fringe", "Swept", "Tied back", "Close crop"])
+	_palette(_appearance_pane, "hair", "Hair colour", CharacterAppearance.HAIR_COLORS)
+	_clothing_pane = VBoxContainer.new()
+	_clothing_pane.name = "ClothingPane"
+	_clothing_pane.add_theme_constant_override("separation", 6)
+	_clothing_pane.visible = false
+	panes.add_child(_clothing_pane)
+	_build_wardrobe(_clothing_pane)
 	var preview_frame := PanelContainer.new()
 	preview_frame.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	preview_frame.add_theme_stylebox_override("panel", _inset_style())
@@ -182,33 +212,83 @@ func _build() -> void:
 
 
 func _build_wardrobe(form: VBoxContainer) -> void:
-	var available: Array = [
-		["head", "Head", "felt_hat", "Felt travelling hat"],
-		["cape", "Cape", "travel_cape", "Traveller's cape"],
-		["backpack", "Backpack", "travel_pack", "Road pack"],
-	]
-	var any_owned: bool = false
-	for entry in available:
-		if not draft.owned.has(String(entry[2])):
-			continue
-		if not any_owned:
-			form.add_child(UiKit.rule(1.0))
-			form.add_child(_section("YOUR WARDROBE"))
-			any_owned = true
-		var slot: String = String(entry[0])
-		var item: String = String(entry[2])
-		var selector := OptionButton.new()
-		selector.add_item("%s: none" % String(entry[1]))
-		selector.add_item(String(entry[3]))
-		selector.selected = 1 if draft.equipped.get(slot, "") == item else 0
-		selector.item_selected.connect(func(index: int) -> void:
-			if index == 0:
-				draft.equipped.erase(slot)
-			else:
-				draft.equipped[slot] = item
-			preview.set_character(draft.appearance, draft.equipped)
-		)
-		form.add_child(selector)
+	_wardrobe = CharacterWardrobe.new()
+	form.add_child(_wardrobe)
+	_wardrobe.setup(draft)
+	_wardrobe.equipment_requested.connect(select_equipment)
+	_wardrobe.slot_selected.connect(_show_dye)
+	for entry in [["body", "top", "Shirt colour", CharacterAppearance.TOP_COLORS],
+			["legs", "trousers", "Trouser colour", CharacterAppearance.TROUSER_COLORS],
+			["feet", "boots", "Boot leather", CharacterAppearance.BOOT_COLORS]]:
+		var dye := VBoxContainer.new()
+		dye.name = "%sColour" % String(entry[0]).capitalize()
+		dye.add_theme_constant_override("separation", 6)
+		form.add_child(dye)
+		_palette(dye, String(entry[1]), String(entry[2]), entry[3])
+		_dye_panes[String(entry[0])] = dye
+	_show_dye(_wardrobe.active_slot)
+
+
+func show_clothing() -> void:
+	choose_tab("clothing")
+
+
+func choose_tab(tab: String) -> bool:
+	if tab not in ["appearance", "clothing"]:
+		return false
+	var changed: bool = _active_tab != tab
+	_active_tab = tab
+	_appearance_pane.visible = tab == "appearance"
+	_clothing_pane.visible = tab == "clothing"
+	_refresh_tabs()
+	if changed:
+		_form_scroll.scroll_vertical = 0
+	return true
+
+
+func select_slot(slot: String) -> bool:
+	return _wardrobe.select_slot(slot)
+
+
+## This path is shared by the real dropdown and direct development checks.
+## Unknown or unowned items never mutate the private draft or its preview.
+func select_equipment(slot: String, id: String) -> bool:
+	if not WardrobeCatalog.SLOTS.has(slot):
+		return false
+	if not id.is_empty() and (not WardrobeCatalog.known(id) or WardrobeCatalog.slot_for(id) != slot or not draft.owned.has(id)):
+		return false
+	var previous: String = String(draft.equipped.get(slot, ""))
+	if id.is_empty():
+		draft.equipped.erase(slot)
+	else:
+		draft.equipped[slot] = id
+	_wardrobe.select_slot(slot)
+	if previous != id:
+		preview.set_character(draft.appearance, draft.equipped)
+	return true
+
+
+func _show_dye(slot: String) -> void:
+	for dye_slot in _dye_panes:
+		(_dye_panes[dye_slot] as Control).visible = dye_slot == slot
+
+
+func _refresh_tabs() -> void:
+	for tab in _tab_buttons:
+		var button: Button = _tab_buttons[tab]
+		var selected: bool = tab == _active_tab
+		button.set_pressed_no_signal(selected)
+		for state in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+			var style := StyleBoxFlat.new()
+			style.bg_color = Color("34484b") if selected else Color("202b2c")
+			style.border_color = TavernTheme.CANDLE_DIM if selected or state in ["hover", "focus"] else Color("526364")
+			style.set_border_width_all(2 if selected else 1)
+			style.set_corner_radius_all(4)
+			style.content_margin_left = 8.0 * _s
+			style.content_margin_right = 8.0 * _s
+			style.content_margin_top = 5.0 * _s
+			style.content_margin_bottom = 5.0 * _s
+			button.add_theme_stylebox_override(state, style)
 
 
 func _option(form: VBoxContainer, field: String, title: String, values: Array[String]) -> void:
@@ -247,6 +327,8 @@ func select_choice(field: String, index: int) -> void:
 	match field:
 		"body_type": draft.appearance.body_type = clampi(index, 0, 1)
 		"hair_style": draft.appearance.hair_style = clampi(index, 0, 3)
+		"face_type": draft.appearance.face_type = clampi(index, 0, CharacterAppearance.FACE_TYPES.size() - 1)
+		"expression": draft.appearance.expression = clampi(index, 0, CharacterAppearance.EXPRESSIONS.size() - 1)
 		"skin": draft.appearance.skin = CharacterAppearance.SKIN_COLORS[posmod(index, CharacterAppearance.SKIN_COLORS.size())]
 		"hair": draft.appearance.hair = CharacterAppearance.HAIR_COLORS[posmod(index, CharacterAppearance.HAIR_COLORS.size())]
 		"top": draft.appearance.top = CharacterAppearance.TOP_COLORS[posmod(index, CharacterAppearance.TOP_COLORS.size())]
@@ -262,6 +344,8 @@ func select_choice(field: String, index: int) -> void:
 func randomize_appearance() -> void:
 	draft.appearance.body_type = _rng.randi_range(0, 1)
 	draft.appearance.hair_style = _rng.randi_range(0, 3)
+	draft.appearance.face_type = _rng.randi_range(0, CharacterAppearance.FACE_TYPES.size() - 1)
+	draft.appearance.expression = _rng.randi_range(0, CharacterAppearance.EXPRESSIONS.size() - 1)
 	for field in ["skin", "hair", "top", "trousers", "boots"]:
 		var buttons: Array = _swatches[field]
 		var button: Button = buttons[_rng.randi_range(0, buttons.size() - 1)]
@@ -359,6 +443,8 @@ func _layout() -> void:
 		(choice as OptionButton).custom_minimum_size.y = 36.0 * _s
 	_refresh_choices()
 	_refresh_view_buttons()
+	_refresh_tabs()
+	_wardrobe.set_ui_scale(_s)
 	_style_primary()
 
 

@@ -253,7 +253,31 @@ func _hover_allowed() -> bool:
 		return false
 	if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
 		return false
+	# Not with the pointer outside the window: no control is "under" it there,
+	# so the world used to take the screen's edge as hovered and leave a card
+	# up over the top bar after the mouse had gone to another program.
+	if not _pointer_inside or not _pointer_over_window():
+		return false
 	return get_viewport().gui_get_hovered_control() == null
+
+
+## The system pointer against the window itself: the exit notification never
+## comes if the pointer was outside the window from the start.
+func _pointer_over_window() -> bool:
+	var window: Window = get_window()
+	if window == null or DisplayServer.get_name() == "headless":
+		return true
+	return Rect2i(window.position, window.size).has_point(DisplayServer.mouse_get_position())
+
+
+var _pointer_inside: bool = true
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_MOUSE_EXIT:
+		_pointer_inside = false
+	elif what == NOTIFICATION_WM_MOUSE_ENTER:
+		_pointer_inside = true
 
 
 ## Move the selection ring to whatever the inspector now describes.

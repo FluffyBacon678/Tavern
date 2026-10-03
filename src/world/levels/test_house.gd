@@ -27,7 +27,9 @@ const WATER_BARRELS: Array[Vector2i] = [Vector2i(23, 1), Vector2i(23, 3), Vector
 const DOOR_X: int = 12
 ## The rest of a full crew, on top of the opening five.
 const EXTRA_CREW: Array[StringName] = [&"porter", &"cook", &"waiter", &"waiter", &"busser", &"host", &"fisherman", &"farmer"]
-const STOCK: Dictionary = {&"flour": 10, &"yeast": 10, &"water": 12, &"malt": 8, &"hops": 8}
+## Ingredients, and a first batch of bread and beer: without them the first
+## guests found an empty menu while the kitchen warmed up.
+const STOCK: Dictionary = {&"flour": 10, &"yeast": 10, &"water": 12, &"malt": 8, &"hops": 8, &"bread": 8, &"beer": 12}
 const GOLD: int = 2000
 
 

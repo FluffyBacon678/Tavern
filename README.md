@@ -12,6 +12,28 @@ Full design is in [`docs/medieval_tavern_game_design_notes.txt`](docs/medieval_t
 
 ## Current state
 
+**2026-10-03 adult character reference:** the ordinary keeper and modular crew
+now have a higher waist, smaller head, quieter angular face, slimmer hands and
+taller boots. Clothing, full-stride clearance, four PC preview shapes, save
+restarts and the unchanged economy pass measured checks. See
+[`docs/CHARACTER_REFERENCE_PASS.md`](docs/CHARACTER_REFERENCE_PASS.md) for actual
+renders and geometry limits.
+
+**2026-10-03 staff uniforms:** all eight hired positions now have identifying
+clothes and hats, applied to new hires and resumed crew. Six new hats, a house
+waistcoat and waist apron also bring the keeper's free demo wardrobe to 23
+items. Job uniforms, full outfits, save restarts and the unchanged three-day
+economy pass measured checks. See
+[`docs/STAFF_UNIFORMS.md`](docs/STAFF_UNIFORMS.md) for the eight-role gallery.
+
+**2026-10-03 character wardrobe and faces:** ten usable clothing slots and
+fifteen free original demo garments, including cook's hat, independent apron,
+short sleeves, gloves and jewellery. Almond-shaped eyes, quieter lips and a
+flat-ended nose refine the angular keeper. Clothing controls, four PC window
+shapes and separate-process saves pass. See
+[`docs/CHARACTER_WARDROBE.md`](docs/CHARACTER_WARDROBE.md) for actual captures,
+ownership rules and measured limits.
+
 **2026-10-02 keeper detail polish:** warmer eyes/brows and a quiet smile,
 narrower wrists, bent thumbs and shaped fingertips, plus a useful **Hands**
 editor view. Windowed/headless character checks, save restarts and the

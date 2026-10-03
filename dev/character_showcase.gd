@@ -15,6 +15,7 @@ var _rigs: Array[PawnMesh.Rig] = []
 var _appearances: Array[CharacterAppearance] = []
 var _title: Label
 var _caption: Label
+var _names: Array[Label] = []
 
 
 func _ready() -> void:
@@ -51,6 +52,19 @@ func _ready() -> void:
 	_build_stage()
 	_build_characters()
 	_build_labels()
+	if arguments.has("staff"):
+		_build_staff_sets()
+		await _capture("staff_front", "Staff · front", 0.0)
+		await _capture("staff_back", "Staff · back", PI)
+		await _capture("staff_side", "Staff · side", PI * 0.5)
+		_camera.position = Vector3(0, 6, 9)
+		_camera.look_at(Vector3(0, 1.5, 0))
+		for label in _names:
+			label.hide()
+		await _capture("staff_overhead", "Staff · management angle", -0.3)
+		print("CHARACTER SHOWCASE: %d failure(s)" % failures)
+		get_tree().quit(0 if failures == 0 else 1)
+		return
 	await _frames(5)
 	await _capture("front", "Front", 0.0)
 	await _capture("back", "Back", PI)
@@ -64,6 +78,10 @@ func _ready() -> void:
 	_caption.text = "Hat, cape and backpack together · front three-quarter / side / back / rear three-quarter"
 	await _frames(3)
 	await _capture_image("travel_kit")
+	_build_wardrobe_sets()
+	await _capture("wardrobe_front", "Wardrobe · front", 0.0)
+	await _capture("wardrobe_back", "Wardrobe · back", PI)
+	await _capture("wardrobe_side", "Wardrobe · side", PI * 0.5)
 	print("CHARACTER SHOWCASE: %d failure(s)" % failures)
 	get_tree().quit(0 if failures == 0 else 1)
 
@@ -173,6 +191,7 @@ func _build_labels() -> void:
 		label.add_theme_font_size_override("font_size", 20)
 		label.add_theme_color_override("font_color", Color("ded6c1"))
 		overlay.add_child(label)
+		_names.append(label)
 
 
 func _build_travel_kit() -> void:
@@ -189,22 +208,65 @@ func _build_travel_kit() -> void:
 		_validate(rig, "travel kit %d" % i)
 
 
+func _build_wardrobe_sets() -> void:
+	var names: Array[String] = ["Garden cook", "Roadkeeper", "Tavern host", "Off-duty cook"]
+	var kits: Array[Dictionary] = [
+		{"head": "cook_hat", "body": "short_sleeve_shirt", "outer": "linen_apron", "legs": "rolled_trousers", "feet": "work_shoes", "hands": "work_gloves", "neck": "copper_pendant", "ring": "copper_ring"},
+		{"head": "felt_hat", "body": "leather_vest", "legs": "olive_trousers", "feet": "leather_boots", "hands": "work_gloves", "neck": "copper_pendant", "ring": "copper_ring", "cape": "travel_cape", "backpack": "travel_pack"},
+		{"body": "linen_shirt", "outer": "linen_apron", "legs": "olive_trousers", "feet": "leather_boots", "neck": "copper_pendant", "ring": "copper_ring"},
+		{"head": "cook_hat", "body": "short_sleeve_shirt", "legs": "rolled_trousers", "feet": "work_shoes", "ring": "copper_ring"},
+	]
+	for i in range(_rigs.size()):
+		var old: Node3D = _rigs[i].root
+		remove_child(old)
+		old.queue_free()
+		var rig: PawnMesh.Rig = PawnMesh.build_appearance(_appearances[i], _material, kits[i % 4])
+		add_child(rig.root)
+		rig.root.position = _position_for(i)
+		_relax(rig)
+		_rigs[i] = rig
+		_names[i].text = "%s · %s" % ["Broad" if i < 4 else "Slender", names[i % 4]]
+		_validate(rig, "wardrobe %s %d" % [names[i % 4], i])
+
+
+func _build_staff_sets() -> void:
+	var roles: Array[StaffRole] = StaffRole.hireable_roles()
+	for i in range(_rigs.size()):
+		var old: Node3D = _rigs[i].root
+		remove_child(old)
+		old.queue_free()
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 12345 + i
+		var role: StaffRole = roles[i]
+		var look: CharacterAppearance = PawnMesh.generate_appearance(rng, false, role.uniform)
+		var rig: PawnMesh.Rig = PawnMesh.build_appearance(look, _material, {}, role.id)
+		add_child(rig.root)
+		rig.root.position = _position_for(i)
+		_relax(rig)
+		_rigs[i] = rig
+		_names[i].text = role.title
+		_validate(rig, "%s uniform" % role.title)
+
+
 func _validate(rig: PawnMesh.Rig, description: String) -> void:
 	var one_surface: bool = rig.body.mesh.get_surface_count() == 1 and rig.skeleton.get_bone_count() == 6
 	var vertices: PackedVector3Array = rig.body.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
 	var finite: bool = true
 	for vertex in vertices:
 		finite = finite and vertex.is_finite() and vertex.y >= -0.001 and vertex.y < 1.6 and absf(vertex.x) < 0.5 and absf(vertex.z) < 0.5
-	if not one_surface or not finite:
+	var budget: bool = vertices.size() / 3 <= 1400
+	if not one_surface or not finite or not budget:
 		failures += 1
-	print("%s: CHARACTER %s surfaces=%d bones=%d triangles=%d finite_bounds=%s" % ["PASS" if one_surface and finite else "FAIL", description, rig.body.mesh.get_surface_count(), rig.skeleton.get_bone_count(), vertices.size() / 3, finite])
+	print("%s: CHARACTER %s surfaces=%d bones=%d triangles=%d finite_bounds=%s" % ["PASS" if one_surface and finite and budget else "FAIL", description, rig.body.mesh.get_surface_count(), rig.skeleton.get_bone_count(), vertices.size() / 3, finite])
 
 
 func _capture(label: String, title: String, angle: float) -> void:
 	for rig in _rigs:
 		rig.root.rotation.y = angle
 	_title.text = "Character art · %s" % title
-	_caption.text = "Two body builds × four hair styles · existing skin, hair and clothing palettes"
+	_caption.text = "Two body builds · original cook clothes, separate apron, leather vest, gloves and jewellery" if label.begins_with("wardrobe_") else "Two body builds × four hair styles · existing skin, hair and clothing palettes"
+	if label.begins_with("staff_"):
+		_caption.text = "Original job uniforms · cook, host, waiter, busser, porter, cleaner, fisher and farmer"
 	await _frames(3)
 	await _capture_image(label)
 
