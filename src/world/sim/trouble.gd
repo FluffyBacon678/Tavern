@@ -57,7 +57,10 @@ static func diagnose(world) -> String:
 				WorkType.Kind.CLEAN, WorkType.Kind.CLEAR, WorkType.Kind.CONSTRUCT, WorkType.Kind.GATHER,
 				WorkType.Kind.BILL, WorkType.Kind.FISH, WorkType.Kind.HOST, WorkType.Kind.FARM]:
 			if waiting.has(kind) and not _anyone_allowed(world, kind):
-				return "Nobody on the staff can %s. %s" % [_verb(kind), _hire_advice(kind)]
+				# With the keeper in the tavern, doing it yourself is the other answer.
+				var yourself: String = (" Or do it yourself as your keeper (%s)." % KeyBindings.first("play_keeper")) \
+					if world.get("keeper") != null else ""
+				return "Nobody on the staff can %s. %s%s" % [_verb(kind), _hire_advice(kind), yourself]
 
 	# Only once goods have ever arrived: before the first order, running out is
 	# the checklist's business, not a fault.

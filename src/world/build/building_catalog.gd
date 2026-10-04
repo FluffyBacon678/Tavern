@@ -217,6 +217,10 @@ static func _build() -> void:
 	if _by_id.has(&"garden_fence"):
 		_by_id[&"garden_fence"].drag_outline = true
 		_by_id[&"garden_fence"].links = true
+	# Where the keeper can take payments: a bench to sell from, or the bar.
+	for id in [&"prep_table", &"bar_table"]:
+		if _by_id.has(id):
+			_by_id[id].takes_payments = true
 	# Paths join any path, and are edged where they meet anything else.
 	for id in [&"garden_path", &"stone_path"]:
 		if _by_id.has(id):

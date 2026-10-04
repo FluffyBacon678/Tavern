@@ -87,6 +87,22 @@ func yield_hauls(tile: Vector2i) -> bool:
 	return true
 
 
+## The player's keeper is taking the goods on `tile`: every job that would
+## fetch them and that nobody has set out on lets go, so the keeper is never
+## told goods are spoken for by a busser who does not exist. Somebody already
+## on the way keeps their claim.
+func yield_to_keeper(tile: Vector2i) -> void:
+	var waiting: Array = []
+	for job in jobs:
+		if job.pickup_tile == tile and job.claimant == null:
+			waiting.append(job)
+	for job in waiting:
+		_let_go(job)
+		jobs.erase(job)
+		_keys.erase(job.key)
+		job_cancelled.emit(job)
+
+
 ## Best open job for a worker, or null.
 ##
 ## Priority dominates: a priority-1 job across the map beats a priority-2 job

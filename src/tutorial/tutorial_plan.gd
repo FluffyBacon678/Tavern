@@ -18,6 +18,7 @@ const LESSONS: Array[String] = [
 	"Looking around", "Building a room", "Kitchen and storage",
 	"Supplies and production", "Staff", "Service", "Money and reputation", "Fishing", "Growing", "Farming and water",
 	"The bar",
+	"Your keeper",
 ]
 
 const TABLES: Array[Vector2i] = [Vector2i(1, 0), Vector2i(1, 2), Vector2i(1, 4)]
@@ -189,6 +190,7 @@ static func steps() -> Array[TutorialStep]:
 	out.append_array(_growing())
 	out.append_array(TutorialFarming.steps())
 	out.append_array(TutorialBar.steps())
+	out.append_array(TutorialKeeper.steps())
 	# A furnished test start must not silently tick off construction practice.
 	var practice: Dictionary = {
 		"floor": [[&"wood_floor", &"stone_floor"]], "walls": [[&"timber_wall", &"stone_wall"]],

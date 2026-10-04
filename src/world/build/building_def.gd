@@ -109,6 +109,9 @@ enum Shape {
 ## Joining pieces of one group join each other too: a dirt path runs on into a
 ## stone one with no verge between them.
 @export var link_group: StringName = &""
+## The keeper can make it a till: a place guests come to buy what is on it, and
+## pay, with no waiter (a prep table, a bar).
+@export var takes_payments: bool = false
 ## Storage that only ever holds these (the well: water), whatever is ticked.
 @export var stores_only: Array[StringName] = []
 

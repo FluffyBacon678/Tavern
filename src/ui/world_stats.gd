@@ -102,6 +102,17 @@ static func pawn_rows(world, pawn: Pawn) -> Array:
 	var brain: CustomerBrain = pawn.get_node_or_null("Brain")
 	if brain != null:
 		return _patron_rows(world, pawn, brain)
+	if pawn.has_meta("keeper") and world.keeper != null and world.keeper.pawn == pawn:
+		var keeper: Keeper = world.keeper
+		rows.append(_title(pawn.pawn_name))
+		rows.append(_sub("Your keeper · no wage"))
+		rows.append(_stat("Doing", _capitalise(keeper.status_text()), TavernTheme.CANDLE, true))
+		if keeper.carry_count > 0 and keeper.carry_def != null:
+			rows.append(_stat("Carrying", "%d× %s (%s)" % [keeper.carry_count, keeper.carry_def.display_name.to_lower(),
+				quality_word(keeper.carry_quality).to_lower()], TavernTheme.PARCHMENT, true))
+		rows.append(_line("%s to play as them: click to walk, right-click for options." % KeyBindings.first("play_keeper"),
+			TavernTheme.PARCHMENT_DIM, true))
+		return rows
 	var worker: Worker = pawn.get_node_or_null("Worker")
 	rows.append(_title(pawn.pawn_name))
 	var position: String = worker.role.title if worker != null and worker.role != null else "Staff"
@@ -206,6 +217,10 @@ static func building_rows(world, index: int) -> Array:
 	var def: BuildingDef = entry["def"]
 	rows.append(_title(def.display_name))
 	rows.append(_sub("%s · %dg" % [def.category, def.cost]))
+	if entry.get("till", false):
+		rows.append(_stat("Payments", "taken here: guests buy what is on it", TavernTheme.CANDLE, true))
+	elif def.takes_payments:
+		rows.append(_line("Playing your keeper, right-click it to take payments here.", TavernTheme.PARCHMENT_DIM, true))
 
 	# Worded as a place. Appended to the subtitle it read "Kitchen · 40g ·
 	# Kitchen · 96 tiles", with the building's category and the room colliding.

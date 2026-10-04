@@ -142,6 +142,10 @@ const EDGE_MARGIN: float = 4.0
 ## Set while a menu is open over the game: no panning under the pause menu, and
 ## none while typing a tavern's name.
 var locked: bool = false
+## Playing the keeper: the view stays on them. The middle button, the arrow keys
+## and a dragged finger turn it round them; nothing pans it away; the right
+## button is left for the options menu.
+var play: bool = false
 
 
 func _handle_keyboard_pan(delta: float) -> void:
@@ -156,6 +160,12 @@ func _handle_keyboard_pan(delta: float) -> void:
 	var input := Vector2(
 		Input.get_action_strength("cam_right") - Input.get_action_strength("cam_left"),
 		Input.get_action_strength("cam_down") - Input.get_action_strength("cam_up"))
+	if play:
+		# Turning round the keeper, as RuneScape's arrow keys do.
+		if input != Vector2.ZERO:
+			_yaw_target = fmod(_yaw_target - input.x * 90.0 * delta, 360.0)
+			_pitch_target = clampf(_pitch_target + input.y * 40.0 * delta, PITCH_FREE_MIN, PITCH_FREE_MAX)
+		return
 	if input == Vector2.ZERO and GameSettings.edge_scroll:
 		input = _edge_input()
 	if input == Vector2.ZERO:
@@ -208,7 +218,7 @@ func zoom_by(steps: float) -> void:
 
 
 func orbit_by(delta_yaw: float, delta_pitch: float) -> void:
-	if mode == Mode.LOCKED:
+	if mode == Mode.LOCKED and not play:
 		return
 	_yaw_target = fmod(_yaw_target + delta_yaw, 360.0)
 	_pitch_target = clampf(_pitch_target + delta_pitch, PITCH_FREE_MIN, PITCH_FREE_MAX)
@@ -248,9 +258,12 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		MOUSE_BUTTON_WHEEL_DOWN:
 			zoom_by(1.0)
 		MOUSE_BUTTON_RIGHT:
-			_orbiting = event.pressed
+			_orbiting = event.pressed and not play
 		MOUSE_BUTTON_MIDDLE:
-			_panning = event.pressed
+			if play:
+				_orbiting = event.pressed
+			else:
+				_panning = event.pressed
 
 
 func _handle_mouse_motion(event: InputEventMouseMotion) -> void:
@@ -274,7 +287,10 @@ func _handle_drag(event: InputEventScreenDrag) -> void:
 	_touches[event.index] = event.position
 
 	if _touches.size() == 1:
-		_pan(Vector2(-event.relative.x, event.relative.y) * 0.03 * (_distance / 20.0))
+		if play:
+			orbit_by(-event.relative.x * 0.3, event.relative.y * 0.25)
+		else:
+			_pan(Vector2(-event.relative.x, event.relative.y) * 0.03 * (_distance / 20.0))
 		return
 
 	if _touches.size() >= 2:

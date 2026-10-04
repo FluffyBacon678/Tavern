@@ -393,6 +393,8 @@ func _setup_economy() -> void:
 		world.add_child(world.customers)
 		world.customers.sim = world.sim
 		world.sim.attach(world.customers)
+	# Who is on the books, so guests know whether anybody will take their order.
+	world.customers.staff = world.workers
 	if world.clock == null:
 		world.clock = DayClock.new()
 		world.clock.name = "DayClock"
@@ -421,6 +423,7 @@ func _setup_economy() -> void:
 
 
 func _spawn_pawns(rng: RandomNumberGenerator, crew: Array[StringName]) -> void:
+	world.clear_keeper()
 	for p in world.pawns:
 		p.queue_free()
 	world.pawns.clear()

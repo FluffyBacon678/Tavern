@@ -59,6 +59,8 @@ var _bar: HFlowContainer
 var _below_top: float = 134.0
 var _layout_queued: bool = false
 var _owner_button: Button
+## Step in as the keeper, or back to managing.
+var _play_button: Button
 var _character_creator: CharacterCreator
 var _profile_previous_hold: bool = false
 var _profile_previous_lock: bool = false
@@ -122,6 +124,12 @@ func _build_hud() -> void:
 	_owner_button.name = "OwnerProfile"
 	_owner_button.focus_mode = Control.FOCUS_ALL
 	title_row.add_child(_owner_button)
+	_play_button = _keyed_button("Take control", "play_keeper", func() -> void:
+		if world.keeper_controls != null:
+			world.keeper_controls.toggle())
+	_play_button.name = "PlayKeeper"
+	_play_button.set_meta("tip", "Play as your keeper: click to walk, right-click for options")
+	title_row.add_child(_play_button)
 	# The clock and the speed controls on one line, as in Prison Architect:
 	# the question "how fast is time going" belongs beside "what time is it".
 	var clock_row := HBoxContainer.new()
@@ -623,9 +631,25 @@ func _on_bindings_changed() -> void:
 		_rooms_button.text = "Rooms: on"
 
 
+## Stepped in or out as the keeper: the button says where it goes, and the
+## corner says what the mouse does now.
+func on_play_changed(playing: bool) -> void:
+	if _play_button != null:
+		_play_button.set_meta("base", "Manage" if playing else "Take control")
+		_label_keyed(_play_button)
+	if playing and _build_bar != null and _build_bar.visible:
+		_toggle_build_bar()
+	_write_help()
+
+
 ## The two lines of controls in the corner, from the player's own keys.
 func _write_help() -> void:
 	if _help == null:
+		return
+	if world != null and world.keeper_controls != null and world.keeper_controls.playing:
+		_help.text = "click to walk or use   ·   right-click options   ·   middle-drag or arrows turn   ·   wheel zoom" + char(10) + \
+			"%s manage   ·   %s pause   ·   %s-%s speed   ·   Esc close" % [
+			_first("play_keeper"), _first("pause"), _first("speed_1"), _first("speed_4")]
 		return
 	var move: String = KeyBindings.move_keys(0)
 	if move.is_empty():

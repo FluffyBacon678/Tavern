@@ -32,6 +32,7 @@ const ACTIONS: Array = [
 	["speed_3", "Time", "Faster (3x)", [KEY_3, KEY_KP_3]],
 	["speed_4", "Time", "Fastest (5x)", [KEY_4, KEY_KP_4]],
 	["build", "Tavern", "Build", [KEY_B]],
+	["play_keeper", "Tavern", "Play as your keeper, or back to managing", [KEY_TAB]],
 	["rotate", "Building", "Rotate what you are placing", [KEY_R]],
 	["demolish", "Building", "Demolish, or sell goods", [KEY_X]],
 	["build_undo", "Building", "Take back the last placement", [KEY_C]],

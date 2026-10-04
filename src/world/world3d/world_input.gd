@@ -100,6 +100,14 @@ func _unhandled_input(event: InputEvent) -> void:
 					break
 		return
 
+	# Playing the keeper: the pointer moves them, RuneScape-style.
+	var controls: KeeperControls = world.keeper_controls
+	if controls != null and controls.playing and (build == null or build.mode == BuildController.Mode.OFF) \
+			and (event is InputEventMouseButton or event is InputEventScreenTouch):
+		if controls.handle(event):
+			get_viewport().set_input_as_handled()
+		return
+
 	if not (event is InputEventMouseButton):
 		return
 
@@ -340,6 +348,8 @@ func pawn_near(point: Vector3, radius: float = 0.75) -> Pawn:
 
 	var candidates: Array = []
 	candidates.append_array(world.pawns)
+	if world.keeper != null and is_instance_valid(world.keeper.pawn):
+		candidates.append(world.keeper.pawn)
 	if world.customers != null:
 		for brain in world.customers.customers:
 			if is_instance_valid(brain) and is_instance_valid(brain.pawn):
@@ -360,12 +370,19 @@ func pawn_near(point: Vector3, radius: float = 0.75) -> Pawn:
 ## rig's own, fullscreen is GameSettings', and Esc is handled above.
 const _SHORTCUTS: Array[String] = ["pause", "speed_1", "speed_2", "speed_3", "speed_4",
 	"cam_mode", "cam_follow", "cam_home", "rotate", "build", "demolish", "staff", "production",
-	"supplies", "ledger", "land", "rooms", "cutaway", "quicksave", "screenshot"]
+	"supplies", "ledger", "land", "rooms", "cutaway", "quicksave", "screenshot", "play_keeper"]
+
+## Shortcuts that belong to managing: pressed while playing the keeper, they
+## step back out first, so the player never has to.
+const _MANAGING: Array[String] = ["cam_mode", "cam_follow", "cam_home", "rotate", "build", "demolish", "land", "rooms"]
 
 
 func _shortcut(action: String) -> void:
 	var hud = world.hud
+	if world.keeper_controls != null and world.keeper_controls.playing and _MANAGING.has(action):
+		world.keeper_controls.stop()
 	match action:
+		"play_keeper": world.keeper_controls.toggle()
 		"pause": world.sim.toggle_pause()
 		"speed_1": world.sim.speed = 1
 		"speed_2": world.sim.speed = 2

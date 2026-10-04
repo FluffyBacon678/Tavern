@@ -8,6 +8,9 @@ extends Node
 ##           garden with lawns, flower beds, a path, an outdoor bar, tables
 ##           on the grass, lanterns and trees, and checks off a wishlist.
 ##   idle    does nothing at all, for comparison.
+##   solo    lets every member of staff go on day 1 and runs the place as the
+##           keeper alone: lemons and water to the bar, lemonade pressed by
+##           hand, the bar taking payments, tables cleared and washed up.
 ##
 ## Every move is a player's: blueprints the porters build and gold pays for,
 ## the hire and let-go buttons' calls, the production targets. Each evening
@@ -114,6 +117,8 @@ func _ready() -> void:
 		frame += 1
 		if frame % 20 == 0:
 			_count_outdoor_sitters()
+		if persona == "solo":
+			_solo_tick()
 		if world.clock.day == watch_day and int(world.clock.hour()) != _last_hour:
 			_last_hour = int(world.clock.hour())
 			_watch_line()
@@ -193,6 +198,8 @@ func _morning(day: int) -> void:
 			await _profit_morning(day)
 		"garden":
 			await _garden_morning(day)
+		"solo":
+			_solo_morning(day)
 	if not shots_dir.is_empty() and day in [1, 3]:
 		await _shot("day%d_morning" % day)
 
@@ -264,6 +271,9 @@ func _watch_line() -> void:
 		for need in press.inputs:
 			needs.append("%s %d here, %d in the house (%s)" % [need["id"], world.generator.count_at_station(station, need["id"]),
 				world.stock_of(need["id"]), world.generator.feed_problem(station, need["id"])])
+		if world.keeper != null:
+			_note("        keeper: %s, holding %d %s, batches %d, washed %d" % [world.keeper.status_text(), world.keeper.carry_count,
+				world.keeper.carry_def.id if world.keeper.carry_def != null else "-", world.keeper.batches, world.keeper.washed])
 		_note("        bar: %s [%s]; auto: %s" % ["; ".join(needs),
 			world.bills.status_text(press.id, world.generator._output_stock(press)), world.auto_supply.note])
 	var passes2: Array = world.customers.pass_tiles()
@@ -372,6 +382,96 @@ func _add_table_inside() -> int:
 			PlayerActions.stop_building(world)
 			return n
 	return 0
+
+
+# --- the keeper alone ----------------------------------------------------------------
+
+var _solo_bar: int = -1
+
+
+## Everyone let go, the keeper called in, the bar taking payments, and only
+## lemonade on the board: what one person can make and sell.
+func _solo_morning(day: int) -> void:
+	if day != 1:
+		return
+	world.spawn_keeper()
+	for worker in world.workers.duplicate():
+		world.dismiss_worker(worker)
+	for i in range(world.build.grid.placements.size()):
+		var entry = world.build.grid.placements[i]
+		if entry != null and entry["def"].id == &"bar_table":
+			_solo_bar = i
+			world.set_till(i, true)
+			break
+	for recipe in MealSupplyPlan.meals():
+		world.auto_supply.set_meal(recipe.id, recipe.id == &"press_lemonade", 12 if recipe.id == &"press_lemonade" else 0)
+	_note("  solo: %d staff left, keeper in, bar %s, lemonade only" % [world.workers.size(),
+		"taking payments" if _solo_bar >= 0 else "MISSING"])
+
+
+## The keeper's next job, as a player would choose it, whenever they stand idle.
+func _solo_tick() -> void:
+	var keeper: Keeper = world.keeper
+	if keeper == null or _solo_bar < 0 or keeper._do != Keeper.Do.NOTHING:
+		return
+	var bar_tiles: Array = world.build.grid.placements[_solo_bar]["tiles"]
+	var station: Dictionary = world.generator.station_at(_solo_bar)
+	# A basin with dishes in it is washed before more go in: a full one takes no more.
+	var basin: Vector2i = _solo_find_piece(&"sink")
+	if basin.x >= 0 and (keeper.carry_count == 0 or keeper.carry_def.category == ItemDef.Category.REFUSE):
+		for t in world.build.grid.placements[world.build.grid.object_index_at(basin)]["tiles"]:
+			var in_basin: ItemDef = world.items.def_at(t)
+			if in_basin != null and in_basin.category == ItemDef.Category.REFUSE:
+				keeper.wash(t)
+				return
+	if keeper.carry_count > 0:
+		if keeper.carry_def.category == ItemDef.Category.REFUSE:
+			var sink: Vector2i = _solo_find_piece(&"sink")
+			if sink.x >= 0:
+				keeper.put(sink)
+				return
+		keeper.put(bar_tiles[0])
+		return
+	# Dishes first: a table with dirty plates on it seats nobody.
+	for seat in world.customers.seating.seats:
+		var table: Vector2i = seat["table"]
+		var def: ItemDef = world.items.def_at(table)
+		if def != null and def.category == ItemDef.Category.REFUSE:
+			keeper.take(table)
+			return
+	var sink_tile: Vector2i = _solo_find_piece(&"sink")
+	if sink_tile.x >= 0:
+		var entry = world.build.grid.placements[world.build.grid.object_index_at(sink_tile)]
+		for t in entry["tiles"]:
+			var def: ItemDef = world.items.def_at(t)
+			if def != null and def.category == ItemDef.Category.REFUSE:
+				keeper.wash(t)
+				return
+	var lemonade: int = 0
+	for t in bar_tiles:
+		var def: ItemDef = world.items.def_at(t)
+		if def != null and def.id == &"lemonade":
+			lemonade += world.items.count_at(t)
+	var lemons: int = world.generator.count_at_station(station, &"lemons")
+	var water: int = world.generator.count_at_station(station, &"water")
+	if lemonade < 8 and lemons >= 2 and water >= 1:
+		keeper.work(_solo_bar, RecipeCatalog.get_recipe(&"press_lemonade"))
+		return
+	for need in [[&"lemons", lemons, 2], [&"water", water, 1]]:
+		if int(need[1]) >= int(need[2]):
+			continue
+		for tile in world.items.tiles_with(need[0], keeper.pawn.tile):
+			if station["input_tiles"].has(tile) or world.items.count_at(tile) <= 0:
+				continue
+			keeper.take(tile)
+			return
+
+
+func _solo_find_piece(id: StringName) -> Vector2i:
+	for entry in world.build.grid.placements:
+		if entry != null and entry["built"] and entry["def"].id == id:
+			return entry["tiles"][0]
+	return Vector2i(-1, -1)
 
 
 # --- the garden player ---------------------------------------------------------------

@@ -8,7 +8,7 @@ extends Node
 ## The checks live in dev/regressions_<group>.gd, on dev/regression_group.gd.
 ## A new check goes in the group it belongs to, and sets up anything it needs
 ## rather than counting on what an earlier check left lying about.
-const GROUPS: Array[String] = ["goods", "building", "people", "game", "garden"]
+const GROUPS: Array[String] = ["goods", "building", "people", "game", "garden", "keeper"]
 
 var failures: int = 0
 

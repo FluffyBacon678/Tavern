@@ -89,6 +89,10 @@ var delivered: Dictionary = {}
 var _trees: TreeMeshLibrary
 ## Pointer, keyboard, selection and the hover card. See WorldInput.
 var input: WorldInput
+## The keeper the player plays, once called into the world; null until then.
+var keeper: Keeper = null
+## Stepping in and out of playing the keeper, and the mouse while playing.
+var keeper_controls: KeeperControls
 ## Game time: pause, speed, and the steps every simulated system runs on.
 var sim: SimClock
 var _world_seed: int
@@ -209,6 +213,11 @@ func generate(world_seed: int) -> void:
 		move_child(input, 0)
 		input.setup(self)
 		hud.inspector.subject_changed.connect(input.on_inspected)
+	if keeper_controls == null:
+		keeper_controls = KeeperControls.new()
+		add_child(keeper_controls)
+		keeper_controls.setup(self)
+	clear_keeper()
 	bootstrap._setup_camera()
 	bootstrap._setup_build()
 	bootstrap._setup_nav()
@@ -729,7 +738,77 @@ func stock_of(id: StringName) -> int:
 		var def: ItemDef = worker.carried_def()
 		if def != null and def.id == id:
 			n += worker.carried_count()
+	# What the keeper holds is stock too: the books and the larder must agree.
+	if keeper != null and keeper.carry_def != null and keeper.carry_def.id == id:
+		n += keeper.carry_count
 	return n
+
+
+# --- the keeper ---------------------------------------------------------------------
+
+## Call the player's keeper into the world. They appear where the player is
+## looking, on open ground inside the plot. Returns false if there is nowhere.
+func spawn_keeper(at: Vector2i = Vector2i(-1, -1)) -> bool:
+	if keeper != null:
+		return true
+	if at.x < 0 or not nav.is_walkable(at):
+		at = _keeper_spot()
+	if at.x < 0:
+		return false
+	keeper = Keeper.new()
+	add_child(keeper)
+	keeper.spawn(self, at)
+	keeper.said.connect(func(text: String) -> void:
+		if hud != null:
+			hud.flash(text, 2.2))
+	return true
+
+
+## Remove the keeper without putting anything down: a load restores the goods
+## they held from the save, so dropping them here would count them twice.
+func clear_keeper() -> void:
+	if keeper_controls != null and keeper_controls.playing:
+		keeper_controls.stop()
+	if keeper == null:
+		return
+	if is_instance_valid(keeper.pawn):
+		keeper.pawn.queue_free()
+	keeper.queue_free()
+	keeper = null
+
+
+func _keeper_spot() -> Vector2i:
+	var focus: Vector3 = rig._focus_target if rig != null else Vector3.ZERO
+	var middle := Vector2i(int(focus.x / TerrainMeshBuilder.TILE), int(focus.z / TerrainMeshBuilder.TILE))
+	if not plot.has_point(middle):
+		middle = plot.position + plot.size / 2
+	for radius in range(0, 12):
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				if maxi(absi(dx), absi(dy)) != radius:
+					continue
+				var t: Vector2i = middle + Vector2i(dx, dy)
+				if plot.has_point(t) and nav.is_walkable(t):
+					return t
+	return nav.random_walkable_in(plot, RandomNumberGenerator.new())
+
+
+## Make a bench or a bar a place guests pay, or stop. Only pieces that can take
+## payments (BuildingDef.takes_payments) can.
+func set_till(index: int, on: bool) -> void:
+	if index < 0 or index >= build.grid.placements.size() or build.grid.placements[index] == null:
+		return
+	var entry: Dictionary = build.grid.placements[index]
+	if not entry["def"].takes_payments:
+		return
+	if on:
+		entry["till"] = true
+	else:
+		entry.erase("till")
+	build.grid.placement_changed.emit(index)
+	if hud != null:
+		hud.flash("Guests pay at the %s now." % entry["def"].display_name.to_lower() if on
+			else "No more payments at the %s." % entry["def"].display_name.to_lower(), 2.2)
 
 
 ## Let a member of staff go. Returns "" on success, or why not.
@@ -743,8 +822,9 @@ func stock_of(id: StringName) -> int:
 func dismiss_worker(worker: Worker) -> String:
 	if not workers.has(worker) or not is_instance_valid(worker):
 		return "They have already gone"
-	if workers.size() <= 1:
-		return "Keep at least one pair of hands"
+	# The keeper is a pair of hands too: with them in the world, everyone can go.
+	if workers.size() <= 1 and keeper == null:
+		return "Keep at least one pair of hands, or take control and run it yourself"
 	worker._give_up()
 	if worker.carried_count() > 0:
 		return "%s has nowhere to put down what they are carrying" % worker.pawn.pawn_name

@@ -55,6 +55,9 @@ static func capture(world: TavernWorld) -> Dictionary:
 		"sold": _stringify_keys(world.sold),
 		"ledger": _capture_ledger(world),
 		"pawns": _capture_pawns(world),
+		# The keeper, if the player has called them in: where they stand, what
+		# they hold, and whether the player was playing them.
+		"keeper": _capture_keeper(world),
 		"production": {"produced": _stringify_keys(world.generator.produced),
 			"consumed": _stringify_keys(world.generator.consumed)},
 		"customers": CustomerSnapshot.capture(world.customers) if world.customers != null else {},
@@ -84,7 +87,16 @@ static func _capture_buildings(world: TavernWorld) -> Array:
 			"crop": String(entry.get("crop", "")),
 			"growth": float(entry.get("growth", -1.0)),
 			"harvest_remaining": int(entry.get("harvest_remaining", -1)),
+			"till": bool(entry.get("till", false)),
 		})
+	return out
+
+
+static func _capture_keeper(world: TavernWorld) -> Dictionary:
+	if world.keeper == null or not is_instance_valid(world.keeper.pawn):
+		return {}
+	var out: Dictionary = world.keeper.to_save()
+	out["playing"] = world.keeper_controls != null and world.keeper_controls.playing
 	return out
 
 
@@ -334,6 +346,15 @@ static func _validation_error(data: Dictionary) -> String:
 			var def: ItemDef = ItemCatalog.get_def(StringName(cargo["id"]))
 			if def == null or int(cargo["count"]) <= 0 or int(cargo["count"]) > def.stack_size:
 				return "Saved worker cargo cannot be restored."
+	var keeper = data.get("keeper", {})
+	if not keeper is Dictionary:
+		return "The saved keeper is invalid."
+	if not keeper.is_empty():
+		var at = keeper.get("tile")
+		if not at is Array or at.size() != 2 or not _integer(at[0]) or not _integer(at[1]):
+			return "The saved keeper's position is invalid."
+		if not keeper.get("carry", {}) is Dictionary:
+			return "What the saved keeper holds is invalid."
 	for bill in data["bills"].values():
 		if not bill is Dictionary or not _integer(bill.get("target")) or not _integer(bill.get("resume_below")) \
 				or not bill.get("enabled") is bool or not bill.get("paused") is bool:
@@ -378,7 +399,9 @@ static func apply(world: TavernWorld, data: Dictionary) -> void:
 	if data.get("sold") is Dictionary:
 		for id in data["sold"]:
 			world.sold[StringName(id)] = int(data["sold"][id])
+	world.clear_keeper()
 	_apply_pawns(world, data.get("pawns", []))
+	_apply_keeper(world, data.get("keeper", {}))
 
 	if world.customers != null:
 		world.customers.reputation.from_save(data.get("reputation", {}))
@@ -485,6 +508,8 @@ static func _apply_buildings(world: TavernWorld, rows: Array) -> void:
 		)
 		if index >= 0 and row.has("filter"):
 			world.build.grid.set_filter(index, row["filter"])
+		if index >= 0 and bool(row.get("till", false)) and def.takes_payments:
+			world.build.grid.placements[index]["till"] = true
 		if index >= 0 and def.id == &"farm_plot":
 			var entry: Dictionary = world.build.grid.placements[index]
 			if Farm.CROPS.has(StringName(row.get("crop", ""))):
@@ -492,6 +517,17 @@ static func _apply_buildings(world: TavernWorld, rows: Array) -> void:
 			entry["growth"] = clampf(float(row.get("growth", -1.0)), -1.0, 1.0)
 			if Farm.growth_of(entry) >= 1.0 and int(row.get("harvest_remaining", -1)) > 0:
 				entry["harvest_remaining"] = clampi(int(row["harvest_remaining"]), 1, int(Farm.YIELD[Farm.crop_of(entry)]))
+
+
+static func _apply_keeper(world: TavernWorld, data: Dictionary) -> void:
+	if data.is_empty():
+		return
+	var at := Vector2i(int(data["tile"][0]), int(data["tile"][1]))
+	if not world.spawn_keeper(at):
+		return
+	world.keeper.restore_carry(data.get("carry", {}))
+	if bool(data.get("playing", false)) and world.keeper_controls != null:
+		world.keeper_controls.start()
 
 
 static func _apply_items(world: TavernWorld, rows: Array) -> void:

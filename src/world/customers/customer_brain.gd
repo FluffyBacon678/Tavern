@@ -317,14 +317,15 @@ func _sellable(id: StringName) -> int:
 	return items.total_of(id)
 
 
-func _place_order() -> bool:
+## `only`, when given, is all they may choose from: what is on the counters.
+func _place_order(only: Dictionary = {}) -> bool:
 	order.clear()
 	# One dish and a drink or two, from whatever the kitchen has. With only
 	# bread and beer on, the dice are rolled exactly as they always were.
 	var foods: Array[StringName] = []
 	var drinks: Array[StringName] = []
 	for id in CustomerDirector.menu_ids():
-		if _sellable(id) <= 0:
+		if _sellable(id) <= 0 or (not only.is_empty() and not only.has(id)):
 			continue
 		var def: ItemDef = ItemCatalog.get_def(id)
 		if def.tags.has("drink"):
@@ -653,13 +654,18 @@ func unserved() -> Array:
 ## a meal after all is waited on as ever, the order rolled again when the
 ## waiter comes; and in a tavern with no drink on a bar, nothing is rolled here.
 func _to_the_bar() -> bool:
-	if not guest_type.prefers_bar() or director == null or not director.has_method("bar_stand"):
+	if director == null or not director.has_method("bar_stand"):
 		return false
-	if not director.has_bar_drinks() or not _place_order():
+	# Nobody on the books to take an order: everyone goes up to the bar or the
+	# till, and buys from what is on it. Otherwise only the hurried, for drinks.
+	var no_waiter: bool = director.has_method("takes_orders") and not director.takes_orders()
+	if not no_waiter and not guest_type.prefers_bar():
+		return false
+	if not director.has_bar_drinks() or not _place_order(director.walkup_goods() if no_waiter else {}):
 		return false
 	for line in order:
 		var def: ItemDef = ItemCatalog.get_def(line["id"])
-		if def == null or not def.tags.has("drink"):
+		if def == null or (not no_waiter and not def.tags.has("drink")):
 			order.clear()
 			return false
 	var stand: Vector2i = director.bar_stand(order, pawn.tile)

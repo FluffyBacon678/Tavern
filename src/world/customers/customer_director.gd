@@ -164,14 +164,15 @@ const BILL_WORK: float = 1.5
 
 
 ## Every tile a waiter collects from: the serving counters, where the kitchen
-## plates each order, and the bars, which keep drinks. Without a counter,
-## waiters fetch from wherever the stock is, as they always did.
+## plates each order, the bars, which keep drinks, and the tills, which keep
+## whatever the keeper put out. Without a counter, waiters fetch from wherever
+## the stock is, as they always did.
 func pass_tiles() -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	if build_grid == null:
 		return out
 	for entry in build_grid.placements:
-		if entry == null or not entry["built"] or not (entry["def"].furniture_role in [&"counter", &"bar"]):
+		if entry == null or not entry["built"] or not (entry["def"].furniture_role in [&"counter", &"bar"] or entry.get("till", false)):
 			continue
 		for tile in entry["tiles"]:
 			out.append(tile)
@@ -390,24 +391,68 @@ static func bar_drinks(def: BuildingDef) -> Array[StringName]:
 	return out
 
 
-## Is there a drink to be had on any bar?
-func has_bar_drinks() -> bool:
+## Everywhere a guest can walk up, buy and pay: every bar, and every till the
+## keeper has made of a bench or a bar. {index, tiles}.
+func walkups() -> Array:
+	var out: Array = []
+	if build_grid == null:
+		return out
+	for i in range(build_grid.placements.size()):
+		var entry = build_grid.placements[i]
+		if entry != null and entry["built"] and (entry["def"].furniture_role == &"bar" or entry.get("till", false)):
+			out.append({"index": i, "tiles": entry["tiles"]})
+	return out
+
+
+## What is for sale on the bars' and tills' counters: id -> how many.
+func walkup_goods() -> Dictionary:
+	var out: Dictionary = {}
 	if items == null:
-		return false
-	for bar in bars():
-		for tile in bar["tiles"]:
+		return out
+	var menu: Array[StringName] = menu_ids()
+	for spot in walkups():
+		for tile in spot["tiles"]:
 			var def: ItemDef = items.def_at(tile)
-			if def != null and def.tags.has("drink") and items.available_at(tile) > 0:
-				return true
+			if def != null and menu.has(def.id) and items.available_at(tile) > 0:
+				out[def.id] = int(out.get(def.id, 0)) + items.available_at(tile)
+	return out
+
+
+## Is there anything to be had on a bar or a till?
+func has_bar_drinks() -> bool:
+	return not walkup_goods().is_empty()
+
+
+## Is anybody on the books who takes orders at the table? With nobody, guests
+## buy at the bar or the till, or not at all.
+var staff: Array = []
+
+
+func takes_orders() -> bool:
+	for worker in staff:
+		if is_instance_valid(worker) and worker.priority_for(WorkType.Kind.SERVE) != WorkType.PRIORITY_OFF:
+			return true
 	return false
 
 
-## Where to stand to fetch `order` at the nearest bar holding every line of
-## it, or (-1, -1) when no bar does.
+## The tiles of every till.
+func tills() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	if build_grid == null:
+		return out
+	for entry in build_grid.placements:
+		if entry != null and entry["built"] and entry.get("till", false):
+			for tile in entry["tiles"]:
+				out.append(tile)
+	return out
+
+
+## Where to stand to fetch `order` at the nearest bar or till holding every
+## line of it, or (-1, -1) when none does.
 func bar_stand(order: Array, from: Vector2i) -> Vector2i:
 	var best := Vector2i(-1, -1)
 	var best_distance: int = 1 << 30
-	for bar in bars():
+	for bar in walkups():
 		var has_all: bool = true
 		for line in order:
 			var found: bool = false
@@ -429,10 +474,10 @@ func bar_stand(order: Array, from: Vector2i) -> Vector2i:
 	return best
 
 
-## The tiles holding `id` on the bar that a guest standing at `tile` is at.
+## The tiles holding `id` on the bar or till a guest standing at `tile` is at.
 func bar_tiles_at(tile: Vector2i, id: StringName) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
-	for bar in bars():
+	for bar in walkups():
 		var here: bool = false
 		for t in bar["tiles"]:
 			here = here or ItemWorld._chebyshev(t, tile) <= 1
@@ -638,7 +683,7 @@ func _generate_serve_jobs() -> void:
 	var counters: Array = _counters()
 	var plated: bool = not counters.is_empty()
 	var bar_tiles: Dictionary = {}
-	for bar in bars():
+	for bar in walkups():
 		for tile in bar["tiles"]:
 			bar_tiles[tile] = true
 	if plated:

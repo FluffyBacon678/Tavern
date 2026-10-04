@@ -125,7 +125,7 @@ func scan() -> void:
 					_bank_tiles_this_scan[tile] = true
 	_pass_tiles_this_scan.clear()
 	for entry in build.grid.placements:
-		if entry != null and entry["built"] and entry["def"].furniture_role in [&"counter", &"bar"]:
+		if entry != null and entry["built"] and (entry["def"].furniture_role in [&"counter", &"bar"] or entry.get("till", false)):
 			for tile in entry["tiles"]:
 				_pass_tiles_this_scan[tile] = true
 	if _reach_dirty:
