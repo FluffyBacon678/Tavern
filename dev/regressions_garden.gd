@@ -59,6 +59,16 @@ func _check_meshes() -> void:
 		counts.append("%s %d" % [id, tris])
 		check(tris > 0 and tris <= (TILE_BUDGET if TILES.has(id) else PROP_BUDGET),
 			"%s stays inside its budget (%d triangles)" % [id, tris])
+		if id == &"bar_table":
+			var bar_box: AABB = mesh.get_aabb()
+			check(bar_box.position.x >= 0 and bar_box.end.x <= 2.001 and bar_box.position.z >= 0
+				and bar_box.end.z <= 1.001, "bar fittings stay inside the unchanged 2 x 1 footprint")
+			var clear: bool = true
+			for v in vertices:
+				if v.y > 0.951:
+					for x in [0.5, 1.5]:
+						clear = clear and Vector2(v.x - x, v.z - 0.5).length() >= 0.18
+			check(clear, "bar taps and bottles leave both drink centres clear above the .95 counter")
 		# Seen from the management camera, the top of a tile has to face up: a
 		# flat face wound the wrong way vanishes from above.
 		if TILES.has(id):
