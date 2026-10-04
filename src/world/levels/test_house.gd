@@ -32,9 +32,10 @@ const FRONT_GARDEN_AT := Vector2i(14, 11)
 const FRONT_GARDEN: Array[String] = [
 	"XTTTTTTTX",
 	"TTTTTTTTT",
-	"DBBBDBBBD",
+	"NBUBRBVBN",
 ]
-const FRONT_KEYS: Dictionary = {"T": &"lawn_trimmed", "X": &"bed_mixed", "B": &"bed_border", "D": &"bed_daisy"}
+const FRONT_KEYS: Dictionary = {"T": &"lawn_trimmed", "X": &"bed_mixed", "B": &"bed_border", "D": &"bed_daisy",
+	"U": &"bed_tulips", "V": &"bed_lavender", "R": &"bed_roses", "N": &"bed_sunflowers"}
 const BAR := Vector2i(15, 12)
 const PARASOL := Vector2i(19, 12)
 const LANTERN := Vector2i(21, 11)

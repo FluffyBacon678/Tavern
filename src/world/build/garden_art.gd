@@ -33,6 +33,14 @@ const LUPIN_LIGHT := Color("9a80d8")
 const EYE := Color("f0b72e")
 const ROCK := Color("8e8c86")
 const ROCK_DARK := Color("6f6d68")
+const TULIP_PINK := Color("e27aa0")
+const ROSE_RED := Color("b8323d")
+const ROSE_PINK := Color("e48aa6")
+const LAVENDER := Color("8e78c8")
+const LAVENDER_LEAF := Color("7d9466")
+const SUNFLOWER := Color("f2b72e")
+const SUNFLOWER_EYE := Color("5a3a1c")
+const KERB := Color("8c877d")
 
 
 ## The mesh for a garden tile or prop, by its id.
@@ -62,14 +70,9 @@ static func build(mb: MeshBuilder, id: StringName, w: float, d: float, h: float,
 				_pebble(mb, rng, Vector2(rng.randf_range(0.35, 0.75), rng.randf_range(0.3, 0.75)))
 			for spot in [Vector2(0.14, 0.16), Vector2(0.86, 0.86), Vector2(0.16, 0.86), Vector2(0.86, 0.12)]:
 				_tuft(mb, rng, spot, 4, 0.08, 0.14)
-		&"stone_path":
-			_stone_path(mb, rng)
-		&"garden_path":
-			_base(mb, DIRT, SOIL_DARK)
-			for i in range(5):
-				_blob_patch(mb, rng, Vector2(rng.randf_range(0.15, 0.85), rng.randf_range(0.15, 0.85)), 0.07, DIRT_DARK, 0.003)
-			for i in range(6):
-				_pebble(mb, rng, Vector2(rng.randf_range(0.1, 0.9), rng.randf_range(0.1, 0.9)))
+		&"stone_path", &"garden_path":
+			# On its own (menu, placing ghost): edged all round.
+			path(mb, id, 0, 0)
 		&"bed_daisy":
 			_base(mb, BED)
 			_ground_cover(mb, rng, 9)
@@ -94,6 +97,29 @@ static func build(mb: MeshBuilder, id: StringName, w: float, d: float, h: float,
 			for i in range(4):
 				_flower(mb, Vector2(0.14 + 0.24 * i, 0.5), 0.12, PETAL_RED if i % 2 == 0 else PETAL_WHITE, 0.09, 7)
 				_flower(mb, Vector2(0.22 + 0.19 * i, 0.78), 0.1, PETAL_WHITE if i % 2 == 0 else PETAL_RED, 0.085, 7)
+		&"bed_tulips":
+			_base(mb, BED)
+			_ground_cover(mb, rng, 8)
+			var tulips: Array[Color] = [PETAL_RED, PETAL_YELLOW, TULIP_PINK]
+			var k: int = 0
+			for p in _grid_spots(3, 0.17):
+				_tulip(mb, p + _jitter(rng, 0.04), 0.15 + rng.randf() * 0.05, tulips[k % tulips.size()])
+				k += 1
+		&"bed_lavender":
+			_base(mb, BED)
+			for p in [Vector2(0.27, 0.27), Vector2(0.73, 0.3), Vector2(0.3, 0.72), Vector2(0.72, 0.72)]:
+				_lavender(mb, rng, p + _jitter(rng, 0.03))
+		&"bed_roses":
+			_base(mb, BED)
+			_ground_cover(mb, rng, 6)
+			_rose_bush(mb, rng, Vector2(0.3, 0.3), ROSE_RED)
+			_rose_bush(mb, rng, Vector2(0.7, 0.36), ROSE_PINK)
+			_rose_bush(mb, rng, Vector2(0.45, 0.72), ROSE_RED)
+		&"bed_sunflowers":
+			_base(mb, BED)
+			_ground_cover(mb, rng, 6)
+			for p in [Vector2(0.26, 0.26), Vector2(0.72, 0.3), Vector2(0.3, 0.72), Vector2(0.74, 0.74)]:
+				_sunflower(mb, p + _jitter(rng, 0.03), 0.48 + rng.randf() * 0.12)
 		&"grass_tall":
 			_base(mb, MEADOW)
 			for p in _grid_spots(4, 0.12):
@@ -193,7 +219,8 @@ static func _ground_cover(mb: MeshBuilder, rng: RandomNumberGenerator, n: int) -
 
 
 ## A flower: a stem, and a flat ring of petals facing the sky, with an eye.
-static func _flower(mb: MeshBuilder, at: Vector2, tall: float, petals: Color, radius: float, count: int) -> void:
+static func _flower(mb: MeshBuilder, at: Vector2, tall: float, petals: Color, radius: float, count: int,
+		eye: Color = EYE) -> void:
 	var top := Vector3(at.x, TILE_HEIGHT + tall, at.y)
 	mb.add_limb(Vector3(at.x, TILE_HEIGHT, at.y), top, 0.008, 0.006, 3, BLADE_DARK)
 	for i in range(count):
@@ -204,7 +231,7 @@ static func _flower(mb: MeshBuilder, at: Vector2, tall: float, petals: Color, ra
 			top + Vector3(cos(a0) * radius * 0.55, 0.004, sin(a0) * radius * 0.55),
 			top + Vector3(cos(am) * radius, 0.006, sin(am) * radius),
 			top + Vector3(cos(a1) * radius * 0.55, 0.004, sin(a1) * radius * 0.55)], petals)
-	mb.add_blob(top + Vector3(0, 0.01, 0), Vector3(radius * 0.32, radius * 0.22, radius * 0.32), 2, 5, EYE)
+	mb.add_blob(top + Vector3(0, 0.01, 0), Vector3(radius * 0.32, radius * 0.22, radius * 0.32), 2, 5, eye)
 	_leaf(mb, Vector3(at.x, TILE_HEIGHT + tall * 0.25, at.y), Vector3(at.x + radius, TILE_HEIGHT + tall * 0.45, at.y + radius * 0.4), 0.03, BLADE)
 
 
@@ -220,6 +247,51 @@ static func _lupin(mb: MeshBuilder, at: Vector2, tall: float) -> void:
 		mb.add_blob(base + Vector3(0, y, 0), Vector3(r, r * 1.3, r), 2, 5, LUPIN.lerp(LUPIN_LIGHT, t))
 	for side in [-1.0, 1.0]:
 		_leaf(mb, base + Vector3(0, 0.02, 0), base + Vector3(side * 0.09, 0.07, 0.03), 0.04, BLADE)
+
+
+## A tulip: a stem, two strap leaves, and a closed cup of a flower.
+static func _tulip(mb: MeshBuilder, at: Vector2, tall: float, colour: Color) -> void:
+	var base := Vector3(at.x, TILE_HEIGHT, at.y)
+	var top: Vector3 = base + Vector3(0, tall, 0)
+	mb.add_limb(base, top, 0.008, 0.006, 3, BLADE_DARK)
+	_leaf(mb, base + Vector3(0, 0.01, 0), base + Vector3(0.05, tall * 0.55, 0.02), 0.035, BLADE)
+	_leaf(mb, base + Vector3(0, 0.01, 0), base + Vector3(-0.04, tall * 0.45, -0.03), 0.03, BLADE)
+	mb.add_blob(top + Vector3(0, 0.024, 0), Vector3(0.032, 0.045, 0.032), 2, 6, colour)
+	mb.add_cone(top + Vector3(0, 0.05, 0), 0.025, 0.028, 5, colour.lightened(0.12), false)
+
+
+## A lavender clump: grey-green leaves and purple spikes fanning out.
+static func _lavender(mb: MeshBuilder, rng: RandomNumberGenerator, at: Vector2) -> void:
+	var base := Vector3(at.x, TILE_HEIGHT, at.y)
+	mb.add_blob(base + Vector3(0, 0.03, 0), Vector3(0.1, 0.04, 0.1), 2, 6, LAVENDER_LEAF)
+	for i in range(6):
+		var a: float = TAU * float(i) / 6.0 + rng.randf_range(-0.3, 0.3)
+		var lean: float = rng.randf_range(0.04, 0.09)
+		var tip := Vector3(clampf(at.x + cos(a) * lean, 0.04, 0.96), TILE_HEIGHT + rng.randf_range(0.2, 0.3),
+			clampf(at.y + sin(a) * lean, 0.04, 0.96))
+		mb.add_limb(base + Vector3(0, 0.03, 0), tip, 0.005, 0.004, 3, LAVENDER_LEAF)
+		mb.add_blob(tip.lerp(base, 0.14), Vector3(0.017, 0.045, 0.017), 2, 4, LAVENDER.lerp(Color.WHITE, rng.randf() * 0.15))
+
+
+## A rose bush: a leafy mound dotted with blooms.
+static func _rose_bush(mb: MeshBuilder, rng: RandomNumberGenerator, at: Vector2, colour: Color) -> void:
+	var c := Vector3(at.x, TILE_HEIGHT, at.y)
+	mb.add_blob(c + Vector3(0, 0.1, 0), Vector3(0.15, 0.11, 0.15), 2, 6, LEAF)
+	mb.add_blob(c + Vector3(0.04, 0.16, -0.03), Vector3(0.1, 0.08, 0.1), 2, 5, BLADE_DARK)
+	for i in range(6):
+		var a: float = TAU * float(i) / 6.0 + rng.randf_range(-0.3, 0.3)
+		var r: float = rng.randf_range(0.05, 0.11)
+		var p: Vector3 = c + Vector3(cos(a) * r, 0.16 + rng.randf() * 0.06, sin(a) * r)
+		mb.add_blob(p, Vector3(0.03, 0.024, 0.03), 2, 5, colour.lightened(rng.randf() * 0.1))
+
+
+## A sunflower: a tall stem, broad leaves, and a big face turned to the sky.
+static func _sunflower(mb: MeshBuilder, at: Vector2, tall: float) -> void:
+	var base := Vector3(at.x, TILE_HEIGHT, at.y)
+	_leaf(mb, base + Vector3(0, tall * 0.35, 0), base + Vector3(0.1, tall * 0.42, 0.04), 0.06, BLADE)
+	_leaf(mb, base + Vector3(0, tall * 0.55, 0), base + Vector3(-0.09, tall * 0.6, -0.05), 0.055, BLADE)
+	_flower(mb, at, tall, SUNFLOWER, 0.11, 12, SUNFLOWER_EYE)
+	mb.add_blob(base + Vector3(0, tall + 0.012, 0), Vector3(0.05, 0.012, 0.05), 2, 6, SUNFLOWER_EYE)
 
 
 static func _bush(mb: MeshBuilder, at: Vector3, size: float) -> void:
@@ -412,6 +484,86 @@ static func _canopy_quad(mb: MeshBuilder, a: Vector3, b: Vector3, c: Vector3, d:
 static func _both_sides(mb: MeshBuilder, a: Vector3, b: Vector3, c: Vector3, colour: Color) -> void:
 	mb.add_tri(a, b, c, colour)
 	mb.add_tri(a, c, b, colour.darkened(0.12))
+
+
+# --- paths ----------------------------------------------------------------------
+
+## A path tile drawn for its neighbours: open toward more path, and edged where
+## it meets anything else -- a grass verge on a dirt path, kerb stones on a
+## stone one. `mask` bits as for fences (1 north, 2 east, 4 south, 8 west);
+## `variant` varies the detail, so a long path does not repeat.
+static func path(mb: MeshBuilder, id: StringName, mask: int, variant: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(String(id)) + variant * 7919 + mask * 104729
+	mb.surface_style = TavernMaterials.Surface.PLAIN
+	if id == &"stone_path":
+		_stone_path(mb, rng)
+		mb.surface_style = TavernMaterials.Surface.STONE
+		for side in range(4):
+			if mask & (1 << side) == 0:
+				_kerb(mb, rng, side)
+		mb.surface_style = TavernMaterials.Surface.PLAIN
+		return
+	_base(mb, DIRT, SOIL_DARK)
+	for i in range(4):
+		_blob_patch(mb, rng, Vector2(rng.randf_range(0.2, 0.8), rng.randf_range(0.2, 0.8)), 0.07, DIRT_DARK, 0.003)
+	# Cart ruts where the way runs straight on.
+	var along_z: bool = mask & 5 != 0 and mask & 10 == 0
+	var along_x: bool = mask & 10 != 0 and mask & 5 == 0
+	if along_z or along_x:
+		for at in [0.33, 0.67]:
+			var a := Vector3(at - 0.03, TILE_HEIGHT + 0.004, 0.0) if along_z else Vector3(0.0, TILE_HEIGHT + 0.004, at - 0.03)
+			var b := Vector3(at + 0.03, TILE_HEIGHT + 0.004, 1.0) if along_z else Vector3(1.0, TILE_HEIGHT + 0.004, at + 0.03)
+			_flat(mb, [Vector3(a.x, a.y, a.z), Vector3(b.x, a.y, a.z), Vector3(b.x, a.y, b.z), Vector3(a.x, a.y, b.z)],
+				DIRT_DARK.darkened(0.06))
+	for i in range(5):
+		_pebble(mb, rng, Vector2(rng.randf_range(0.18, 0.82), rng.randf_range(0.18, 0.82)))
+	for side in range(4):
+		if mask & (1 << side) == 0:
+			_verge(mb, rng, side)
+
+
+## A point on a tile from (along an edge, in from it), for one side.
+static func _edge_point(side: int, u: float, v: float, y: float) -> Vector3:
+	match side:
+		0: return Vector3(u, y, v)
+		1: return Vector3(1.0 - v, y, u)
+		2: return Vector3(u, y, 1.0 - v)
+	return Vector3(v, y, u)
+
+
+## Grass coming down to a dirt path's edge, its inner line uneven, with tufts.
+static func _verge(mb: MeshBuilder, rng: RandomNumberGenerator, side: int) -> void:
+	var y: float = TILE_HEIGHT + 0.005 + 0.0006 * float(side)
+	var steps: int = 6
+	var depth: Array[float] = []
+	for i in range(steps + 1):
+		depth.append(rng.randf_range(0.09, 0.17))
+	for i in range(steps):
+		var u0: float = float(i) / float(steps)
+		var u1: float = float(i + 1) / float(steps)
+		var colour: Color = LAWN.darkened(0.04 + 0.05 * float(i % 2))
+		_up_tri(mb, _edge_point(side, u0, 0.0, y), _edge_point(side, u1, 0.0, y), _edge_point(side, u1, depth[i + 1], y), colour)
+		_up_tri(mb, _edge_point(side, u0, 0.0, y), _edge_point(side, u1, depth[i + 1], y), _edge_point(side, u0, depth[i], y), colour)
+	for i in range(3):
+		var p: Vector3 = _edge_point(side, rng.randf_range(0.12, 0.88), 0.05, 0.0)
+		_tuft(mb, rng, Vector2(p.x, p.z), 3, 0.06, 0.11)
+
+
+## Kerb stones along a stone path's edge.
+static func _kerb(mb: MeshBuilder, rng: RandomNumberGenerator, side: int) -> void:
+	for k in range(4):
+		var u: float = 0.015 + 0.245 * float(k)
+		var length: float = 0.23
+		var depth: float = 0.07
+		var height: float = 0.03 + rng.randf() * 0.008
+		var colour: Color = KERB.darkened(rng.randf() * 0.12)
+		var y: float = TILE_HEIGHT - 0.004
+		match side:
+			0: mb.add_box(Vector3(u, y, 0.0), Vector3(length, height, depth), colour)
+			2: mb.add_box(Vector3(u, y, 1.0 - depth), Vector3(length, height, depth), colour)
+			3: mb.add_box(Vector3(0.0, y, u), Vector3(depth, height, length), colour)
+			_: mb.add_box(Vector3(1.0 - depth, y, u), Vector3(depth, height, length), colour)
 
 
 # --- the stone path ---------------------------------------------------------------

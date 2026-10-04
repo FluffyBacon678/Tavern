@@ -6,7 +6,8 @@ extends "res://dev/regression_group.gd"
 ##   godot --headless --path . res://dev/regressions.tscn -- group=garden
 
 const TILES: Array[StringName] = [&"lawn_trimmed", &"lawn_meadow", &"lawn_worn", &"garden_path", &"stone_path",
-	&"bed_daisy", &"bed_mixed", &"bed_border", &"grass_tall", &"grass_tall_flowers", &"grass_overgrown"]
+	&"bed_daisy", &"bed_mixed", &"bed_border", &"bed_tulips", &"bed_lavender", &"bed_roses", &"bed_sunflowers",
+	&"grass_tall", &"grass_tall_flowers", &"grass_overgrown"]
 const PROPS: Array[StringName] = [&"garden_bench", &"garden_rocks", &"garden_tree", &"garden_pine", &"lantern_post"]
 ## A table under a parasol, and a fence that joins its neighbours.
 const GARDEN_FURNITURE: Array[StringName] = [&"parasol_table", &"garden_fence"]
@@ -23,6 +24,7 @@ func run() -> void:
 	_check_idle(world)
 	_check_variety()
 	_check_bar(world)
+	_check_paths(world)
 
 
 func _check_catalogue() -> void:
@@ -75,6 +77,29 @@ func _check_meshes() -> void:
 		var arrays: Array = library.linked_mesh_for(BuildingCatalog.get_def(&"garden_fence"), mask).surface_get_arrays(0)
 		fence_most = maxi(fence_most, (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3)
 	counts.append("fence joints up to %d" % fence_most)
+	# Every shape of path joint, in each of its four looks: inside its tile,
+	# facing the sky, and cheap.
+	for id in [&"garden_path", &"stone_path"]:
+		var most: int = 0
+		var bad: PackedStringArray = PackedStringArray()
+		for mask in range(16):
+			for variant in range(4):
+				var mesh: Mesh = library.linked_mesh_for(BuildingCatalog.get_def(id), mask, variant)
+				var arrays: Array = mesh.surface_get_arrays(0)
+				var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+				var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+				most = maxi(most, vertices.size() / 3)
+				for i in range(0, vertices.size(), 3):
+					var flat: bool = absf(vertices[i].y - vertices[i + 1].y) < 0.001 and absf(vertices[i].y - vertices[i + 2].y) < 0.001
+					if flat and vertices[i].y >= GardenArt.TILE_HEIGHT - 0.0005 and normals[i].y < -0.5:
+						bad.append("%d/%d faces down" % [mask, variant])
+						break
+				var box: AABB = mesh.get_aabb()
+				if box.position.x < -0.001 or box.end.x > 1.001 or box.position.z < -0.001 or box.end.z > 1.001:
+					bad.append("%d/%d outside" % [mask, variant])
+		counts.append("%s joints up to %d" % [id, most])
+		check(bad.is_empty() and most <= TILE_BUDGET, "every %s joint stays in its tile, faces the sky and in budget (%d)%s" % [
+			id, most, "" if bad.is_empty() else ": " + ", ".join(bad)])
 	check(fence_most <= PROP_BUDGET, "every shape of fence joint stays inside the budget (%d)" % fence_most)
 	TestOutput.detail("  triangles: %s" % ", ".join(counts))
 
@@ -281,3 +306,26 @@ func _check_bar(world: TavernWorld) -> void:
 		world.build._rebuild_instances(BuildingCatalog.get_def(id))
 	world.nav.refresh_all()
 	world.customers.seating.refresh()
+
+
+## Paths join any path and are edged where they meet anything else.
+func _check_paths(world: TavernWorld) -> void:
+	var at: Vector2i = _clear_patch(world, Vector2i(4, 3))
+	check(at.x >= 0, "the fixture has room for a path")
+	if at.x < 0:
+		return
+	var dirt: BuildingDef = BuildingCatalog.get_def(&"garden_path")
+	var stone: BuildingDef = BuildingCatalog.get_def(&"stone_path")
+	var placed: Array[int] = []
+	placed.append(world.build.place_programmatic(dirt, at + Vector2i(0, 1), 0, false))
+	placed.append(world.build.place_programmatic(dirt, at + Vector2i(1, 1), 0, false))
+	placed.append(world.build.place_programmatic(stone, at + Vector2i(2, 1), 0, false))
+	placed.append(world.build.place_programmatic(BuildingCatalog.get_def(&"lawn_trimmed"), at + Vector2i(1, 0), 0, false))
+	check(world.build.link_mask(dirt, at + Vector2i(1, 1)) == 2 | 8, "a dirt path joins the path either side of it, edged where it meets lawn")
+	check(world.build.link_mask(stone, at + Vector2i(2, 1)) == 8, "a stone path runs on from a dirt one with no verge between them")
+	for index in placed:
+		if index >= 0:
+			world.build.grid.remove(index)
+	for def in [dirt, stone, BuildingCatalog.get_def(&"lawn_trimmed")]:
+		world.build._rebuild_instances(def)
+	world.nav.refresh_all()

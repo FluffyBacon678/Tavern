@@ -675,7 +675,7 @@ static func building_blurb(def: BuildingDef) -> String:
 			parts.append("as quick underfoot as a laid floor: the dearest path, and the quickest")
 		&"garden_path":
 			parts.append("a little quicker than open ground, like the road")
-		&"bed_daisy", &"bed_mixed", &"bed_border":
+		&"bed_daisy", &"bed_mixed", &"bed_border", &"bed_tulips", &"bed_lavender", &"bed_roses", &"bed_sunflowers":
 			parts.append("for the look of the place: people step round it when they can")
 		&"grass_tall", &"grass_tall_flowers", &"grass_overgrown":
 			parts.append("for the look of the place: people keep to shorter grass when they can")

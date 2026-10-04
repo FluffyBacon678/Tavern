@@ -11,7 +11,7 @@ correct one (see `docs/CURRENT_GAME_VISION.md`, "Decorative expression remains
 optional and broad"). The one thing a tile does is set the walking pace, and
 only the dearer paths are quicker than open ground.
 
-![Tile sheet](../.verification/bar_20261004/garden_sheet.png)
+![Tile sheet](../.verification/garden_20261004b/sheet.png)
 
 ![A small park beside the tavern, laid with the build bar's Garden tab](../.verification/garden_20261003/garden_park.png)
 
@@ -22,14 +22,18 @@ and the dirt road 89%.
 
 | Piece | Kind | Cost | Walking pace | Triangles |
 |---|---|---:|---:|---:|
-| Stone Path | tile | 3g | 100% | 86 |
-| Dirt Path | tile | 1g | 89% | 119 |
+| Stone Path | tile | 3g | 100% | up to 278 |
+| Dirt Path | tile | 1g | 89% | up to 220 |
 | Trimmed Lawn | tile | 1g | 78% | 65 |
 | Meadow Grass | tile | 1g | 78% | 208 |
 | Worn Grass | tile | 1g | 78% | 104 |
 | Daisy Bed | tile | 4g | 78%, walked round | 446 |
 | Mixed Flower Bed | tile | 5g | 78%, walked round | 552 |
 | Border Flower Bed | tile | 5g | 78%, walked round | 650 |
+| Tulip Bed | tile | 5g | 78%, walked round | 446 |
+| Lavender Bed | tile | 5g | 78%, walked round | 398 |
+| Rose Bed | tile | 6g | 78%, walked round | 368 |
+| Sunflower Bed | tile | 5g | 78%, walked round | 378 |
 | Tall Grass | tile | 2g | 78%, kept off | 206 |
 | Tall Grass with Flowers | tile | 2g | 78%, kept off | 344 |
 | Overgrown Plot | tile | 2g | 78%, kept off | 186 |
@@ -54,7 +58,7 @@ ends and crossings meet cleanly.
 
 ## The bar (Build → Dining)
 
-![A fenced garden with a bar on a stone square](../.verification/bar_20261004/bar_garden.png)
+![A fenced garden with a bar on a stone square](../.verification/garden_20261004b/garden.png)
 
 The **Bar Table** (2 x 1, 30g) keeps drinks on its counter, one to each tile:
 its own lemonade, pressed there, and then the other drinks on the menu (beer).
@@ -109,5 +113,10 @@ bed by the front door.
   [fence=0] [lemonade=0] [strip=ids] [hire=roles] [watch=day] [shots=dir]`:
   scripted players on the sandbox house, with switches to measure each part.
 
-Not yet: neighbour-aware path edges (worn grass tiles stand in for ragged path
-borders), and a gate for fences.
+**Paths join up.** A dirt or stone path joins any path beside it and is edged
+where it meets anything else: a grass verge with tufts on a dirt path, kerb
+stones on a stone one. A straight run of dirt path carries cart ruts. Each
+joint shape is drawn four ways, so a long path does not repeat
+(`GardenArt.path`, `BuildingDef.link_group`).
+
+Not yet: a gate for fences.

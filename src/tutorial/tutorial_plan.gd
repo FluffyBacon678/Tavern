@@ -198,7 +198,7 @@ static func steps() -> Array[TutorialStep]:
 		"counter": [[&"serving_counter"]], "host_stand": [[&"host_stand"]],
 		"fishing_spot": [[&"fishing_spot"]], "well": [[&"well"]],
 		"farm_beds": [[&"farm_plot"]], "river_pump": [[&"river_pump"]],
-		"garden": [[&"garden_path"], [&"bed_daisy", &"bed_mixed", &"bed_border"]],
+		"garden": [[&"garden_path"], [&"bed_daisy", &"bed_mixed", &"bed_border", &"bed_tulips", &"bed_lavender", &"bed_roses", &"bed_sunflowers"]],
 		"stand": [[&"bar_table"], [&"parasol_table"]],
 	}
 	for step in out:
@@ -748,7 +748,7 @@ static func _growing() -> Array[TutorialStep]:
 		"In the Garden tab, lay a Dirt Path out from the front door and a Daisy Bed beside it.",
 		"Garden tiles are floors: paths are the quickest ground, and people step round flower beds. Benches, trees and lanterns are there too.",
 		func(w, _ctx) -> bool:
-			return placed_in(w, [&"garden_path"], w.plot) >= 1 and placed_in(w, [&"bed_daisy", &"bed_mixed", &"bed_border"], w.plot) >= 1,
+			return placed_in(w, [&"garden_path"], w.plot) >= 1 and placed_in(w, [&"bed_daisy", &"bed_mixed", &"bed_border", &"bed_tulips", &"bed_lavender", &"bed_roses", &"bed_sunflowers"], w.plot) >= 1,
 		func(w, _ctx) -> void:
 			PlayerActions.select(w, &"garden_path")
 			PlayerActions.drag(w, at(w, GARDEN_PATH), at(w, GARDEN_PATH + Vector2i(0, 1)))

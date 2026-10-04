@@ -447,6 +447,13 @@ func demolish_index(index: int) -> bool:
 func _rebuild_instances(def: BuildingDef) -> void:
 	_rebuild_set(def, true, _instances, _material)
 	_rebuild_set(def, false, _blueprints, _blueprint_material)
+	# A joining piece changes how its group's other pieces are drawn: a new
+	# stone path takes the verge off the dirt path beside it.
+	if def.links and def.link_group != &"":
+		for other in BuildingCatalog.all():
+			if other != def and other.link_group == def.link_group:
+				_rebuild_set(other, true, _instances, _material)
+				_rebuild_set(other, false, _blueprints, _blueprint_material)
 
 
 ## A tile's own quarter turn, from its position: the same every time, so a
@@ -489,29 +496,37 @@ func _rebuild_set(def: BuildingDef, built: bool, store: Dictionary, material: Ma
 	mmi.multimesh = mm
 
 
-## A piece that joins its neighbours (a fence) is drawn with an arm toward
-## each side that has another of it, so corners, ends and crossings all meet
-## cleanly. One MultiMesh per shape of joint, keyed "id#mask".
+## A piece that joins its neighbours (a fence, a path) is drawn for the sides
+## that have another of it, so corners, ends and crossings all meet cleanly.
+## One MultiMesh per shape of joint, keyed "id#shape"; a tile that varies its
+## turn varies its detail instead, four ways per joint.
 const LINK_SIDES: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
 
 
 func link_mask(def: BuildingDef, tile: Vector2i) -> int:
 	var mask: int = 0
 	for i in range(LINK_SIDES.size()):
-		var index: int = grid.object_index_at(tile + LINK_SIDES[i])
-		if index >= 0 and grid.placements[index] != null and grid.placements[index]["def"].id == def.id:
+		var at: Vector2i = tile + LINK_SIDES[i]
+		var index: int = grid.floor_index_at(at) if def.layer == BuildingDef.Layer.FLOOR else grid.object_index_at(at)
+		if index < 0 or grid.placements[index] == null:
+			continue
+		var other: BuildingDef = grid.placements[index]["def"]
+		if other.id == def.id or (def.link_group != &"" and other.link_group == def.link_group):
 			mask |= 1 << i
 	return mask
 
 
 func _rebuild_linked(def: BuildingDef, entries: Array, store: Dictionary, material: Material, built: bool) -> void:
+	var variants: int = 4 if def.vary_rotation else 1
 	var by_mask: Dictionary = {}
 	for entry in entries:
-		var mask: int = link_mask(def, entry["origin"])
+		var mask: int = link_mask(def, entry["origin"]) * variants
+		if variants > 1:
+			mask += tile_turn(entry["origin"])
 		if not by_mask.has(mask):
 			by_mask[mask] = []
 		by_mask[mask].append(entry)
-	for mask in range(16):
+	for mask in range(16 * variants):
 		var key := StringName("%s#%d" % [def.id, mask])
 		var mmi: MultiMeshInstance3D = store.get(key, null)
 		if not by_mask.has(mask):
@@ -529,7 +544,7 @@ func _rebuild_linked(def: BuildingDef, entries: Array, store: Dictionary, materi
 			store[key] = mmi
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = _library.linked_mesh_for(def, mask)
+		mm.mesh = _library.linked_mesh_for(def, mask / variants, mask % variants)
 		mm.instance_count = by_mask[mask].size()
 		for i in range(by_mask[mask].size()):
 			mm.set_instance_transform(i, _placement_transform(def, by_mask[mask][i]["origin"], 0))

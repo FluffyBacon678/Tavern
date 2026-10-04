@@ -106,6 +106,9 @@ enum Shape {
 ## Joins the same piece on its four sides: drawn with an arm toward each
 ## neighbour, so a fence turns its corners instead of overhanging them.
 @export var links: bool = false
+## Joining pieces of one group join each other too: a dirt path runs on into a
+## stone one with no verge between them.
+@export var link_group: StringName = &""
 ## Storage that only ever holds these (the well: water), whatever is ticked.
 @export var stores_only: Array[StringName] = []
 

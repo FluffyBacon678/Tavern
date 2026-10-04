@@ -131,6 +131,14 @@ static func _build() -> void:
 			Vector2i.ONE, 5, false, 0.05, [Color("c8413a"), Color("547f33")] as Array[Color]),
 		BuildingDef.make("bed_border", "Border Flower Bed", "Garden", L.FLOOR, S.GARDEN_TILE,
 			Vector2i.ONE, 5, false, 0.05, [Color("7a5cc0"), Color("547f33")] as Array[Color]),
+		BuildingDef.make("bed_tulips", "Tulip Bed", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 5, false, 0.05, [Color("c8413a"), Color("547f33")] as Array[Color]),
+		BuildingDef.make("bed_lavender", "Lavender Bed", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 5, false, 0.05, [Color("8e78c8"), Color("547f33")] as Array[Color]),
+		BuildingDef.make("bed_roses", "Rose Bed", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 6, false, 0.05, [Color("b8323d"), Color("3f6f2a")] as Array[Color]),
+		BuildingDef.make("bed_sunflowers", "Sunflower Bed", "Garden", L.FLOOR, S.GARDEN_TILE,
+			Vector2i.ONE, 5, false, 0.05, [Color("f2b72e"), Color("547f33")] as Array[Color]),
 		BuildingDef.make("grass_tall", "Tall Grass", "Garden", L.FLOOR, S.GARDEN_TILE,
 			Vector2i.ONE, 2, false, 0.05, [Color("5d9637"), Color("5f9139")] as Array[Color]),
 		BuildingDef.make("grass_tall_flowers", "Tall Grass with Flowers", "Garden", L.FLOOR, S.GARDEN_TILE,
@@ -181,6 +189,7 @@ static func _build() -> void:
 		&"lawn_trimmed": ground, &"lawn_meadow": ground, &"lawn_worn": ground,
 		&"grass_tall": ground, &"grass_tall_flowers": ground, &"grass_overgrown": ground,
 		&"bed_daisy": ground, &"bed_mixed": ground, &"bed_border": ground,
+		&"bed_tulips": ground, &"bed_lavender": ground, &"bed_roses": ground, &"bed_sunflowers": ground,
 	}
 	for id in paces:
 		if _by_id.has(id):
@@ -190,6 +199,7 @@ static func _build() -> void:
 	# of where they walk, not how fast.
 	var keep_off: Dictionary = {
 		&"bed_daisy": 2.5, &"bed_mixed": 2.5, &"bed_border": 2.5,
+		&"bed_tulips": 2.5, &"bed_lavender": 2.5, &"bed_roses": 2.5, &"bed_sunflowers": 2.5,
 		&"grass_tall": 1.4, &"grass_tall_flowers": 1.4, &"grass_overgrown": 1.6,
 	}
 	for id in keep_off:
@@ -207,6 +217,11 @@ static func _build() -> void:
 	if _by_id.has(&"garden_fence"):
 		_by_id[&"garden_fence"].drag_outline = true
 		_by_id[&"garden_fence"].links = true
+	# Paths join any path, and are edged where they meet anything else.
+	for id in [&"garden_path", &"stone_path"]:
+		if _by_id.has(id):
+			_by_id[id].links = true
+			_by_id[id].link_group = &"path"
 
 	for id in [&"storage_shelf", &"barrel"]:
 		if _by_id.has(id):

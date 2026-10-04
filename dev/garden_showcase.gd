@@ -15,7 +15,7 @@ extends Node
 
 const SHEET_ROWS: Array = [
 	["GRASS TILES", [&"lawn_trimmed", &"lawn_meadow", &"lawn_worn"]],
-	["FLOWER PLOTS", [&"bed_daisy", &"bed_mixed", &"bed_border"]],
+	["FLOWER PLOTS", [&"bed_daisy", &"bed_mixed", &"bed_border", &"bed_tulips", &"bed_lavender", &"bed_roses", &"bed_sunflowers"]],
 	["HIGH GRASS PLOTS", [&"grass_tall", &"grass_tall_flowers", &"grass_overgrown"]],
 	["PATHS & PROPS", [&"garden_path", &"stone_path", &"garden_bench", &"garden_rocks", &"garden_tree", &"garden_pine", &"lantern_post"]],
 	["BAR & GARDEN TABLE", [&"bar_table", &"parasol_table", &"garden_fence"]],
@@ -24,13 +24,13 @@ const SHEET_ROWS: Array = [
 ## The bar garden, 12 x 8, the tavern side along the bottom row; fenced round
 ## the other three sides. S is the stone square the bar stands on.
 const STAND: Array[String] = [
-	"FFBBBBBBBBFF",
-	"DTTTTTTTTTTD",
-	"DTTTTPPTTTTD",
+	"NNBBRRRRBBNN",
+	"UTTTTTTTTTTV",
+	"UTTTTPPTTTTV",
 	"XTTTSSSSTTTX",
 	"XTTTSSSSTTTX",
-	"DTTTTPPTTTTD",
-	"DTTTTPPTTTTD",
+	"UTTTTPPTTTTV",
+	"UTTTTPPTTTTV",
 	"TTTTTPPTTTTT",
 ]
 ## [id, x, y, quarter turns]. The bar faces the camera, across the square.
@@ -60,6 +60,7 @@ const PARK: Array[String] = [
 const KEYS: Dictionary = {
 	"T": &"lawn_trimmed", "M": &"lawn_meadow", "W": &"lawn_worn", "P": &"garden_path", "S": &"stone_path",
 	"D": &"bed_daisy", "X": &"bed_mixed", "B": &"bed_border",
+	"U": &"bed_tulips", "V": &"bed_lavender", "R": &"bed_roses", "N": &"bed_sunflowers",
 	"G": &"grass_tall", "F": &"grass_tall_flowers", "O": &"grass_overgrown",
 }
 ## [id, x, y, quarter turns]
@@ -122,7 +123,7 @@ func _sheet() -> void:
 	var labels: Array = []  # [world point, text, is heading]
 	for r in range(SHEET_ROWS.size()):
 		var ids: Array = SHEET_ROWS[r][1]
-		var gap: float = (3.0 if r == SHEET_ROWS.size() - 1 else 2.6) if ids.size() <= 3 else 1.95
+		var gap: float = (3.0 if r == SHEET_ROWS.size() - 1 else 2.6) if ids.size() <= 3 else 2.4
 		var first: float = -gap * float(ids.size() - 1) * 0.5
 		# The stand's pieces stand tall: their row is given more room above it.
 		var row_at: Vector3 = down * (_row_offset(r) * 2.45 / foreshorten)
