@@ -72,24 +72,27 @@ static func head(skin: Color, hair: Color, style: int, hat: bool, hat_colour: Co
 	# keeps the exact shared hair/cap fit, with no saved or global mesh state.
 	var widths: Array[float] = FACE_W.duplicate()
 	var fronts: Array[float] = FACE_FRONT.duplicate()
+	var levels: Array[float] = FACE_Y.duplicate()
 	if face_type == 1:  # Soft: rounded jaw, quieter cheek projection.
-		widths[0] = 0.053
-		widths[1] = 0.083
+		levels[0] = 0.038
+		widths[0] = 0.060
+		widths[1] = 0.085
 		widths[2] = 0.094
 		fronts[0] = 0.084
 		fronts[1] = 0.099
 		fronts[2] = 0.103
 	elif face_type == 2:  # Angular: square chin and stronger cheek planes.
-		widths[0] = 0.061
-		widths[1] = 0.080
+		levels[0] = 0.019
+		widths[0] = 0.069
+		widths[1] = 0.089
 		widths[2] = 0.099
 		fronts[0] = 0.081
 		fronts[1] = 0.093
 		fronts[2] = 0.108
 	elif face_type == 3:  # Broad: wider chin, jaw and cheek line.
-		widths[0] = 0.065
-		widths[1] = 0.090
-		widths[2] = 0.101
+		widths[0] = 0.077
+		widths[1] = 0.095
+		widths[2] = 0.103
 		fronts[1] = 0.096
 		fronts[2] = 0.106
 	_loft(mb, [-0.014, 0.045], [Vector2(0.035, 0.034), Vector2(0.038, 0.037)],
@@ -99,7 +102,9 @@ static func head(skin: Color, hair: Color, style: int, hat: bool, hat_colour: Co
 	for i in range(FACE_Y.size()):
 		radii.append(Vector2(widths[i], (fronts[i] - FACE_BACK[i]) * 0.5))
 		offsets.append(Vector2(0, (fronts[i] + FACE_BACK[i]) * 0.5))
-	_loft(mb, FACE_Y, radii, offsets, [skin.darkened(0.015), skin, skin, skin])
+	# Chin height varies below .066; all facial ink begins above .075 and
+	# therefore still uses the common upper-band heights in _face_point.
+	_loft(mb, levels, radii, offsets, [skin.darkened(0.015), skin, skin, skin])
 	# Broad cheek planes, a narrower jaw and a straight bridge give the face an
 	# adult silhouette. The bridge roots remain outside the skull at both ends.
 	var base_width: float = [0.011, 0.010, 0.0105, 0.014][face_type]
@@ -134,7 +139,7 @@ static func head(skin: Color, hair: Color, style: int, hat: bool, hat_colour: Co
 		mb.add_blob(Vector3(side * (widths[2] + 0.001), 0.113, 0.008),
 			Vector3(0.012, 0.021, 0.014), 2, 5, skin.darkened(0.025))
 	_expression_mouth(mb, skin, expression, widths, fronts)
-	_hair(mb, hair, style, hat)
+	_hair(mb, hair, style, hat, widths[2])
 	if hat and hat_kind == "cook_hat":
 		KeeperWardrobeArt.cook_hat(mb)
 	elif hat and hat_kind in KeeperWardrobeArt.STAFF_HATS:
@@ -152,8 +157,8 @@ static func _expression_eye(mb: MeshBuilder, side: float, face_type: int,
 		expression: int, brow_colour: Color, ink: Color, widths: Array[float],
 		fronts: Array[float]) -> void:
 	var x: float = side * [0.043, 0.042, 0.043, 0.045][face_type]
-	var lower: float = [0.1425, 0.1445, 0.141, 0.142, 0.141][expression]
-	var upper: float = [0.1485, 0.148, 0.149, 0.1485, 0.1475][expression]
+	var lower: float = [0.141, 0.143, 0.141, 0.142, 0.141][expression]
+	var upper: float = [0.149, 0.1485, 0.149, 0.1485, 0.1475][expression]
 	var tilt: float = side * 0.0015 if expression == 4 else 0.0
 	# Every opening/lid stays below the brow ring at .151; eyebrows stay above
 	# it. Marks therefore follow one actual skull plane instead of crossing it.
@@ -207,19 +212,27 @@ static func _expression_mouth(mb: MeshBuilder, skin: Color, expression: int,
 		var left_low: float = [0.088, 0.092, 0.080, 0.081, 0.078][expression]
 		var right_low: float = [0.088, 0.092, 0.080, 0.093, 0.078][expression]
 		var thickness: float = 0.007 if expression == 1 else 0.004
-		_ink(mb, [Vector2(-half_width, left_low), Vector2(0, centre_low),
-			Vector2(0, centre_high), Vector2(-half_width + 0.002, left_low + thickness)],
+		# A short level centre makes the smile a broad curve rather than a sharp
+		# chevron. The stern mouth keeps its deliberate downturned apex.
+		var middle: float = 0.008 if expression in [0, 1] else (0.006 if expression == 3 else 0.0)
+		_ink(mb, [Vector2(-half_width, left_low), Vector2(-middle, centre_low),
+			Vector2(-middle, centre_high), Vector2(-half_width + 0.002, left_low + thickness)],
 			lip, 0.0013, widths, fronts)
-		_ink(mb, [Vector2(0, centre_low), Vector2(half_width, right_low),
-			Vector2(half_width - 0.002, right_low + thickness), Vector2(0, centre_high)],
+		_ink(mb, [Vector2(middle, centre_low), Vector2(half_width, right_low),
+			Vector2(half_width - 0.002, right_low + thickness), Vector2(middle, centre_high)],
 			lip, 0.0013, widths, fronts)
+		if middle > 0.0:
+			_ink(mb, [Vector2(-middle, centre_low), Vector2(middle, centre_low),
+				Vector2(middle, centre_high), Vector2(-middle, centre_high)], lip, 0.0013, widths, fronts)
 		if expression == 1:
 			# One shallow continuous cream band; no separate teeth or dark cavern.
 			var tooth := Color("d9c8a1")
-			_ink(mb, [Vector2(-0.026, 0.092), Vector2(0, 0.085),
-				Vector2(0, 0.089), Vector2(-0.025, 0.096)], tooth, 0.0022, widths, fronts)
-			_ink(mb, [Vector2(0, 0.085), Vector2(0.026, 0.092),
-				Vector2(0.025, 0.096), Vector2(0, 0.089)], tooth, 0.0022, widths, fronts)
+			_ink(mb, [Vector2(-0.026, 0.092), Vector2(-0.007, 0.085),
+				Vector2(-0.007, 0.089), Vector2(-0.025, 0.096)], tooth, 0.0022, widths, fronts)
+			_ink(mb, [Vector2(0.007, 0.085), Vector2(0.026, 0.092),
+				Vector2(0.025, 0.096), Vector2(0.007, 0.089)], tooth, 0.0022, widths, fronts)
+			_ink(mb, [Vector2(-0.007, 0.085), Vector2(0.007, 0.085),
+				Vector2(0.007, 0.089), Vector2(-0.007, 0.089)], tooth, 0.0022, widths, fronts)
 			lower_lip_y = 0.080
 		elif expression in [0, 3]:
 			var crease_y: float = 0.094 if expression == 3 else 0.090
@@ -259,7 +272,8 @@ static func _face_point(point: Vector2, lift: float, widths: Array[float] = FACE
 	return Vector3(point.x, point.y, fronts[-1] + lift)
 
 
-static func _hair(mb: MeshBuilder, colour: Color, style: int, covered: bool) -> void:
+static func _hair(mb: MeshBuilder, colour: Color, style: int, covered: bool,
+		cheek_width: float = 0.097) -> void:
 	# A single crown with a shaped hairline. Broad overlapping locks flow in one
 	# direction; their tips are cut, so the silhouette no longer forms three spikes.
 	var lower: Array[Vector3] = []
@@ -271,7 +285,7 @@ static func _hair(mb: MeshBuilder, colour: Color, style: int, covered: bool) -> 
 		var nape: bool = i in [0, 7]
 		# Keep the nape shell outside the cheek-to-brow rear skull profile; a
 		# shallower end briefly crossed it and exposed a horizontal scalp band.
-		var nape_width: float = 0.088 if covered else 0.079
+		var nape_width: float = (0.088 if covered else 0.079) + maxf(0.0, cheek_width - 0.097) * 1.5
 		lower.append(Vector3(CORNERS[i].x * (nape_width if nape else 0.108), hairline[i], CORNERS[i].y * (0.091 if nape else 0.104) - 0.009))
 		middle.append(Vector3(CORNERS[i].x * 0.106, 0.204 if i in [2, 3, 4, 5] else 0.196, CORNERS[i].y * 0.100 - 0.012))
 		var upper_y: float = crest + [0.0, 0.003, 0.005, 0.003, 0.009, 0.008, 0.003, -0.003][i]

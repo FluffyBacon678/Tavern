@@ -12,6 +12,12 @@ Full design is in [`docs/medieval_tavern_game_design_notes.txt`](docs/medieval_t
 
 ## Current state
 
+**2026-10-04 faces:** four distinct lower-head silhouettes and five clearer
+expressions, with broader smiles, open eyes and covered-hair fit. All 400
+appearance combinations pass the unchanged geometry budget. See
+[`docs/CHARACTER_FACES.md`](docs/CHARACTER_FACES.md) for before/after renders and
+the limits of facial readability at the management camera.
+
 **2026-10-03 adult character reference:** the ordinary keeper and modular crew
 now have a higher waist, smaller head, quieter angular face, slimmer hands and
 taller boots. Clothing, full-stride clearance, four PC preview shapes, save

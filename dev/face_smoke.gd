@@ -2,7 +2,7 @@ extends Node
 
 ## Sandboxed face geometry/profile/creator regression. Headless is supported.
 ## Optional windowed -- capture-prefix=res://.../face writes actual rendered
-## production heads, skin variants and a deliberately small management sample.
+## production heads, skin variants, fixed-scale silhouettes and covered hair.
 ## Screenshots require manual art inspection; geometry checks do not claim that
 ## a viewer can recognize a smile at the management camera's distance.
 const FACE_NAMES: Array[String] = ["Balanced", "Soft", "Angular", "Broad"]
@@ -116,6 +116,7 @@ func _check_geometry() -> void:
 	var count: int = 0
 	var unrelated_unchanged := true
 	var baseline: Array = []
+	var silhouettes: Array[Dictionary] = []
 	for face in range(FACE_NAMES.size()):
 		for expression in range(EXPRESSION_NAMES.size()):
 			var row_contract := true
@@ -138,6 +139,8 @@ func _check_geometry() -> void:
 							corner_rise_low = minf(corner_rise_low, measured["corner_rise"])
 							smiles_ok = smiles_ok and measured["mouth_width"] > 0.03 * PawnMesh.ORDINARY_HEAD_SCALE.x * 1.5 and measured["corner_rise"] > 0.001 * PawnMesh.ORDINARY_HEAD_SCALE.y
 						if skin == 1 and body == 0 and equipped.is_empty():
+							if expression == 2:
+								silhouettes.append(_skin_silhouette(rig, look))
 							var head_signature: int = _bone_signature(rig, 1)
 							signatures[head_signature] = true
 							if baseline.is_empty():
@@ -155,9 +158,75 @@ func _check_geometry() -> void:
 			if expression in [0, 1]:
 				check(smiles_ok, "%s / %s: mouth exceeds historical width by 50%% and corners rise above centre (min width %.5f, rise %.5f)" % [FACE_NAMES[face], EXPRESSION_NAMES[expression], mouth_low, corner_rise_low])
 	check(signatures.size() == 20, "all twenty face/expression pairs produce distinct actual head meshes (%d measured)" % signatures.size())
+	_check_lower_face_silhouettes(silhouettes)
 	check(unrelated_unchanged, "changing only face/expression leaves torso, hands, legs and clothing geometry identical")
 	check(randi() == expected_random, "building every face/expression leaves the global simulation RNG stream untouched")
 	print("FACE BUDGET: combinations=%d largest=%d triangles (four faces × five expressions × five skins × two builds × bare/worst hair-two travel kit)" % [count, largest_triangles])
+
+
+func _skin_silhouette(rig: PawnMesh.Rig, look: CharacterAppearance) -> Dictionary:
+	# Intersect the baked skin triangles, independently of KeeperMesh's loft
+	# radii or ring formulas. Front skin above the neck identifies the actual
+	# chin floor; sampling just above it also supports a shorter Soft chin.
+	var arrays: Array = rig.body.mesh.surface_get_arrays(0)
+	var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var colours: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+	var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+	var inverse_head: Transform3D = rig.skeleton.get_bone_rest(1).affine_inverse()
+	var skin_triangles: Array[Vector3] = []
+	var chin_floor: float = INF
+	for i in range(0, vertices.size(), 3):
+		if bones[i * 4] != 1 or bones[(i + 1) * 4] != 1 or bones[(i + 2) * 4] != 1:
+			continue
+		if not (_colour_matches(colours[i], look.skin) or _colour_matches(colours[i], look.skin.darkened(0.015))):
+			continue
+		for j in range(i, i + 3):
+			var point: Vector3 = (inverse_head * vertices[j]) / PawnMesh.ORDINARY_HEAD_SCALE
+			skin_triangles.append(point)
+			if point.z > 0.055:
+				chin_floor = minf(chin_floor, point.y)
+	var chin: Rect2 = _triangle_section(skin_triangles, chin_floor + 0.006)
+	var jaw: Rect2 = _triangle_section(skin_triangles, 0.066)
+	return {"floor": chin_floor, "chin_width": chin.size.x, "jaw_width": jaw.size.x,
+		"chin_depth": chin.size.y, "jaw_depth": jaw.size.y}
+
+
+func _triangle_section(triangles: Array[Vector3], level: float) -> Rect2:
+	var low := Vector2(INF, INF)
+	var high := Vector2(-INF, -INF)
+	for i in range(0, triangles.size(), 3):
+		for edge in range(3):
+			var a: Vector3 = triangles[i + edge]
+			var b: Vector3 = triangles[i + (edge + 1) % 3]
+			if absf(a.y - level) < 0.000001:
+				low = low.min(Vector2(a.x, a.z))
+				high = high.max(Vector2(a.x, a.z))
+			if (a.y < level and b.y > level) or (a.y > level and b.y < level):
+				var hit: Vector3 = a.lerp(b, (level - a.y) / (b.y - a.y))
+				low = low.min(Vector2(hit.x, hit.z))
+				high = high.max(Vector2(hit.x, hit.z))
+	return Rect2(low, high - low) if low.is_finite() and high.is_finite() else Rect2()
+
+
+func _check_lower_face_silhouettes(silhouettes: Array[Dictionary]) -> void:
+	check(silhouettes.size() == FACE_NAMES.size(), "all four Calm faces have measurable skin silhouettes")
+	if silhouettes.size() != FACE_NAMES.size():
+		return
+	for face in range(FACE_NAMES.size()):
+		var shape: Dictionary = silhouettes[face]
+		check(is_finite(shape["floor"]) and shape["chin_width"] > 0.08 and shape["jaw_width"] > 0.12,
+			"%s baked skin has measurable chin and jaw section bounds" % FACE_NAMES[face])
+		print("FACE SILHOUETTE: %s chin_floor=%.5f chin_width=%.5f jaw_width=%.5f chin_depth=%.5f jaw_depth=%.5f (authored units; skin triangles)" % [
+			FACE_NAMES[face], shape["floor"], shape["chin_width"], shape["jaw_width"], shape["chin_depth"], shape["jaw_depth"]])
+	for a in range(FACE_NAMES.size()):
+		for b in range(a + 1, FACE_NAMES.size()):
+			var chin_gap: float = absf(silhouettes[a]["chin_width"] - silhouettes[b]["chin_width"]) / maxf(silhouettes[a]["chin_width"], silhouettes[b]["chin_width"])
+			var jaw_gap: float = absf(silhouettes[a]["jaw_width"] - silhouettes[b]["jaw_width"]) / maxf(silhouettes[a]["jaw_width"], silhouettes[b]["jaw_width"])
+			check(maxf(chin_gap, jaw_gap) >= 0.08, "%s / %s skin silhouettes differ by at least 8%% in chin or jaw width (chin %.1f%%, jaw %.1f%%)" % [
+				FACE_NAMES[a], FACE_NAMES[b], chin_gap * 100.0, jaw_gap * 100.0])
+	var soft_floor: float = silhouettes[1]["floor"]
+	check(soft_floor >= maxf(silhouettes[0]["floor"], maxf(silhouettes[2]["floor"], silhouettes[3]["floor"])) + 0.010,
+		"Soft has a measurably shorter chin than all three other actual skin heads")
 
 
 func _rig_contract(rig: PawnMesh.Rig) -> bool:
@@ -347,6 +416,18 @@ func _capture_faces() -> void:
 			fixtures.append({"look": _look(face, expression), "label": "%s · %s" % [FACE_NAMES[face], EXPRESSION_NAMES[expression]]})
 	await _capture_sheet("faces_expressions", "Four faces · five expressions", fixtures, 4, false)
 	fixtures.clear()
+	for view in [{"label": "front", "yaw": 0.0}, {"label": "profile", "yaw": PI * 0.5}]:
+		for face in range(4):
+			fixtures.append({"look": _look(face, 2), "label": "%s · Calm · %s" % [FACE_NAMES[face], view["label"]], "yaw": view["yaw"]})
+	await _capture_sheet("calm_silhouettes", "Calm silhouettes · same camera scale in every cell", fixtures, 2, false, 4, 0.36)
+	fixtures.clear()
+	for view in [{"label": "profile", "yaw": PI * 0.5}, {"label": "rear", "yaw": PI}]:
+		for face in [1, 3]:
+			for hat in ["felt_hat", "server_cap"]:
+				fixtures.append({"look": _look(face, 2), "label": "%s · %s · %s" % [FACE_NAMES[face], "felt hat" if hat == "felt_hat" else "staff cap", view["label"]],
+					"yaw": view["yaw"], "equipped": {"head": hat}})
+	await _capture_sheet("covered_hair", "Soft and Broad · covered hair from profile and rear", fixtures, 2, false, 4, 0.43)
+	fixtures.clear()
 	for skin in range(5):
 		fixtures.append({"look": _look(0, 1, skin), "label": "Grin · skin %d" % (skin + 1)})
 	await _capture_sheet("grin_skin_tones", "Grin · every skin tone", fixtures, 1, false)
@@ -357,7 +438,8 @@ func _capture_faces() -> void:
 	print("NOTE: management_sample renders production people at a deliberately small scale; inspect readability manually. Geometry tests do not prove expression recognition.")
 
 
-func _capture_sheet(label: String, title: String, fixtures: Array[Dictionary], rows: int, management: bool) -> void:
+func _capture_sheet(label: String, title: String, fixtures: Array[Dictionary], rows: int,
+		management: bool, columns: int = 5, close_size: float = 0.0) -> void:
 	if _capture_root != null:
 		_capture_root.queue_free()
 		await _frames(2)
@@ -384,13 +466,13 @@ func _capture_sheet(label: String, title: String, fixtures: Array[Dictionary], r
 	caption.add_theme_color_override("font_color", Color("bdc5bb"))
 	_capture_root.add_child(caption)
 	var grid := GridContainer.new()
-	grid.columns = 5
+	grid.columns = columns
 	grid.add_theme_constant_override("h_separation", 10)
 	grid.add_theme_constant_override("v_separation", 8)
 	grid.position = Vector2(24, 86 if rows > 1 else (310 if management else 170))
 	_capture_root.add_child(grid)
 	var visible: Vector2 = get_viewport().get_visible_rect().size
-	var cell_width: float = (visible.x - 88) / 5.0
+	var cell_width: float = (visible.x - 48 - float(columns - 1) * 10) / columns
 	var cell_height: float = (visible.y - 110 - float(rows - 1) * 8) / rows if rows > 1 else (270.0 if management else minf(600.0, visible.y - 225.0))
 	for fixture in fixtures:
 		var cell := VBoxContainer.new()
@@ -404,7 +486,8 @@ func _capture_sheet(label: String, title: String, fixtures: Array[Dictionary], r
 		name_label.add_theme_color_override("font_color", Color("e0d6bf"))
 		cell.add_child(name_label)
 		var viewport_size := Vector2i(int(cell_width), int(cell_height - 28))
-		var viewport: SubViewport = _face_viewport(fixture["look"], viewport_size, management, String(fixture["label"]))
+		var viewport: SubViewport = _face_viewport(fixture["look"], viewport_size, management, String(fixture["label"]),
+			fixture.get("equipped", {}), float(fixture.get("yaw", -0.10)), close_size)
 		_capture_root.add_child(viewport)
 		_capture_viewports.append(viewport)
 		var picture := TextureRect.new()
@@ -424,10 +507,12 @@ func _capture_sheet(label: String, title: String, fixtures: Array[Dictionary], r
 	var pixels: Image = get_viewport().get_texture().get_image()
 	var destination: String = "%s_%s.png" % [_capture_prefix, label]
 	var result: int = pixels.save_png(destination)
-	check(result == OK, "CAPTURE %s size=%s cells=%d draws=%d primitives=%d" % [destination, pixels.get_size(), fixtures.size(), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)])
+	check(result == OK, "CAPTURE %s size=%s cells=%d" % [destination, pixels.get_size(), fixtures.size()])
 
 
-func _face_viewport(look: CharacterAppearance, viewport_size: Vector2i, management: bool, subject: String) -> SubViewport:
+func _face_viewport(look: CharacterAppearance, viewport_size: Vector2i, management: bool,
+		subject: String, equipped: Dictionary = {}, yaw: float = -0.10,
+		close_size: float = 0.0) -> SubViewport:
 	var viewport := SubViewport.new()
 	viewport.size = viewport_size
 	viewport.own_world_3d = true
@@ -456,13 +541,13 @@ func _face_viewport(look: CharacterAppearance, viewport_size: Vector2i, manageme
 	fill.light_color = Color("c4dcf0")
 	fill.light_energy = 0.13
 	stage.add_child(fill)
-	var rig: PawnMesh.Rig = PawnMesh.build_appearance(look, _material)
-	rig.root.rotation.y = -0.10
+	var rig: PawnMesh.Rig = PawnMesh.build_appearance(look, _material, equipped)
+	rig.root.rotation.y = yaw
 	stage.add_child(rig.root)
 	var camera := Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	camera.keep_aspect = Camera3D.KEEP_HEIGHT
-	camera.size = 4.4 if management else maxf(0.31, 0.25 / Vector2(viewport_size).aspect())
+	camera.size = 4.4 if management else (close_size if close_size > 0.0 else maxf(0.31, 0.25 / Vector2(viewport_size).aspect()))
 	camera.current = true
 	stage.add_child(camera)
 	var target := Vector3(0, 0.53 if management else PawnMesh.LEG_H + PawnMesh.TORSO_H + 0.11 * PawnMesh.ORDINARY_HEAD_SCALE.y, 0)
