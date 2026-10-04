@@ -422,8 +422,12 @@ static func _kitchen_and_storage() -> Array[TutorialStep]:
 		"Click a shelf, then untick all but flour and yeast.",
 		"Filters decide what a storage tile holds, so the right goods sit by the right bench.",
 		func(w, _ctx) -> bool:
+			# Exactly what it asks for. Any filter at all once passed, so a
+			# flour-only shelf -- which then refuses the yeast -- was taught as right.
 			for entry in w.build.grid.placements:
-				if entry != null and entry["def"].is_storage and not entry.get("filter", {}).is_empty():
+				var filter: Dictionary = entry.get("filter", {}) if entry != null else {}
+				if entry != null and entry["def"].is_storage and filter.size() == 2 \
+						and filter.has(&"flour") and filter.has(&"yeast"):
 					return true
 			return false,
 		func(w, _ctx) -> void:
@@ -617,7 +621,7 @@ static func _money() -> Array[TutorialStep]:
 	var out: Array[TutorialStep] = []
 	out.append(TutorialStep.make("ledger", L,
 		"Open the Ledger to see today's money: takings, tips, supplies, wages.",
-		"The running total by the clock is today's profit so far.",
+		"The figure beside the purse is today's profit so far.",
 		func(w, _ctx) -> bool: return w.hud._details_panel.visible,
 		func(w, _ctx) -> void:
 			w.hud.hover._pinned_at = Vector2(-1, -1)

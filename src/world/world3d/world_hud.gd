@@ -15,6 +15,8 @@ var _priority_panel: PriorityPanel
 var _title_label: Label
 var _clock_label: Label
 var _gold_label: Label
+## Today's profit so far, small beside the purse.
+var _today_label: Label
 var _bread_label: Label
 var _beer_label: Label
 var _staff_label: Label
@@ -165,6 +167,13 @@ func _build_hud() -> void:
 	_beer_label = _stock_chip(header_row, "beer-stein", "Beer, including carried stock")
 	_fish_label = _stock_chip(header_row, "pixel:fish", "Fish dishes: grilled fish and fish soup")
 	_gold_chip = _gold_label.get_parent()
+	# Today's running total sits with the purse it changes. It lived at the end
+	# of the clock line, whose length then pushed the header onto a second row
+	# at 1920 x 1080 every busy lunchtime.
+	_today_label = Label.new()
+	_today_label.add_theme_font_size_override("font_size", 12)
+	_today_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_gold_chip.add_child(_today_label)
 	_bread_chip = _bread_label.get_parent()
 	_beer_chip = _beer_label.get_parent()
 	_fish_chip = _fish_label.get_parent()
@@ -905,6 +914,9 @@ func refresh_stats() -> void:
 		_owner_button.tooltip_text = "%s: appearance and wardrobe" % owner_name
 	_clock_label.text = _clock_summary()
 	_gold_label.text = "%dg" % GameState.gold
+	var running: int = world.ledger.profit()
+	_today_label.text = "%s%dg today" % ["+" if running >= 0 else "", running]
+	_today_label.add_theme_color_override("font_color", Color("9fcf7a") if running >= 0 else Color("e08a72"))
 	_bread_label.text = str(world.stock_of(&"bread"))
 	_beer_label.text = str(world.stock_of(&"beer"))
 	# Fish only once the tavern has something to do with it.
@@ -1013,16 +1025,13 @@ func _built_count() -> int:
 	return world.build.grid.live_count() if world.build != null else 0
 
 
-## Day, clock and where the day's profit currently stands, so the player can see
-## trouble coming rather than only being told about it at closing time.
+## Day, clock and the part of the day. Where the day's profit stands is beside
+## the purse, so the player can see trouble coming rather than only being told
+## about it at closing time.
 func _clock_summary() -> String:
 	if world.clock == null:
 		return ""
-	var running: int = world.ledger.profit()
-	return "Day %d · %s · %s · day so far %s%dg" % [
-		world.clock.day, world.clock.clock_text(), world.clock.phase_text(),
-		"+" if running >= 0 else "", running
-	]
+	return "Day %d · %s · %s" % [world.clock.day, world.clock.clock_text(), world.clock.phase_text()]
 
 
 ## Everything physically present, so the economy is readable while it runs.

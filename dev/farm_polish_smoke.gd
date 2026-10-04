@@ -110,6 +110,37 @@ func _ready() -> void:
 		check(not lesson.done.call(world, ctx), "an existing well does not complete tutorial construction practice")
 		PlayerActions.place_all(world, &"well", [TutorialPlan.well_spot(world)])
 		check(lesson.done.call(world, ctx), "placing a new well through player controls completes practice")
+	# The shelf lesson asks for flour and yeast, and only that completes it.
+	for lesson in TutorialPlan.steps():
+		if lesson.id != "filter":
+			continue
+		var shelf: int = -1
+		for i in range(world.build.grid.placements.size()):
+			var piece = world.build.grid.placements[i]
+			if piece != null and piece["def"].is_storage:
+				shelf = i
+				break
+		if shelf < 0:
+			for x in range(world.plot.position.x + 2, world.plot.end.x - 2):
+				var spot := Vector2i(x, world.plot.position.y + 4)
+				shelf = world.build.place_programmatic(BuildingCatalog.get_def(&"storage_shelf"), spot, 0, false)
+				if shelf >= 0:
+					break
+		var saved_filters: Dictionary = {}
+		for i in range(world.build.grid.placements.size()):
+			var piece = world.build.grid.placements[i]
+			if piece != null and piece["def"].is_storage:
+				saved_filters[i] = world.build.grid.filter_of(i).keys()
+				world.build.grid.set_filter(i, [])
+		var ctx: Dictionary = {}
+		world.build.grid.set_filter(shelf, [&"flour"])
+		check(shelf >= 0 and not lesson.done.call(world, ctx), "a flour-only shelf does not pass the flour-and-yeast lesson")
+		world.build.grid.set_filter(shelf, [&"flour", &"yeast", &"water"])
+		check(not lesson.done.call(world, ctx), "nor does a shelf that also takes water")
+		world.build.grid.set_filter(shelf, [&"flour", &"yeast"])
+		check(lesson.done.call(world, ctx), "flour and yeast, and nothing else, completes it")
+		for i in saved_filters:
+			world.build.grid.set_filter(i, saved_filters[i])
 	# A prior close must not skip the lesson and strand morning-only bookings
 	# after noon. Reviews also refer to this particular summary, on any day.
 	for lesson in TutorialPlan.steps():

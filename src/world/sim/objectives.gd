@@ -75,7 +75,7 @@ func _init() -> void:
 		),
 		Objective.new(
 			"profit", "Finish a day in profit",
-			"Takings must beat wages and supplies. Watch the day's running total.",
+			"Takings must beat wages and supplies. Watch today's total beside the purse.",
 			func(w) -> bool: return _any_profitable_day(w)
 		),
 	]
