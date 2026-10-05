@@ -452,16 +452,16 @@ static func _supplies_and_production() -> Array[TutorialStep]:
 		func(w, _ctx) -> void: PlayerActions.press(w.hud._hud, "Stores")
 	).pointing_at({"button": "Stores"}))
 	out.append(TutorialStep.make("order", L,
-		"Choose Order ingredients manually, add two more flour with +, then press Confirm.",
-		"Nothing is paid until you confirm. The cart unloads by the road.",
+		"Open the Merchant tab, click the flour sack to put more on the cart, then press Buy cart.",
+		"The yard below the wares shows where the cart unloads. Nothing is paid until you buy.",
 		func(w, _ctx) -> bool: return not w.delivered.is_empty(),
 		func(w, _ctx) -> void:
 			var panel: SupplyPanel = w.hud._supply_panel
 			panel.show_manual()
 			panel.order[&"flour"] = int(panel.order.get(&"flour", 0)) + 2
 			panel.refresh()
-			PlayerActions.press(panel, "Confirm")
-	).pointing_at({"button": "Confirm"}))
+			PlayerActions.press(panel, "Buy cart")
+	).pointing_at({"button": "Merchant"}))
 	out.append(TutorialStep.make("haul", L,
 		"Run time while your porter carries the delivery in.",
 		"Porters move goods from the yard to storage; cooks fetch what their bench needs.",
@@ -473,7 +473,7 @@ static func _supplies_and_production() -> Array[TutorialStep]:
 		func(w, _ctx) -> void: w.sim.speed = 4
 	).running(360.0).pointing_at({"role": &"porter"}))
 	out.append(TutorialStep.make("production", L,
-		"Open Stores and set Bread to restock below 6.",
+		"Open Stores and set Bread to keep 6.",
 		"One meal target controls cooking and the ingredients to buy. Existing stock and home-grown goods count first.",
 		func(w, _ctx) -> bool:
 			return w.hud._supply_panel.visible and int(w.bills.get_bill(&"bake_bread").get("target", 0)) == 6,

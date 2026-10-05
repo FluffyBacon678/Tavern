@@ -137,7 +137,7 @@ func _play() -> void:
 	world.hud._supply_panel.show_manual()
 	await _frames(10)
 	await _shot("order_screen", "The order screen with the standard bundle.")
-	_press(world.hud._supply_panel, "Confirm")
+	_press(world.hud._supply_panel, "Buy cart")
 	await _frames(10)
 	await _shot("delivered", "Delivery arrived in the yard.")
 

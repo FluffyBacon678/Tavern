@@ -111,6 +111,12 @@ static func _first(order: Dictionary) -> StringName:
 	return &""
 
 
+## Game seconds until it may order again: the gap between carts, or the next
+## look at the larder if the gap has passed.
+func wait_left() -> float:
+	return maxf(COOLDOWN - _since_order, maxf(_timer, 0.0))
+
+
 func started() -> bool:
 	return world != null and (configured or not world.delivered.is_empty())
 

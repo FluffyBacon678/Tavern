@@ -70,12 +70,13 @@ func _ready() -> void:
 	panel._meal_widgets[&"bake_bread"]["toggle"].button_pressed = true
 	panel._adjust_meal(&"bake_bread", 1)
 	check(world.bills.get_bill(&"bake_bread")["target"] == 11, "the visible plus control changes the shared meal target")
+	_check_merchant(panel)
 	auto.set_meal(&"bake_bread", false, 11)
 	auto.set_meal(&"fish_soup", true, 6)
 	world.items.clear()
 	auto.note = ""
 	panel.refresh()
-	check(panel._auto_note.text.contains("Waiting on kitchen or local ingredients"), "unavailable local fish is explained instead of claiming restock is satisfied")
+	check(panel._auto_note.text.contains("Waiting on the kitchen or a local catch"), "unavailable local fish is explained instead of claiming restock is satisfied")
 	check(panel._auto_note.tooltip_text.contains("Kitchen details"), "blocked restock offers an actionable hint")
 	for dimensions in [Vector2i(1280, 720), Vector2i(1024, 768), Vector2i(1440, 900)]:
 		get_window().size = dimensions
@@ -94,3 +95,51 @@ func _ready() -> void:
 	await get_tree().process_frame
 	print("STORES SMOKE: %d failure(s)" % failures)
 	get_tree().quit(0 if failures == 0 else 1)
+
+
+## The merchant tab as a shop: a click buys the chosen amount, the yard's
+## spaces cap the cart before paying, and buying empties the cart.
+func _check_merchant(panel: SupplyPanel) -> void:
+	world.items.clear()
+	GameState.gold = 2000
+	panel.show_manual()
+	check(panel._manual.visible and not panel._meals.visible, "the Merchant tab shows the shop and hides the meals")
+	panel.order.clear()
+	panel.quantity = 5
+	panel.add_ware(&"flour", 1)
+	check(int(panel.order.get(&"flour", 0)) == 5, "a click on a ware puts the chosen five on the cart")
+	panel.add_ware(&"flour", -1)
+	check(not panel.order.has(&"flour"), "a right-click takes them off again")
+	panel.quantity = 0
+	for i in range(30):
+		for def in ItemCatalog.purchasable():
+			panel.add_ware(def.id, 1)
+	check(world.delivery_preview(panel.order)["short"].is_empty(), "stack clicks stop at what the yard can hold")
+	var spaces: int = 0
+	for line in world.delivery_preview(panel.order)["plan"]:
+		spaces += 1
+	check(spaces == world.delivery_tiles().size(), "and fill every space in the yard (%d of %d)" % [spaces, world.delivery_tiles().size()])
+	check(panel._ware_info.text.begins_with("No room in the yard"), "a click past that says the yard is full")
+	panel.fill_for_meals()
+	check(panel.order == auto_shortfall(), "What the meals need fills the cart with the restock shortfall")
+	panel.reset_to_standard()
+	var before: int = GameState.gold
+	var cost: int = world.order_cost(panel.order)
+	panel.refresh()
+	check(PlayerActions.press(panel, "Buy cart"), "Buy cart is pressable with the usual order")
+	check(GameState.gold == before - cost and panel.order.is_empty() and not world.delivered.is_empty(),
+		"buying pays %dg, unloads the cart and empties it" % cost)
+	world.items.clear()
+	world.delivered.clear()
+	# Buying closes the panel; open it again on Restock for the checks after.
+	panel.show_meals()
+	panel.toggle()
+
+
+func auto_shortfall() -> Dictionary:
+	var out: Dictionary = {}
+	var wanted: Dictionary = world.auto_supply.shortfall()
+	for id in wanted:
+		if int(wanted[id]) > 0:
+			out[id] = int(wanted[id])
+	return out

@@ -330,13 +330,23 @@ func order_supplies(order: Dictionary = {}, quiet: bool = false) -> bool:
 ## be placed. Goods go in the catalogue's order, so the same order always lands
 ## on the same tiles.
 func _plan_delivery(order: Dictionary) -> Array:
+	var preview: Dictionary = delivery_preview(order)
+	return preview["plan"] if preview["short"].is_empty() else []
+
+
+## The same placement, kept going past the first thing that does not fit, so
+## the order screen can draw the yard: `plan` as above, and `short`, id -> how
+## many would be left on the cart.
+func delivery_preview(order: Dictionary) -> Dictionary:
 	var spots: Array[Vector2i] = delivery_tiles()
 	var plan: Array = []
+	var short: Dictionary = {}
 	var reserved: Dictionary = {}
 	for id in _order_sequence(order):
 		var def: ItemDef = ItemCatalog.get_def(id)
 		if def == null:
-			return []
+			short[id] = int(order[id])
+			continue
 		var remaining: int = int(order[id])
 		for tile in spots:
 			var held: ItemDef = items.def_at(tile)
@@ -354,8 +364,8 @@ func _plan_delivery(order: Dictionary) -> Array:
 			if remaining == 0:
 				break
 		if remaining > 0:
-			return []
-	return plan
+			short[id] = remaining
+	return {"plan": plan, "short": short}
 
 
 ## The standard bundle's order first (it decides which tile gets what), then

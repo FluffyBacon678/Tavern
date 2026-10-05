@@ -41,6 +41,15 @@ func _ready() -> void:
 	world.hud._supply_panel.show_manual()
 	await _settle()
 	await _shot("stores_manual", "Stores: a one-off cart")
+	var panel: SupplyPanel = world.hud._supply_panel
+	panel.quantity = 0
+	for i in range(3):
+		for def in ItemCatalog.purchasable():
+			panel.add_ware(def.id, 1)
+	await _settle()
+	await _shot("stores_full", "Stores: stack clicks until the yard is full")
+	panel.reset_to_standard()
+	panel.quantity = 5
 	world.hud.toggle_supplies()
 	world.hud._production_panel.toggle()
 	await _settle()
