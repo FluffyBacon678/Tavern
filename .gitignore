@@ -21,3 +21,6 @@ Thumbs.db
 /feature_profiles/
 /script_templates/
 /text_editor_themes/
+
+# Screenshots and captures: keep them out of git (see docs/SCREENSHOTS.md).
+/docs/images/

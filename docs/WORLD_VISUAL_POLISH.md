@@ -9,11 +9,11 @@ recipes, stock allocation, jobs or serving rules changed.
 
 Before:
 
-![Market-stall bar](images/polish_20261004/bar_before.png)
+*Screenshot (not kept in git): Market-stall bar, `bar_before.png`.*
 
 After:
 
-![Timber bar](images/polish_20261004/bar_after.png)
+*Screenshot (not kept in git): Timber bar, `bar_after.png`.*
 
 The garden regression group passes: 514 triangles (budget 900), fittings
 inside the 2 x 1 footprint, clear drink positions, recipes, porter restocking
@@ -40,22 +40,22 @@ cosmetic separation, not a physical queue or collision system.
 
 Before:
 
-![Previous keeper presentation](images/polish_20261004/keeper_before.png)
+*Screenshot (not kept in git): Previous keeper presentation, `keeper_before.png`.*
 
 After:
 
-![Identifiable keeper](images/polish_20261004/keeper_after.png)
+*Screenshot (not kept in git): Identifiable keeper, `keeper_after.png`.*
 
-![Actual fishing task](images/polish_20261004/keeper_fishing.png)
+*Screenshot (not kept in git): Actual fishing task, `keeper_fishing.png`.*
 
 The keeper options menu uses the HUD's timber/candle palette, wrapped action
 text, keyboard focus and a scrolling list. Every row is at least 48 screen
 pixels tall; the title stays visible. The till coin is a cached framed badge
 in the same palette. Hover cards are suppressed behind an open options menu.
 
-![Previous menu](images/polish_20261004/menu_before.png)
+*Screenshot (not kept in git): Previous menu, `menu_before.png`.*
 
-![Styled options menu](images/polish_20261004/menu_after.png)
+*Screenshot (not kept in git): Styled options menu, `menu_after.png`.*
 
 ## Lighting and checks
 
@@ -63,11 +63,11 @@ Ambient light rises from .43–.70 to .48–.80 across night/day. This lifts
 shadowed interiors and faces without adding lights or shadow passes, while
 retaining the day/night cycle and warm hearth light.
 
-![Fixed-scene lighting before](images/polish_20261004/lighting_before.png)
+*Screenshot (not kept in git): Fixed-scene lighting before, `lighting_before.png`.*
 
-![Fixed-scene lighting after](images/polish_20261004/lighting_after.png)
+*Screenshot (not kept in git): Fixed-scene lighting after, `lighting_after.png`.*
 
-![Live house after dark](images/polish_20261004/house_evening.png)
+*Screenshot (not kept in git): Live house after dark, `house_evening.png`.*
 
 The requested `bash dev/run_tests.sh` passes all 23 suites, tutorial 70/70,
 six-day tutorial soak, three chaos seeds, saves/resume and level completion.
@@ -110,9 +110,9 @@ grip, following arm movement and body-build changes. Its orientation remains
 aimed outward while the handle moves with the hand. A regression checks that
 moving the arm actually moves the handle; the ordinary cargo point is unchanged.
 
-![Thick outlines before](images/polish_20261004/outline_before.png)
+*Screenshot (not kept in git): Thick outlines before, `outline_before.png`.*
 
-![Quieter outlines after](images/polish_20261004/outline_after.png)
+*Screenshot (not kept in git): Quieter outlines after, `outline_after.png`.*
 
 The complete run after the animated-palm refinement passes
 `bash dev/run_tests.sh`: **23/23 suites, tutorial 70/70**, the same three chaos

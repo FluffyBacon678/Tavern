@@ -5,7 +5,7 @@ person and do any of the work by hand, RuneScape-style. It's optional: a
 tavern runs without them. It matters most at the start, with no money, and
 when the money runs out and everyone has to be let go.
 
-![The options menu on the bar, which takes payments (the coin)](images/polish_20261004/menu_after.png)
+*Screenshot (not kept in git): The options menu on the bar, which takes payments (the coin), `menu_after.png`.*
 
 **Visual pass, 2026-10-05:** a candle-gold ground ring identifies the keeper
 without changing their chosen clothes. Fishing shows a basic rod; keeper and

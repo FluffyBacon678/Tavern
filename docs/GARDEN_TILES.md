@@ -58,7 +58,7 @@ ends and crossings meet cleanly.
 
 ## The bar (Build → Dining)
 
-![A fenced garden with a bar on a stone square](images/polish_20261004/bar_after.png)
+*Screenshot (not kept in git): A fenced garden with a bar on a stone square, `bar_after.png`.*
 
 The **Bar Table** (2 x 1, 30g) keeps drinks on its counter, one to each tile:
 its own lemonade, pressed there, and then the other drinks on the menu (beer).

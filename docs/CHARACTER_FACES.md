@@ -8,13 +8,13 @@ covered hair now follows the broad head at the nape.
 
 Before:
 
-![Previous faces](images/polish_20261004/faces_before.png)
+*Screenshot (not kept in git): Previous faces, `faces_before.png`.*
 
 After:
 
-![Refined faces and expressions](images/polish_20261004/faces_after.png)
+*Screenshot (not kept in git): Refined faces and expressions, `faces_after.png`.*
 
-![Fixed-camera front and side silhouettes](images/polish_20261004/face_profiles.png)
+*Screenshot (not kept in git): Fixed-camera front and side silhouettes, `face_profiles.png`.*
 
 `dev/face_smoke.tscn` passes 400 combinations of shapes, expressions, five skin
 tones, two builds and bare/worst travel outfits. The largest is 1,396 triangles
