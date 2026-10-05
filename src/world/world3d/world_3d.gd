@@ -28,7 +28,10 @@ const STARTING_STAFF: int = 5
 ## serve and wash. Two cooks because the kitchen was the ceiling -- measured on
 ## the demo level against two waiters, two porters and a busser, this crew
 ## earned the most (2026-09-28). Five, for 29g a day, near the old 30g.
-const STARTING_CREW: Array[StringName] = [&"porter", &"cook", &"cook", &"waiter", &"cleaner"]
+## Two waiters and one cook: since goods came in bulk one cook keeps the
+## kitchen stocked, and service became the tavern's loss. Measured on the
+## level (2026-10-05): a second waiter was worth about 1,400g by day 6.
+const STARTING_CREW: Array[StringName] = [&"porter", &"cook", &"waiter", &"waiter", &"cleaner"]
 const MAIN_MENU_SCENE := "res://src/ui/main_menu/main_menu.tscn"
 
 ## Map size in tiles. Square, and independent of the window -- unlike the 2D
@@ -613,8 +616,7 @@ func _open_level() -> void:
 		print("Level '%s': %d placed, %d refused" % [level.id, placed, refused])
 	if refused > 0:
 		push_warning("Level '%s' could not place %d of its pieces." % [level.id, refused])
-	for def in BuildingCatalog.all():
-		build._rebuild_instances(def)
+	build.redraw_all()
 	nav.refresh_all()
 	customers.seating.refresh()
 	# Open looking at the building the player has inherited, not at the middle

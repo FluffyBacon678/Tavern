@@ -55,7 +55,9 @@ static func _build() -> void:
 			["grain", "baking"] as Array[String], [FLOUR_WHITE, GRAIN] as Array[Color]),
 		ItemDef.make("yeast", "Yeast", C.INGREDIENT, S.JAR, 10, 5, 0,
 			["baking", "brewing"] as Array[String], [CLAY, DOUGH_PALE] as Array[Color]),
-		ItemDef.make("water", "Water Barrel", C.INGREDIENT, S.CASK, 20, 5, 0,
+		# A coin a barrel: water is common, and dear water made fish soup the
+		# dearest dish to make.
+		ItemDef.make("water", "Water Barrel", C.INGREDIENT, S.CASK, 20, 1, 0,
 			["liquid"] as Array[String], [WATER_BLUE, CLAY] as Array[Color]),
 		ItemDef.make("malt", "Malt Sack", C.INGREDIENT, S.SACK, 8, 12, 0,
 			["grain", "brewing"] as Array[String], [MALT_BROWN, GRAIN] as Array[Color]),

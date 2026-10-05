@@ -741,9 +741,8 @@ func _clear_bench(world: TavernWorld, station: Dictionary, def: ItemDef, parked:
 ## The order screen: the player picks the order, and the money moves only on
 ## confirm -- or not at all, with the reason, when it cannot be delivered.
 func _check_custom_orders(world: TavernWorld, scenario: Node) -> void:
-	# Two dough batches and two brews, in bulk: about what the old bundle of
-	# small units cost (115g), so a loaf and a beer cost what they did.
-	check(world.order_cost(TavernWorld.STANDARD_ORDER) == 109, "the standard bundle costs 109g (%dg)" % world.order_cost(TavernWorld.STANDARD_ORDER))
+	# Two dough batches and two brews, in bulk, with water at a coin a barrel.
+	check(world.order_cost(TavernWorld.STANDARD_ORDER) == 93, "the standard bundle costs 93g (%dg)" % world.order_cost(TavernWorld.STANDARD_ORDER))
 	var two_yeast: int = 2 * ItemCatalog.get_def(&"yeast").purchase_price + TavernWorld.DELIVERY_FEE
 	check(world.order_cost({&"yeast": 2}) == two_yeast, "a small order is its goods plus the cart fee")
 	check(world.order_cost({}) == 0 and world.order_problem({}) != "", "an empty order costs nothing and cannot be confirmed")

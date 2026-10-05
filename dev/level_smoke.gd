@@ -259,8 +259,10 @@ func _run_unfixed(level: LevelDef) -> void:
 func _trade(world: TavernWorld, level: LevelDef) -> int:
 	world.order_supplies()
 	world.clock.day_started.connect(func(_day: int) -> void:
+		# Down to the last batch's worth: one unit, now that goods come in bulk
+		# (at two, the usual order of two would be bought again every morning).
 		for id in [&"flour", &"water", &"yeast", &"malt", &"hops"]:
-			if world.items.total_of(id) <= 2:
+			if world.items.total_of(id) <= 1:
 				world.order_supplies()
 				return
 	)
