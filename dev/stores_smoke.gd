@@ -25,12 +25,17 @@ func _ready() -> void:
 		world.build.place_programmatic(BuildingCatalog.get_def([&"prep_table", &"oven", &"brewing_vat"][i]), world.plot.position + Vector2i(10 + i * 3, 12), 0, false)
 	var auto: AutoSupply = world.auto_supply
 	var need: Dictionary = auto.shortfall()
-	check(need == {&"flour": 5, &"yeast": 5, &"water": 8, &"malt": 3, &"hops": 3}, "10 bread and 12 beer buy exactly five dough batches plus three brews; no duplicate intermediate target")
+	# Bulk units: a dough batch bakes ten loaves and a brew makes ten beers.
+	check(need == {&"flour": 1, &"yeast": 1, &"water": 3, &"malt": 2, &"hops": 2}, "10 bread and 12 beer buy exactly one dough batch plus two brews; no duplicate intermediate target (%s)" % need)
 	stock(&"wheat", 4)
 	stock(&"flour", 1)
 	stock(&"dough", 1)
+	# Thirty loaves, three batches: one from the ready dough, one from the
+	# flour in stock, one from flour ground from the wheat; only the water and
+	# yeast for two doughs, and the two brews, are bought.
+	world.bills.set_target(&"bake_bread", 30)
 	need = auto.shortfall()
-	check(need == {&"flour": 1, &"yeast": 4, &"water": 7, &"malt": 3, &"hops": 3}, "ready dough, flour and harvested wheat reduce shopping exactly once")
+	check(need == {&"yeast": 2, &"water": 4, &"malt": 2, &"hops": 2}, "ready dough, flour and harvested wheat reduce shopping exactly once (%s)" % need)
 	check(world.stock_of(&"wheat") == 4 and world.stock_of(&"flour") == 1, "planning never consumes real farm goods")
 	world.items.clear()
 	world.delivered.clear()
@@ -53,7 +58,7 @@ func _ready() -> void:
 	GameState.gold = GameState.STARTING_GOLD
 	auto._since_order = AutoSupply.COOLDOWN
 	var ordered: Dictionary = auto.check()
-	check(ordered == {&"flour": 5, &"water": 5, &"yeast": 5}, "meal setting actually purchases the required ingredients")
+	check(ordered == {&"flour": 1, &"water": 1, &"yeast": 1}, "meal setting actually purchases the required ingredients (%s)" % ordered)
 	check(auto.shortfall().is_empty() and auto.check().is_empty(), "delivered stock prevents a duplicate cart")
 	var data: Dictionary = SaveGame.capture(world)
 	SaveGame.apply(world, data)

@@ -43,6 +43,8 @@ func _check_full_kitchen(world: TavernWorld) -> void:
 			stock.add(dough if tile == centre else water, 2 if tile == centre else 20, tile, 0.8)
 	var station: Dictionary = {"index": 0, "centre": centre, "input_tiles": [centre]}
 	var recipe: Recipe = RecipeCatalog.get_recipe(&"bake_bread")
+	# However many loaves a batch bakes (ten, since goods came in bulk).
+	var loaves: int = int(recipe.outputs[0]["count"])
 	generator._post_cook_job(station, recipe)
 	var job: Job = generator.board.jobs[0]
 	job.apply_work(recipe.work_amount)
@@ -52,7 +54,7 @@ func _check_full_kitchen(world: TavernWorld) -> void:
 	# Releasing one tile must finish the same batch once, without repeating work.
 	stock.take(centre + Vector2i(1, 0), 20)
 	job.apply_work(0.5)
-	check(stock.total_of(&"dough") == 1 and stock.total_of(&"bread") == 2, "making space completes exactly one batch")
+	check(stock.total_of(&"dough") == 1 and stock.total_of(&"bread") == loaves, "making space completes exactly one batch")
 	check(job.state == Job.State.DONE, "the waiting cook finishes when space appears")
 	check(is_equal_approx(stock.quality_at(centre + Vector2i(1, 0)), 0.65), "deferred output preserves ingredient quality")
 	check(int(generator.consumed.get(&"dough", 0)) == 2 - stock.total_of(&"dough") and int(generator.produced.get(&"bread", 0)) == stock.total_of(&"bread"), "deferred batch reconciles physical stock and production counters")
@@ -62,7 +64,7 @@ func _check_full_kitchen(world: TavernWorld) -> void:
 	var dual := Recipe.make("fixture_dual", "Fixture", "oven", 1.0, WorkType.Kind.COOK,
 		[Recipe.ingredient("dough", 1)], [Recipe.ingredient("bread", 2), Recipe.ingredient("beer", 4)])
 	check(not generator._complete_recipe(station, dual), "a multi-output batch waits until every product fits")
-	check(stock.total_of(&"dough") == 2 and stock.total_of(&"bread") == 2 and stock.total_of(&"beer") == 0,
+	check(stock.total_of(&"dough") == 2 and stock.total_of(&"bread") == loaves and stock.total_of(&"beer") == 0,
 		"a blocked second output does not consume or produce a partial batch")
 	stock.take(centre + Vector2i(-1, 0), 20)
 	var resumed: bool = generator._complete_recipe(station, dual)
@@ -70,7 +72,7 @@ func _check_full_kitchen(world: TavernWorld) -> void:
 		print("DUAL BLOCK: %s; dough=%d bread=%d cleared=%d" % [generator.completion_problem,
 			stock.total_of(&"dough"), stock.total_of(&"bread"), stock.count_at(centre + Vector2i(-1, 0))])
 	check(resumed, "a multi-output batch resumes after capacity is freed")
-	check(stock.total_of(&"dough") == 1 and stock.total_of(&"bread") == 4 and stock.total_of(&"beer") == 4,
+	check(stock.total_of(&"dough") == 1 and stock.total_of(&"bread") == loaves + 2 and stock.total_of(&"beer") == 4,
 		"all products commit together with exact recipe quantities")
 	stock.queue_free()
 	generator.queue_free()

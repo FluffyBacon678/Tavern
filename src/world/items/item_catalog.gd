@@ -4,9 +4,11 @@ extends RefCounted
 ## The Demo 1 resource list from the design notes: the five bought ingredients,
 ## the two intermediates, the two sellable products, and dirty dishes.
 ##
-## Prices are the notes' placeholder economy. Bread at 10g from 1 flour + 1
-## water + 1 yeast (6g of inputs, yielding 2 loaves) is deliberately generous --
-## the point right now is to prove goods move, not to balance a business.
+## Prices are the notes' placeholder economy. Bought goods come in bulk: a
+## flour sack, a water barrel and a jar of yeast make a batch of dough that
+## bakes ten loaves, so the merchant charges for ten loaves' worth (30g of
+## inputs, 3g a loaf, about what two-loaf batches cost). Fewer, bigger units
+## are fewer trips for the kitchen; a loaf costs the same to make.
 
 const GRAIN := Color("c9b072")
 const FLOUR_WHITE := Color("e8dfc4")
@@ -49,20 +51,20 @@ static func _build() -> void:
 	var S := ItemDef.Shape
 	_catalog = [
 		# --- bought ingredients ---
-		ItemDef.make("flour", "Flour Sack", C.INGREDIENT, S.SACK, 10, 4, 0,
+		ItemDef.make("flour", "Flour Sack", C.INGREDIENT, S.SACK, 10, 20, 0,
 			["grain", "baking"] as Array[String], [FLOUR_WHITE, GRAIN] as Array[Color]),
-		ItemDef.make("yeast", "Yeast", C.INGREDIENT, S.JAR, 10, 1, 0,
+		ItemDef.make("yeast", "Yeast", C.INGREDIENT, S.JAR, 10, 5, 0,
 			["baking", "brewing"] as Array[String], [CLAY, DOUGH_PALE] as Array[Color]),
-		ItemDef.make("water", "Water Barrel", C.INGREDIENT, S.CASK, 20, 2, 0,
+		ItemDef.make("water", "Water Barrel", C.INGREDIENT, S.CASK, 20, 5, 0,
 			["liquid"] as Array[String], [WATER_BLUE, CLAY] as Array[Color]),
-		ItemDef.make("malt", "Malt Sack", C.INGREDIENT, S.SACK, 8, 5, 0,
+		ItemDef.make("malt", "Malt Sack", C.INGREDIENT, S.SACK, 8, 12, 0,
 			["grain", "brewing"] as Array[String], [MALT_BROWN, GRAIN] as Array[Color]),
-		ItemDef.make("hops", "Hops", C.INGREDIENT, S.BUNDLE, 8, 2, 0,
+		ItemDef.make("hops", "Hops", C.INGREDIENT, S.BUNDLE, 8, 5, 0,
 			["brewing"] as Array[String], [HOPS_GREEN, GRAIN] as Array[Color]),
-		# Bought by the crate; pressed into lemonade at a market stall.
-		ItemDef.make("lemons", "Lemons", C.INGREDIENT, S.FRUIT, 12, 2, 0,
+		# Bought by the crate; a crate and a barrel press ten lemonades at the bar.
+		ItemDef.make("lemons", "Lemons", C.INGREDIENT, S.FRUIT, 12, 10, 0,
 			["fruit"] as Array[String], [Color("f2cf3b"), Color("8a6239")] as Array[Color]),
-		ItemDef.make("lemonade", "Lemonade", C.PRODUCT, S.JUG, 12, 0, 7,
+		ItemDef.make("lemonade", "Lemonade", C.PRODUCT, S.JUG, 20, 0, 7,
 			["drink"] as Array[String], [Color("f6dc63"), Color("e9e4d6")] as Array[Color]),
 		# Grown on a farm plot; ground to flour at the prep table.
 		ItemDef.make("wheat", "Wheat Sheaf", C.INGREDIENT, S.BUNDLE, 12, 0, 0,
@@ -71,9 +73,9 @@ static func _build() -> void:
 		# --- made on the premises ---
 		ItemDef.make("dough", "Dough", C.INTERMEDIATE, S.DOUGH, 6, 0, 0,
 			["baking"] as Array[String], [DOUGH_PALE, FLOUR_WHITE] as Array[Color]),
-		ItemDef.make("bread", "Bread", C.PRODUCT, S.LOAF, 8, 0, 10,
+		ItemDef.make("bread", "Bread", C.PRODUCT, S.LOAF, 20, 0, 10,
 			["food"] as Array[String], [CRUST, DOUGH_PALE] as Array[Color]),
-		ItemDef.make("beer", "Beer", C.PRODUCT, S.MUG, 12, 0, 8,
+		ItemDef.make("beer", "Beer", C.PRODUCT, S.MUG, 20, 0, 8,
 			["drink"] as Array[String], [ALE, CLAY] as Array[Color]),
 
 		# --- caught on the river: free, and the first food the tavern does not buy ---

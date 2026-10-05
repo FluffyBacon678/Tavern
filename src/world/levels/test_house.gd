@@ -47,7 +47,8 @@ const DOOR_X: int = 12
 const EXTRA_CREW: Array[StringName] = [&"porter", &"cook", &"waiter", &"waiter", &"waiter", &"busser", &"host", &"fisherman", &"farmer"]
 ## Ingredients, and a first batch of bread and beer: without them the first
 ## guests found an empty menu while the kitchen warmed up.
-const STOCK: Dictionary = {&"flour": 10, &"yeast": 10, &"water": 12, &"malt": 8, &"hops": 8, &"lemons": 8, &"bread": 8, &"beer": 12}
+## In bulk units: two batches of dough, three brews and two lemon pressings.
+const STOCK: Dictionary = {&"flour": 2, &"yeast": 2, &"water": 8, &"malt": 3, &"hops": 3, &"lemons": 2, &"bread": 8, &"beer": 12}
 const GOLD: int = 2000
 
 

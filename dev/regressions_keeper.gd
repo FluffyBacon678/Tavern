@@ -106,12 +106,12 @@ func _check_work(world: TavernWorld) -> void:
 
 	# Lemons in hand, water beside the bar: the keeper puts the lemons down and presses.
 	world.items.add(ItemCatalog.get_def(&"water"), 1, at + Vector2i(1, 2))
-	keeper.restore_carry({"id": "lemons", "count": 2, "quality": 0.5})
+	keeper.restore_carry({"id": "lemons", "count": 1, "quality": 0.5})
 	var made: int = world.stock_of(&"lemonade")
 	keeper.work(bar, press)
 	check(_until(world, func() -> bool: return keeper.batches >= 1, 60.0), "holding the lemons, Press lemonade puts them down and presses")
-	check(world.stock_of(&"lemonade") == made + 4 and world.stock_of(&"lemons") == 0 and keeper.carry_count == 0,
-		"four jugs from two lemons and a barrel, by the keeper's own hand")
+	check(world.stock_of(&"lemonade") == made + 10 and world.stock_of(&"lemons") == 0 and keeper.carry_count == 0,
+		"ten jugs from a crate of lemons and a barrel, by the keeper's own hand")
 	set_meta("bar", bar)
 	set_meta("bar_tile", at + Vector2i(1, 1))
 

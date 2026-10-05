@@ -124,12 +124,13 @@ static func _the_wayfarers_rest() -> LevelDef:
 
 	# Enough to brew with from the first minute, and enough flour to make the
 	# missing prep table obviously the problem rather than a mystery.
+	# In bulk units: two brews (twenty beers) and a batch of dough (ten loaves).
 	level.stock = {
-		&"malt": 6,
-		&"hops": 6,
-		&"water": 10,
-		&"flour": 4,
-		&"yeast": 4,
+		&"malt": 2,
+		&"hops": 2,
+		&"water": 4,
+		&"flour": 1,
+		&"yeast": 1,
 		&"beer": 4,
 	}
 	return level

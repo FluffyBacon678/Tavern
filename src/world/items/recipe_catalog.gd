@@ -44,9 +44,13 @@ static func _build() -> void:
 			],
 			[Recipe.ingredient("dough", 1)]),
 
+		# A batch of dough bakes ten loaves. Bought goods come in bulk (a sack
+		# of flour is a sack, not a cupful): one of each makes a whole batch, so
+		# the kitchen fetches a few big units instead of many small ones. The
+		# merchant charges for the bulk, so a loaf costs what it did.
 		Recipe.make("bake_bread", "Bake Bread", "oven", 5.0, WorkType.Kind.COOK,
 			[Recipe.ingredient("dough", 1)],
-			[Recipe.ingredient("bread", 2)]),
+			[Recipe.ingredient("bread", 10)]),
 
 		# The river pump: labour into water, slowly. The well no longer makes
 		# water on demand; it fills with rain and stores what is poured in.
@@ -56,8 +60,8 @@ static func _build() -> void:
 		# The bar's own drink, pressed where it is sold. Kitchen work: at the
 		# busy hour the waiters have their hands full and the cooks have a minute.
 		Recipe.make("press_lemonade", "Press Lemonade", "bar_table", 3.0, WorkType.Kind.COOK,
-			[Recipe.ingredient("lemons", 2), Recipe.ingredient("water", 1)],
-			[Recipe.ingredient("lemonade", 4)]),
+			[Recipe.ingredient("lemons", 1), Recipe.ingredient("water", 1)],
+			[Recipe.ingredient("lemonade", 10)]),
 		# Home-grown flour: two sheaves ground by hand make one sack.
 		Recipe.make("mill_flour", "Grind Flour", "prep_table", 3.0, WorkType.Kind.COOK,
 			[Recipe.ingredient("wheat", 2)],
@@ -69,7 +73,7 @@ static func _build() -> void:
 				Recipe.ingredient("hops", 1),
 				Recipe.ingredient("water", 1),
 			],
-			[Recipe.ingredient("beer", 4)]),
+			[Recipe.ingredient("beer", 10)]),
 
 		# Fishing: labour into food, like the well is labour into water. Each
 		# catch is a trout or a perch, one or two of them, on the day's luck.

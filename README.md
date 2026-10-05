@@ -444,8 +444,23 @@ have: **bread is badly priced against its own labour.**
 Bread costs **2.7× the labour for 1.25× the price**, so beer quietly subsidises
 it and a bread-heavy tavern cannot pay its wages. The two-stage bread flow is
 deliberate (§8) and worth keeping — it is what makes kitchen layout matter — so
-the lever is price or batch size, not the recipe. Left alone pending a decision;
-these are design-note numbers, not invented ones.
+the lever is price or batch size, not the recipe.
+
+**Resolved 2026-10-05, by batch size:** bought goods come in bulk. A flour
+sack, a water barrel and a jar of yeast make one dough, which bakes ten loaves
+(was two). A brew makes ten beers (was four), and a crate of lemons with a
+barrel presses ten lemonades. The merchant charges for the bulk, so a loaf
+costs about what it did (3g). The table now reads:
+
+| | walks per unit | price |
+|---|---|---|
+| Beer | ~0.3 (3 fetches → 10 mugs) | 8g |
+| Bread | ~0.4 (3 fetches → dough, carry to oven → 10 loaves) | 10g |
+
+Measured over five days in the test house (idle and profit players, two seeds
+each), guests finding nothing to buy fell from 13–33 to 0–4 a run, and profit
+rose about a quarter. The level's 1,100g goal still separates good play
+(3,155g) from bad (−231g).
 
 Wages were retuned (12g → 6g per head): that figure was invented here, and at
 12g five staff cost more than the tavern could physically earn.

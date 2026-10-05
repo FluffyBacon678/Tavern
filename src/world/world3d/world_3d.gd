@@ -265,11 +265,11 @@ func delivery_tiles() -> Array[Vector2i]:
 	return out
 
 
-## The merchant's standard bundle: everything the bread and beer recipes need.
-## Fourteen water, not ten: eight loaves and six brews want a barrel each, and
-## a short delivery stalls the kitchen a day later in a way that reads as a
-## broken cook rather than a bad order.
-const STANDARD_ORDER: Dictionary = {&"flour": 8, &"water": 14, &"yeast": 8, &"malt": 6, &"hops": 6}
+## The merchant's standard bundle: everything the bread and beer recipes need,
+## in bulk: two batches of dough (twenty loaves) and two brews (twenty beers).
+## Four water, a barrel for each batch: a short delivery stalls the kitchen a
+## day later in a way that reads as a broken cook rather than a bad order.
+const STANDARD_ORDER: Dictionary = {&"flour": 2, &"water": 4, &"yeast": 2, &"malt": 2, &"hops": 2}
 ## The cart's fee, per delivery whatever is on it.
 const DELIVERY_FEE: int = 5
 

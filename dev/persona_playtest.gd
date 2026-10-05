@@ -454,10 +454,15 @@ func _solo_tick() -> void:
 			lemonade += world.items.count_at(t)
 	var lemons: int = world.generator.count_at_station(station, &"lemons")
 	var water: int = world.generator.count_at_station(station, &"water")
-	if lemonade < 8 and lemons >= 2 and water >= 1:
-		keeper.work(_solo_bar, RecipeCatalog.get_recipe(&"press_lemonade"))
+	# What a pressing takes, read from the recipe rather than assumed.
+	var press: Recipe = RecipeCatalog.get_recipe(&"press_lemonade")
+	var wants: Dictionary = {}
+	for input in press.inputs:
+		wants[StringName(input["id"])] = int(input["count"])
+	if lemonade < 8 and lemons >= int(wants.get(&"lemons", 1)) and water >= int(wants.get(&"water", 1)):
+		keeper.work(_solo_bar, press)
 		return
-	for need in [[&"lemons", lemons, 2], [&"water", water, 1]]:
+	for need in [[&"lemons", lemons, int(wants.get(&"lemons", 1))], [&"water", water, int(wants.get(&"water", 1))]]:
 		if int(need[1]) >= int(need[2]):
 			continue
 		for tile in world.items.tiles_with(need[0], keeper.pawn.tile):

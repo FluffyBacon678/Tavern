@@ -41,12 +41,15 @@ func _check_opening_delivery(world: TavernWorld, scenario: Node) -> void:
 	check(not world.order_supplies(), "partial room refuses whole order")
 	check(world.items.count_at(spots[0]) == 0 and GameState.gold == before, "no partial delivery or charge")
 	world.items.clear()
+	var bundle: int = world.order_cost(TavernWorld.STANDARD_ORDER)
 	check(world.order_supplies(), "empty unloading area accepts order")
-	check(GameState.gold == before - 115, "delivery costs exactly 115g")
+	check(GameState.gold == before - bundle, "delivery costs exactly its price (%dg)" % bundle)
 	check(scenario.reconcile(), "accepted delivery reconciles every ingredient")
-	# Two immediate orders need nine stacks but there are only eight slots.
-	check(not world.order_supplies(), "repeat order refuses insufficient capacity")
-	check(GameState.gold == before - 115 and scenario.reconcile(), "repeat refusal loses neither money nor goods")
+	# Bulk units: the usual order is five small stacks, so a second one stacks
+	# onto the first one's five spaces instead of needing five more. (A yard
+	# that cannot take an order is refused above.)
+	check(world.order_supplies(), "a repeat order stacks onto the first one's spaces")
+	check(GameState.gold == before - 2 * bundle and scenario.reconcile(), "and costs exactly its price again, goods reconciled")
 	# Force a real haul to exercise stock while in a worker's hands.
 	# A porter and a cook: which of them has something to carry depends on
 	# whether the shelves or the benches want the delivery first, and since
@@ -738,8 +741,11 @@ func _clear_bench(world: TavernWorld, station: Dictionary, def: ItemDef, parked:
 ## The order screen: the player picks the order, and the money moves only on
 ## confirm -- or not at all, with the reason, when it cannot be delivered.
 func _check_custom_orders(world: TavernWorld, scenario: Node) -> void:
-	check(world.order_cost(TavernWorld.STANDARD_ORDER) == 115, "the standard bundle still costs 115g")
-	check(world.order_cost({&"yeast": 2}) == 2 + TavernWorld.DELIVERY_FEE, "a small order is its goods plus the cart fee")
+	# Two dough batches and two brews, in bulk: about what the old bundle of
+	# small units cost (115g), so a loaf and a beer cost what they did.
+	check(world.order_cost(TavernWorld.STANDARD_ORDER) == 109, "the standard bundle costs 109g (%dg)" % world.order_cost(TavernWorld.STANDARD_ORDER))
+	var two_yeast: int = 2 * ItemCatalog.get_def(&"yeast").purchase_price + TavernWorld.DELIVERY_FEE
+	check(world.order_cost({&"yeast": 2}) == two_yeast, "a small order is its goods plus the cart fee")
 	check(world.order_cost({}) == 0 and world.order_problem({}) != "", "an empty order costs nothing and cannot be confirmed")
 	var gold: int = GameState.gold
 	GameState.gold = 100000
@@ -752,7 +758,7 @@ func _check_custom_orders(world: TavernWorld, scenario: Node) -> void:
 	if world.order_problem({&"yeast": 2}) == "":
 		check(world.order_supplies({&"yeast": 2}), "a small custom order is delivered")
 		check(int(world.delivered.get(&"yeast", 0)) == yeast_before + 2, "exactly what was ordered arrives")
-		check(GameState.gold == gold - 7, "and exactly its price is paid")
+		check(GameState.gold == gold - two_yeast, "and exactly its price is paid")
 		check(scenario.reconcile(), "a custom order reconciles")
 	else:
 		check(false, "the fixture yard could take two jars of yeast: %s" % world.order_problem({&"yeast": 2}))
@@ -900,7 +906,8 @@ func _check_auto_supply(world: TavernWorld, scenario: Node) -> void:
 	# Make a real shortfall beyond this fixture's existing dough, flour, yeast
 	# and harvested grain. Intermediate reserve targets are no longer shopping.
 	var bread_batches: int = 20 + world.stock_of(&"dough") + world.stock_of(&"flour") + world.stock_of(&"yeast") + world.stock_of(&"wheat")
-	bills.set_target(&"bake_bread", world.stock_of(&"bread") + bread_batches * 2)
+	var loaves: int = int(RecipeCatalog.get_recipe(&"bake_bread").outputs[0]["count"])
+	bills.set_target(&"bake_bread", world.stock_of(&"bread") + bread_batches * loaves)
 	bills.set_target(&"brew_beer", world.stock_of(&"beer") + 200)
 	var wanted: Dictionary = auto.shortfall()
 	check(wanted.has(&"flour") and wanted.has(&"yeast") and wanted.has(&"malt") and wanted.has(&"hops"),
