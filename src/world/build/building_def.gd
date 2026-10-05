@@ -115,6 +115,31 @@ enum Shape {
 ## Storage that only ever holds these (the well: water), whatever is ticked.
 @export var stores_only: Array[StringName] = []
 
+## Styles. One piece can come in several looks -- a table plain or under a
+## parasol, a bar of timber or a lemonade stall -- and each look is a whole
+## definition sharing the piece's `id`, so everything that asks what a piece
+## *is* (recipes, rooms, roles, tills, counts, saves) sees one piece. Only the
+## look, the price and the name differ. `skin` names the look ("" for a piece
+## with one look); `skin_name` is what the build bar calls it.
+@export var skin: StringName = &""
+@export var skin_name: String = ""
+## Which drawing to use, and the drawing's old name for pieces that were once
+## separate (a stone floor is the floor drawn as "stone_floor"). Empty: `id`.
+@export var art: StringName = &""
+## Distinct pieces offered under one build button, because they differ in
+## more than looks: a dirt path and a stone path walk at different paces.
+@export var family: StringName = &""
+
+
+## The drawing this look uses.
+func art_id() -> StringName:
+	return art if art != &"" else id
+
+
+## "Table (Parasol)": the piece, and its look when it has a choice of them.
+func full_name() -> String:
+	return display_name if skin_name.is_empty() else "%s (%s)" % [display_name, skin_name]
+
 
 static func make(
 	p_id: String,

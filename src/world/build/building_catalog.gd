@@ -36,10 +36,15 @@ static func all() -> Array[BuildingDef]:
 const RENAMED: Dictionary = {&"market_stall": &"bar_table"}
 
 
+## A piece by id. An id that became a style (a parasol table, a stone wall)
+## gives that look of its piece.
 static func get_def(id: StringName) -> BuildingDef:
 	if _catalog.is_empty():
 		_build()
-	return _by_id.get(RENAMED.get(id, id), null)
+	var key: StringName = RENAMED.get(id, id)
+	if _by_id.has(key):
+		return _by_id[key]
+	return _aliases.get(key, null)
 
 
 ## Distinct categories, in catalog order, for grouping the build bar.
@@ -252,3 +257,138 @@ static func _build() -> void:
 	# Fishing is done from the bank itself.
 	if _by_id.has(&"fishing_spot"):
 		_by_id[&"fishing_spot"].needs_water_within = 2
+
+	# Paths differ in pace, so they stay separate pieces under one button.
+	for id in [&"garden_path", &"stone_path"]:
+		if _by_id.has(id):
+			_by_id[id].family = &"path"
+
+	_fold_styles()
+
+
+## Pieces that differ only in looks, made styles of one piece: [the piece, its
+## name, its own look as [id, name], and the pieces that become its other
+## looks as [old id, look id, name]]. Folded after everything above has been
+## set by id, so every look keeps exactly the price, pace and preferences it
+## had as a piece of its own; only its id becomes the piece's. The old ids
+## still resolve through get_def, for saves and scripts.
+##
+## Kept apart on purpose: the serving counter (the kitchen's pass) and the bar
+## (drinks for walk-up guests) do different jobs; so do the prep table and the
+## counter, which share a drawing. A style never changes what a piece does.
+const STYLES: Array = [
+	[&"table", "Table", [&"plain", "Plain"], [[&"parasol_table", &"parasol", "Parasol"]]],
+	[&"chair", "Chair", [&"chair", "Chair"], []],
+	[&"bar_table", "Bar", [&"timber", "Timber Bar"], []],
+	[&"timber_wall", "Wall", [&"timber", "Timber"], [[&"stone_wall", &"stone", "Stone"]]],
+	[&"wood_floor", "Floor", [&"wood", "Wood"], [[&"stone_floor", &"stone", "Stone"]]],
+	[&"lawn_trimmed", "Lawn", [&"trimmed", "Trimmed"], [
+		[&"lawn_meadow", &"meadow", "Meadow"], [&"lawn_worn", &"worn", "Worn"]]],
+	[&"bed_daisy", "Flower Bed", [&"daisies", "Daisies"], [
+		[&"bed_mixed", &"mixed", "Mixed"], [&"bed_border", &"border", "Lupins"],
+		[&"bed_tulips", &"tulips", "Tulips"], [&"bed_lavender", &"lavender", "Lavender"],
+		[&"bed_roses", &"roses", "Roses"], [&"bed_sunflowers", &"sunflowers", "Sunflowers"]]],
+	[&"grass_tall", "Wild Grass", [&"tall", "Tall"], [
+		[&"grass_tall_flowers", &"flowers", "With Flowers"], [&"grass_overgrown", &"overgrown", "Overgrown"]]],
+	[&"garden_tree", "Tree", [&"leafy", "Leafy"], [[&"garden_pine", &"pine", "Pine"]]],
+]
+
+## What a family's one button is called.
+const FAMILY_NAMES: Dictionary = {&"path": "Path"}
+
+## piece id -> every look, its own first.
+static var _styles: Dictionary = {}
+## old piece id -> the look it became.
+static var _aliases: Dictionary = {}
+
+
+static func _fold_styles() -> void:
+	_styles.clear()
+	_aliases.clear()
+	for row in STYLES:
+		var base: BuildingDef = _by_id.get(row[0])
+		if base == null:
+			continue
+		base.display_name = row[1]
+		base.skin = row[2][0]
+		base.skin_name = row[2][1]
+		var looks: Array[BuildingDef] = [base]
+		for old in row[3]:
+			var look: BuildingDef = _by_id.get(old[0])
+			if look == null:
+				continue
+			look.art = look.id
+			look.id = base.id
+			look.display_name = base.display_name
+			look.category = base.category
+			look.skin = old[1]
+			look.skin_name = old[2]
+			_catalog.erase(look)
+			_by_id.erase(old[0])
+			_aliases[old[0]] = look
+			looks.append(look)
+		_styles[base.id] = looks
+	# New looks, drawn for the purpose. Same footprint, height of the serving
+	# top or seat, and price as the piece's own look.
+	_new_style(&"bar_table", &"stall", "Lemonade Stall", {"art": &"lemon_stall"})
+	_new_style(&"chair", &"stool", "Stool", {"art": &"stool"})
+
+
+static func _new_style(id: StringName, skin: StringName, name: String, changes: Dictionary) -> void:
+	var base: BuildingDef = _by_id.get(id)
+	if base == null:
+		return
+	var look: BuildingDef = base.duplicate()
+	look.palette = base.palette.duplicate()
+	look.stores_only = base.stores_only.duplicate()
+	look.skin = skin
+	look.skin_name = name
+	for key in changes:
+		look.set(key, changes[key])
+	if not _styles.has(id):
+		_styles[id] = [base] as Array[BuildingDef]
+	_styles[id].append(look)
+
+
+## Every look of a piece, its own first. A piece with one look: just itself.
+static func styles_of(def: BuildingDef) -> Array[BuildingDef]:
+	if _catalog.is_empty():
+		_build()
+	var out: Array[BuildingDef] = []
+	if def == null:
+		return out
+	if _styles.has(def.id):
+		out.assign(_styles[def.id])
+	else:
+		out.append(_by_id.get(def.id, def))
+	return out
+
+
+## One look of a piece, or the piece's own look if it has no such style.
+static func style(id: StringName, skin: StringName) -> BuildingDef:
+	var def: BuildingDef = get_def(id)
+	for look in styles_of(def):
+		if look.skin == skin:
+			return look
+	return _by_id.get(def.id, def) if def != null else null
+
+
+## What one build button offers: a piece's looks, or for a family (paths)
+## every piece in it with their looks.
+static func variants(def: BuildingDef) -> Array[BuildingDef]:
+	if def == null or def.family == &"":
+		return styles_of(def)
+	var out: Array[BuildingDef] = []
+	for d in all():
+		if d.family == def.family:
+			out.append_array(styles_of(d))
+	return out
+
+
+## The build button a piece is offered under.
+static func family_of(def: BuildingDef) -> StringName:
+	return def.family if def.family != &"" else def.id
+
+
+static func family_name(def: BuildingDef) -> String:
+	return FAMILY_NAMES.get(def.family, def.display_name) if def.family != &"" else def.display_name

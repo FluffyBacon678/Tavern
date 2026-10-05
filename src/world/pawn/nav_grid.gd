@@ -226,7 +226,7 @@ func random_floor_in(area: Rect2i, rng: RandomNumberGenerator) -> Vector2i:
 				if entry == null or not entry["built"] or entry["def"].layer != BuildingDef.Layer.FLOOR \
 						or entry["def"].category != "Structure":
 					continue
-				var weight: int = 2 if entry["def"].id == &"stone_floor" else 1
+				var weight: int = 2 if entry["def"].art_id() == &"stone_floor" else 1
 				for tile in entry["tiles"]:
 					for i in range(weight):
 						_floors.append(tile)

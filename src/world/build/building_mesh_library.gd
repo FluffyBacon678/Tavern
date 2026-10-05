@@ -18,10 +18,12 @@ var _meshes: Dictionary = {}
 
 
 func mesh_for(def: BuildingDef) -> ArrayMesh:
-	if _meshes.has(def.id):
-		return _meshes[def.id]
+	# By look: a stone wall is the wall's id drawn another way.
+	var key := StringName("%s@%s" % [def.id, def.skin])
+	if _meshes.has(key):
+		return _meshes[key]
 	var mesh: ArrayMesh = _build(def)
-	_meshes[def.id] = mesh
+	_meshes[key] = mesh
 	return mesh
 
 
@@ -35,7 +37,7 @@ func linked_mesh_for(def: BuildingDef, mask: int, variant: int = 0) -> ArrayMesh
 	var main: Color = def.palette[0] if def.palette.size() > 0 else Color.WHITE
 	var accent: Color = def.palette[1] if def.palette.size() > 1 else main
 	if def.shape == BuildingDef.Shape.GARDEN_TILE:
-		GardenArt.path(mb, def.id, mask, variant)
+		GardenArt.path(mb, def.art_id(), mask, variant)
 	else:
 		GardenArt.fence(mb, mask, main, accent)
 	var mesh: ArrayMesh = mb.commit()
@@ -53,7 +55,7 @@ func _build(def: BuildingDef) -> ArrayMesh:
 
 	match def.shape:
 		BuildingDef.Shape.FLOOR_SLAB:
-			_floor_slab(mb, w, d, def.height, main, accent, def.id == &"wood_floor")
+			_floor_slab(mb, w, d, def.height, main, accent, def.art_id() == &"wood_floor")
 		BuildingDef.Shape.WALL:
 			var infill: Color = def.palette[2] if def.palette.size() > 2 else main
 			_wall(mb, w, d, def.height, main, accent, infill)
@@ -62,7 +64,10 @@ func _build(def: BuildingDef) -> ArrayMesh:
 		BuildingDef.Shape.TABLE:
 			_table(mb, w, d, def.height, main, accent)
 		BuildingDef.Shape.CHAIR:
-			_chair(mb, w, d, def.height, main, accent)
+			if def.art_id() == &"stool":
+				_stool(mb, w, d, def.height, main, accent)
+			else:
+				_chair(mb, w, d, def.height, main, accent)
 		BuildingDef.Shape.COUNTER:
 			if def.id == &"prep_table":
 				_prep_table(mb, w, d, def.height, main, accent)
@@ -83,7 +88,7 @@ func _build(def: BuildingDef) -> ArrayMesh:
 		BuildingDef.Shape.JETTY:
 			_jetty(mb, w, d, def.height, main, accent)
 		BuildingDef.Shape.GARDEN_TILE, BuildingDef.Shape.GARDEN_PROP:
-			GardenArt.build(mb, def.id, w, d, def.height, main, accent)
+			GardenArt.build(mb, def.art_id(), w, d, def.height, main, accent)
 		BuildingDef.Shape.FARM:
 			_farm_plot(mb, w, d, def.height, main, accent)
 		BuildingDef.Shape.PUMP:
@@ -200,6 +205,22 @@ func _chair(mb: MeshBuilder, w: float, d: float, h: float, main: Color, accent: 
 	mb.surface_style = TavernMaterials.Surface.PLAIN
 	for z in [d * 0.24 - 0.002, d * 0.24 + 0.071]:
 		mb.add_box(Vector3(w * 0.34, h * 0.895, z), Vector3(w * 0.32, 0.026, 0.001), Color("42645c"))
+
+
+## The chair's other look: a three-legged stool at the same seat height, with
+## a foot ring. No back, so it suits a bar or a crowded room.
+func _stool(mb: MeshBuilder, w: float, d: float, h: float, main: Color, accent: Color) -> void:
+	mb.surface_style = TavernMaterials.Surface.WOOD
+	var seat_h: float = h * 0.5
+	var centre := Vector3(w * 0.5, 0.0, d * 0.5)
+	for i in range(3):
+		var a: float = TAU * float(i) / 3.0 + 0.5
+		var foot: Vector3 = centre + Vector3(cos(a), 0.0, sin(a)) * 0.19
+		mb.add_box(foot - Vector3(0.028, 0.0, 0.028), Vector3(0.056, seat_h - 0.05, 0.056), accent)
+		var rung: Vector3 = centre + Vector3(cos(a), 0.0, sin(a)) * 0.12
+		mb.add_box(rung - Vector3(0.05, -seat_h * 0.36, 0.05), Vector3(0.1, 0.03, 0.1), accent.darkened(0.12))
+	mb.add_cylinder(centre + Vector3(0.0, seat_h - 0.06, 0.0), 0.2, 0.23, 0.06, 10, main.darkened(0.08))
+	mb.add_cylinder(centre + Vector3(0.0, seat_h, 0.0), 0.23, 0.22, 0.035, 10, main)
 
 
 func _counter(mb: MeshBuilder, w: float, d: float, h: float, main: Color, accent: Color) -> void:

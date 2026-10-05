@@ -222,7 +222,8 @@ static func building_rows(world, index: int) -> Array:
 		return rows
 	var def: BuildingDef = entry["def"]
 	rows.append(_title(def.display_name, IconStudio.building(def)))
-	rows.append(_sub("%s · %dg" % [def.category, def.cost]))
+	rows.append(_sub("%s%s · %dg" % [def.skin_name + " · " if BuildingCatalog.styles_of(def).size() > 1 else "",
+		def.category, def.cost]))
 	if entry.get("till", false):
 		rows.append(_stat("Payments", "taken here: guests buy what is on it", TavernTheme.CANDLE, true))
 	elif def.takes_payments:
@@ -668,7 +669,7 @@ static func ground_rows(world, tile: Vector2i) -> Array:
 ## whose purpose lives in code rather than data get words of their own.
 static func building_blurb(def: BuildingDef) -> String:
 	var parts: PackedStringArray = PackedStringArray()
-	parts.append("%s, %dg, %d×%d" % [def.display_name, def.cost, def.size.x, def.size.y])
+	parts.append("%s, %dg, %d×%d" % [def.full_name(), def.cost, def.size.x, def.size.y])
 	var makes: PackedStringArray = PackedStringArray()
 	for recipe in RecipeCatalog.for_station(def.id):
 		var made: Array = recipe.outputs.duplicate()
@@ -687,7 +688,27 @@ static func building_blurb(def: BuildingDef) -> String:
 	if def.needs_water_within > 0:
 		parts.append("must stand within %d tiles of water" % def.needs_water_within)
 	if def.layer == BuildingDef.Layer.FLOOR:
-		parts.append("staff walk quickest on laid floor; drag to fill an area")
+		# Only a laid floor is the quickest going; a lawn or a bed is not.
+		parts.append("staff walk quickest on laid floor; drag to fill an area" if def.shape == BuildingDef.Shape.FLOOR_SLAB
+			else "drag to fill an area")
+	# What is said of a look by its drawing's name (the parasol, the stool),
+	# else of the piece. Styles never change what a piece does.
+	var said: int = parts.size()
+	match def.art_id():
+		&"parasol_table":
+			parts.append("a table under a parasol: put chairs beside it, out on the lawn")
+		&"stool":
+			parts.append("a stool: a seat only when it stands beside a table")
+		&"lemon_stall":
+			parts.append("a bar dressed as a lemonade stall: drinks wait on its counter, its own lemonade and beer the porters bring. Guests who want only a drink, and hate to wait, fetch their own")
+	if parts.size() == said:
+		_piece_words(def, parts)
+	if def.encloses and def.id != &"door":
+		parts.append("encloses rooms")
+	return " · ".join(parts)
+
+
+static func _piece_words(def: BuildingDef, parts: PackedStringArray) -> void:
 	match def.id:
 		&"table":
 			parts.append("a chair beside it becomes a seat")
@@ -723,9 +744,6 @@ static func building_blurb(def: BuildingDef) -> String:
 			parts.append("pumps river water slowly, for the well or storage; must touch the river")
 		&"fishing_spot":
 			parts.append("a fisherman fishes here, on the river bank")
-	if def.encloses and def.id != &"door":
-		parts.append("encloses rooms")
-	return " · ".join(parts)
 
 
 # --- shared wording ---------------------------------------------------------

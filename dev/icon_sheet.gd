@@ -25,7 +25,8 @@ func _ready() -> void:
 	for def in ItemCatalog.all():
 		grid.add_child(_cell(IconStudio.item(def.id), def.display_name))
 	for def in BuildingCatalog.all():
-		grid.add_child(_cell(IconStudio.building(def), def.display_name))
+		for look in BuildingCatalog.styles_of(def):
+			grid.add_child(_cell(IconStudio.building(look), look.full_name()))
 	var waited: int = 0
 	while not IconStudio.settled() and waited < 600:
 		await get_tree().process_frame

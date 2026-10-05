@@ -75,6 +75,9 @@ static func _capture_buildings(world: TavernWorld) -> Array:
 			continue
 		out.append({
 			"def": String(entry["def"].id),
+			# Which look: a table plain or under a parasol. Older saves have
+			# none, and their old ids (parasol_table) still name the look.
+			"skin": String(entry["def"].skin),
 			"x": entry["origin"].x,
 			"y": entry["origin"].y,
 			"rot": entry["rotation"],
@@ -309,7 +312,7 @@ static func _validation_error(data: Dictionary) -> String:
 		for field in ["x", "y", "rot"]:
 			if not _integer(row.get(field)):
 				return "A saved building position is invalid."
-		var def: BuildingDef = BuildingCatalog.get_def(StringName(row["def"]))
+		var def: BuildingDef = _look(row)
 		if def == null or grid.place(def, Vector2i(int(row["x"]), int(row["y"])), int(row["rot"]), bool(row["built"])) < 0:
 			return "Saved building '%s' cannot be restored." % row["def"]
 		if row.has("filter") and not row["filter"] is Array:
@@ -496,10 +499,19 @@ static func _apply_plot(world: TavernWorld, data: Dictionary) -> void:
 		world.customers.plot = restored
 
 
+## The saved piece in its saved look. An unknown look falls back to the
+## piece's own, rather than losing the piece.
+static func _look(row: Dictionary) -> BuildingDef:
+	var def: BuildingDef = BuildingCatalog.get_def(StringName(row["def"]))
+	if def == null or not row.get("skin") is String or String(row["skin"]).is_empty():
+		return def
+	return BuildingCatalog.style(def.id, StringName(row["skin"]))
+
+
 static func _apply_buildings(world: TavernWorld, rows: Array) -> void:
 	world.build.setup(world.grid.cols, world.grid.rows, world.plot, world.terrain, world.terrain.plot_height)
 	for row in rows:
-		var def: BuildingDef = BuildingCatalog.get_def(StringName(row["def"]))
+		var def: BuildingDef = _look(row)
 		if def == null:
 			push_warning("SaveGame: unknown building '%s'; skipped." % row["def"])
 			continue

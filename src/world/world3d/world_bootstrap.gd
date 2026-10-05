@@ -312,6 +312,9 @@ func _setup_build() -> void:
 	# to run on every single placement.
 	world.build.grid.placement_added.connect(_on_grid_changed)
 	world.build.grid.placement_removed.connect(func(index: int, _def: BuildingDef) -> void: _on_grid_changed(index))
+	# A new look can bring its own preferences (overgrown grass is skirted
+	# more than tall grass), so a restyle refreshes the ground under it too.
+	world.build.grid.placement_restyled.connect(_on_grid_changed)
 
 
 func _on_grid_changed(index: int) -> void:

@@ -270,7 +270,11 @@ func _building_extras() -> void:
 	if world == null or building_index < 0 or building_index >= world.build.grid.placements.size():
 		return
 	var entry = world.build.grid.placements[building_index]
-	if entry == null or not entry["built"]:
+	if entry == null:
+		return
+	if BuildingCatalog.styles_of(entry["def"]).size() > 1:
+		_extras.add_child(_style_row(entry["def"]))
+	if not entry["built"]:
 		return
 	var def: BuildingDef = entry["def"]
 	for recipe in RecipeCatalog.for_station(def.id):
@@ -295,6 +299,43 @@ func _building_extras() -> void:
 				refresh()
 			)
 			_extras.add_child(b)
+
+
+## The piece's looks, as pictures: the lit one is how it stands now, and a
+## click restyles it where it stands. A dearer look costs the difference.
+func _style_row(def: BuildingDef) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	var label := Label.new()
+	label.text = "Style"
+	label.add_theme_font_size_override("font_size", 12)
+	label.add_theme_color_override("font_color", TavernTheme.IRON.lightened(0.25))
+	label.custom_minimum_size.x = StatRows.LABEL_WIDTH
+	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(label)
+	var index: int = building_index
+	for look in BuildingCatalog.styles_of(def):
+		var b := Button.new()
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.icon = IconStudio.building(look)
+		b.expand_icon = true
+		b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		b.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		b.custom_minimum_size = Vector2(46, 46)
+		UiKit.snug(b)
+		var extra: int = maxi(0, look.cost - def.cost)
+		b.tooltip_text = "%s%s" % [look.skin_name, ", %dg more" % extra if extra > 0 else ""]
+		b.set_pressed_no_signal(look == def)
+		var chosen: BuildingDef = look
+		b.pressed.connect(func() -> void:
+			if chosen != def and world.restyle_piece(index, chosen):
+				AudioDirector.play("ui_click")
+			_rebuild_extras()
+			refresh()
+		)
+		row.add_child(b)
+	return row
 
 
 ## The storage filter from design notes section 11.

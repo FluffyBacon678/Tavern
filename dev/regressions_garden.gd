@@ -30,8 +30,21 @@ func run() -> void:
 func _check_catalogue() -> void:
 	var garden: Array[BuildingDef] = BuildingCatalog.in_category("Garden")
 	check(BuildingCatalog.categories().has("Garden"), "the build bar has a Garden tab")
-	var pieces: int = TILES.size() + PROPS.size() + GARDEN_FURNITURE.size()
-	check(garden.size() == pieces, "with all %d garden pieces" % pieces)
+	# Every garden piece is still offered, as a piece or as a look of one; the
+	# parasol table is a look of the table now, in the Dining tab.
+	var looks: int = 0
+	var buttons: Dictionary = {}
+	for def in garden:
+		looks += BuildingCatalog.styles_of(def).size()
+		buttons[BuildingCatalog.family_of(def)] = true
+	var pieces: int = TILES.size() + PROPS.size() + GARDEN_FURNITURE.size() - 1
+	check(looks == pieces, "with all %d garden pieces, as pieces or looks (%d)" % [pieces, looks])
+	check(buttons.size() == 9, "in 9 buttons: lawn, path, flower bed, wild grass, bench, rocks, tree, lantern, fence (%d)" % buttons.size())
+	check(BuildingCatalog.styles_of(BuildingCatalog.get_def(&"bed_daisy")).size() == 7, "the flower bed comes in seven looks")
+	check(BuildingCatalog.get_def(&"parasol_table").id == &"table" and BuildingCatalog.get_def(&"parasol_table").category == "Dining",
+		"the parasol table is a look of the table")
+	for id in TILES + PROPS + GARDEN_FURNITURE:
+		check(BuildingCatalog.get_def(id) != null, "%s still loads by its old name" % id)
 	check(BuildingCatalog.get_def(&"bar_table").category == "Dining", "the bar table is in the Dining tab: it serves inside and out")
 	check(BuildingCatalog.get_def(&"market_stall") == BuildingCatalog.get_def(&"bar_table"),
 		"a save naming the old market stall loads it as the bar table")

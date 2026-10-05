@@ -87,6 +87,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			world.undo_last_placement()
 			get_viewport().set_input_as_handled()
 			return
+		# T: the next style of the piece being placed.
+		if not event.echo and hud._build_bar != null and hud._build_bar.visible \
+				and event.is_action_pressed("build_style"):
+			hud._build_bar.next_style()
+			get_viewport().set_input_as_handled()
+			return
 		# Zoom keys repeat while held, like the wheel; everything else fires once.
 		if event.is_action_pressed("cam_zoom_in", true):
 			world.rig.zoom_by(-1.0)

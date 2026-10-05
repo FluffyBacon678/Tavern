@@ -128,10 +128,12 @@ static func made(world, ids: Array) -> int:
 
 
 ## Placements of any of `ids` with a tile inside `rect` (built or blueprint).
+## How many of these pieces stand in `rect`. An id that became a style (a
+## parasol table) counts that look of its piece.
 static func placed_in(world, ids: Array, rect: Rect2i) -> int:
 	var n: int = 0
 	for entry in world.build.grid.placements:
-		if entry == null or not ids.has(entry["def"].id):
+		if entry == null or not (ids.has(entry["def"].id) or ids.has(entry["def"].art_id())):
 			continue
 		for tile in entry["tiles"]:
 			if rect.has_point(tile):
@@ -231,7 +233,7 @@ static func _require_construction_practice(step: TutorialStep, groups: Array) ->
 			var found: bool = false
 			for i in range(start, w.build.grid.placements.size()):
 				var entry = w.build.grid.placements[i]
-				if entry != null and alternatives.has(entry["def"].id):
+				if entry != null and (alternatives.has(entry["def"].id) or alternatives.has(entry["def"].art_id())):
 					found = true
 					break
 			if not found:

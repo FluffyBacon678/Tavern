@@ -33,7 +33,25 @@ func _ready() -> void:
 		world.hud._build_bar._show_category(category)
 		await _settle()
 		await _shot("build_" + category.to_lower(), "Build bar, %s" % category)
+	# A piece with looks: its styles above the bar.
+	for id in [&"bed_roses", &"parasol_table", &"stone_path"]:
+		world.hud._build_bar.choose(BuildingCatalog.get_def(id))
+		await _settle()
+		await _shot("styles_" + String(id), "Styles of %s" % BuildingCatalog.get_def(id).display_name)
+	world.build.select(null)
 	world.hud._toggle_build_bar()
+
+	# The bar dressed as a lemonade stall, where it stands, and its card.
+	var bar_index: int = _first(&"bar_table")
+	if bar_index >= 0:
+		world.restyle_piece(bar_index, BuildingCatalog.style(&"bar_table", &"stall"))
+		var tile: Vector2i = world.build.grid.placements[bar_index]["origin"]
+		world.rig.focus_on(Vector3(tile.x + 1.0, world.terrain.plot_height, tile.y + 0.5))
+		world.hud.inspector.show_building(bar_index)
+		await _frames(30)
+		await _settle()
+		await _shot("stall_in_world", "The bar restyled as a lemonade stall, and its card's Style row")
+		world.hud.inspector.clear()
 
 	world.hud.toggle_supplies()
 	await _settle()

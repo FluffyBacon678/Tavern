@@ -36,6 +36,7 @@ const ACTIONS: Array = [
 	["rotate", "Building", "Rotate what you are placing", [KEY_R]],
 	["demolish", "Building", "Demolish, or sell goods", [KEY_X]],
 	["build_undo", "Building", "Take back the last placement", [KEY_C]],
+	["build_style", "Building", "Next style of what you are placing", [KEY_T]],
 	["staff", "Tavern", "Staff and hiring", [KEY_K]],
 	["production", "Tavern", "Kitchen details (advanced)", [KEY_P]],
 	["supplies", "Tavern", "Stores and meal targets", [KEY_U]],
@@ -52,7 +53,7 @@ const ACTIONS: Array = [
 ## with an action that works everywhere else -- C takes back a placement while
 ## building, and switches the camera the rest of the time -- and they win while
 ## the bar is open.
-const BUILD_ONLY: Array[String] = ["build_undo"]
+const BUILD_ONLY: Array[String] = ["build_undo", "build_style"]
 
 ## Keys the table may not take: they mean something fixed.
 const RESERVED: Array = [KEY_ESCAPE, KEY_ALT, KEY_SHIFT, KEY_CTRL, KEY_META]

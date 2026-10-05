@@ -945,6 +945,26 @@ func commit_build_action() -> void:
 		hud.refresh_stats()
 
 
+## Another look for a placed piece. A dearer look costs the difference; a
+## cheaper one gives nothing back (the piece was paid for). Says why not, and
+## returns false, when it cannot be done.
+func restyle_piece(index: int, look: BuildingDef) -> bool:
+	if index < 0 or index >= build.grid.placements.size() or build.grid.placements[index] == null or look == null:
+		return false
+	var before: BuildingDef = build.grid.placements[index]["def"]
+	var extra: int = maxi(0, look.cost - before.cost)
+	if extra > GameState.gold:
+		hud.flash("The %s look costs %dg more; the purse has %dg" % [look.skin_name, extra, GameState.gold])
+		return false
+	if not build.restyle(index, look):
+		return false
+	if extra > 0:
+		ledger.spend(Ledger.Line.CONSTRUCTION, extra)
+	hud.flash("%s, now %s%s" % [look.display_name, look.skin_name.to_lower(), " — %dg" % extra if extra > 0 else ""])
+	hud.refresh_stats()
+	return true
+
+
 ## Take down whatever stands on `tile`, and pay back for it: all of it for a
 ## blueprint nobody had started, half for a finished piece. Returns the refund,
 ## or -1 if there was nothing there. `quiet` skips the message, for a wall a

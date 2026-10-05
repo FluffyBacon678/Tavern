@@ -78,9 +78,9 @@ func item(id: StringName) -> Texture2D:
 	return tex
 
 
-## The picture of a buildable piece.
+## The picture of a buildable piece, in its look.
 func building(def: BuildingDef) -> Texture2D:
-	var key := "building:%s" % def.id
+	var key := "building:%s@%s" % [def.id, def.skin]
 	if _textures.has(key):
 		return _textures[key]
 	var tex: ImageTexture = _dot(key, def.palette[0] if not def.palette.is_empty() else Color.WHITE)
@@ -117,7 +117,8 @@ func prewarm() -> void:
 	for def in ItemCatalog.all():
 		item(def.id)
 	for def in BuildingCatalog.all():
-		building(def)
+		for look in BuildingCatalog.styles_of(def):
+			building(look)
 
 
 ## Whether every picture asked for so far is a real one, not a dot.

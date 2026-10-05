@@ -58,6 +58,26 @@ static func button(text: String, s: float, primary: bool = false, danger: bool =
 	return b
 
 
+## A button for a picture: the theme's padding is sized for words, and on a
+## small square it leaves the picture a speck. Lit gold while pressed.
+static func snug(b: Button, margin: float = 4.0) -> void:
+	for state in ["normal", "hover", "pressed", "hover_pressed", "disabled", "focus"]:
+		var box := StyleBoxFlat.new()
+		box.bg_color = TavernTheme.TIMBER_LIGHT if state == "hover" else (
+			TavernTheme.TIMBER_DARK if state in ["pressed", "hover_pressed"] else TavernTheme.TIMBER)
+		box.border_color = TavernTheme.CANDLE if state in ["pressed", "hover_pressed"] else (
+			TavernTheme.CANDLE_DIM if state == "hover" else TavernTheme.IRON)
+		if state == "focus":
+			box.draw_center = false
+			box.border_color = Color(0, 0, 0, 0)
+		box.set_border_width_all(1)
+		box.set_corner_radius_all(TavernTheme.CORNER)
+		box.set_content_margin_all(margin)
+		b.add_theme_stylebox_override(state, box)
+	b.add_theme_color_override("font_pressed_color", TavernTheme.CANDLE)
+	b.add_theme_color_override("font_hover_pressed_color", TavernTheme.CANDLE)
+
+
 ## Hover focuses, focus sounds, press sounds.
 static func wire(b: BaseButton) -> void:
 	b.mouse_entered.connect(func() -> void:

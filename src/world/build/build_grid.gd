@@ -21,6 +21,8 @@ signal placement_built(index: int)
 ## Something about an existing placement changed that other systems care about
 ## -- so far, what a shelf is willing to hold.
 signal placement_changed(index: int)
+## A placed piece took another look (BuildController.restyle).
+signal placement_restyled(index: int)
 
 var cols: int = 0
 var rows: int = 0
@@ -166,6 +168,16 @@ func toggle_filter(index: int, id: StringName) -> void:
 		# from "only this" rather than "everything except".
 		filter[id] = true
 	placements[index]["filter"] = filter
+	placement_changed.emit(index)
+
+
+## Another look for a placed piece: same piece, tiles and state, so only the
+## drawing (and a look's own price and preferences) changes.
+func restyle(index: int, look: BuildingDef) -> void:
+	if index < 0 or index >= placements.size() or placements[index] == null:
+		return
+	placements[index]["def"] = look
+	placement_restyled.emit(index)
 	placement_changed.emit(index)
 
 

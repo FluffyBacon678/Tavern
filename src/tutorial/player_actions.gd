@@ -16,9 +16,10 @@ static func select(world, id: StringName) -> void:
 	var bar: BuildBar = world.hud._build_bar
 	if bar != null and not bar.visible:
 		world.hud._toggle_build_bar()
-	if bar != null and bar._item_buttons.has(id):
-		bar._show_category(def.category)
-		bar._item_buttons[id].pressed.emit()
+	# Through the bar: its category, the piece's button, and the look. An id
+	# that became a style (a parasol table) picks that look of its piece.
+	if bar != null and def != null:
+		bar.choose(def)
 	else:
 		world.build.select(def)
 

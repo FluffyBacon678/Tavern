@@ -100,7 +100,7 @@ func _check_work(world: TavernWorld) -> void:
 	var press: Recipe = RecipeCatalog.get_recipe(&"press_lemonade")
 	var options: Array = world.keeper_controls.options_for(at + Vector2i(1, 1))
 	var texts: Array = options.map(func(o: Dictionary) -> String: return String(o["text"]))
-	check(texts.has(press.display_name) and texts.has("Take payments here") and texts.has("Examine Bar Table"),
+	check(texts.has(press.display_name) and texts.has("Take payments here") and texts.has("Examine Bar"),
 		"the bar offers its recipe, the till and examine (%s)" % ", ".join(texts))
 	check(not keeper.work(bar, press), "a recipe without its ingredients is refused, and the keeper says why")
 

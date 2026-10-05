@@ -21,7 +21,7 @@ static func steps() -> Array[TutorialStep]:
 	var lesson: String = TutorialPlan.LESSONS[10]
 	var out: Array[TutorialStep] = []
 	out.append(TutorialStep.make("stand", lesson,
-		"Build a Bar Table (Dining) on the marked lawn, and a Parasol Table (Garden) below it with a chair either side.",
+		"Build a Bar (Dining) on the marked lawn, and below it a Table in its Parasol style with a chair either side.",
 		"A bar keeps drinks on its counter, inside or out: its own lemonade, pressed there, and beer the porters bring.",
 		func(w, _ctx) -> bool:
 			return TutorialPlan.placed_in(w, [&"bar_table"], area(w)) >= 1 \

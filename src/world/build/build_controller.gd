@@ -258,7 +258,7 @@ func update_hover(tile: Vector2i, valid_tile: bool) -> void:
 
 
 func _pose_ghost(origin: Vector2i, tint: Color) -> void:
-	var key: String = "%s:%d" % [selected.id, rotation_steps]
+	var key: String = "%s@%s:%d" % [selected.id, selected.skin, rotation_steps]
 	if key != _last_ghost_key:
 		_ghost.mesh = _library.mesh_for(selected)
 		_last_ghost_key = key
@@ -419,6 +419,19 @@ func _on_build_job_complete(job: Job) -> void:
 	_rebuild_instances(def)
 
 
+## Give a placed piece another of its looks, in place: same piece, same
+## tiles, same state. False if `look` is not a look of that piece.
+func restyle(index: int, look: BuildingDef) -> bool:
+	if index < 0 or index >= grid.placements.size() or grid.placements[index] == null or look == null:
+		return false
+	var before: BuildingDef = grid.placements[index]["def"]
+	if before == look or before.id != look.id:
+		return false
+	grid.restyle(index, look)
+	_rebuild_instances(look)
+	return true
+
+
 func try_demolish() -> bool:
 	if mode != Mode.DEMOLISH or _hover_tile.x < 0:
 		return false
@@ -445,8 +458,11 @@ func demolish_index(index: int) -> bool:
 ## Cheap enough to do on every click, and it keeps the renderer a pure function
 ## of the grid rather than a second source of truth that can drift out of sync.
 func _rebuild_instances(def: BuildingDef) -> void:
-	_rebuild_set(def, true, _instances, _material)
-	_rebuild_set(def, false, _blueprints, _blueprint_material)
+	# Every look of the piece: a placement can change look, and each look is
+	# its own batch with its own mesh.
+	for look in BuildingCatalog.styles_of(def):
+		_rebuild_set(look, true, _instances, _material)
+		_rebuild_set(look, false, _blueprints, _blueprint_material)
 	# A joining piece changes how its group's other pieces are drawn: a new
 	# stone path takes the verge off the dirt path beside it.
 	if def.links and def.link_group != &"":
@@ -456,6 +472,22 @@ func _rebuild_instances(def: BuildingDef) -> void:
 				_rebuild_set(other, false, _blueprints, _blueprint_material)
 
 
+## The name of a look's batch of pieces: one per look, so a stone wall and a
+## timber wall are drawn from their own meshes. Shared with the cutaway, which
+## reaches into the same batches.
+static func batch_key(def: BuildingDef) -> StringName:
+	return StringName("%s@%s" % [def.id, def.skin])
+
+
+## The pieces drawn in a look's batch, in the order the batch holds them.
+func batch_entries(def: BuildingDef, built: bool) -> Array:
+	var out: Array = []
+	for entry in grid.live_of(def.id, built):
+		if entry["def"].skin == def.skin:
+			out.append(entry)
+	return out
+
+
 ## A tile's own quarter turn, from its position: the same every time, so a
 ## lawn looks the same after a reload.
 static func tile_turn(origin: Vector2i) -> int:
@@ -463,26 +495,27 @@ static func tile_turn(origin: Vector2i) -> int:
 
 
 func _rebuild_set(def: BuildingDef, built: bool, store: Dictionary, material: Material) -> void:
-	var entries: Array = grid.live_of(def.id, built)
+	var entries: Array = batch_entries(def, built)
 	if def.links:
 		_rebuild_linked(def, entries, store, material, built)
 		return
-	var mmi: MultiMeshInstance3D = store.get(def.id, null)
+	var key: StringName = batch_key(def)
+	var mmi: MultiMeshInstance3D = store.get(key, null)
 
 	if entries.is_empty():
 		if mmi != null:
 			mmi.queue_free()
-			store.erase(def.id)
+			store.erase(key)
 		return
 
 	if mmi == null:
 		mmi = MultiMeshInstance3D.new()
-		mmi.name = "%s_%s" % [def.id, "built" if built else "blueprint"]
+		mmi.name = "%s_%s_%s" % [def.id, def.skin, "built" if built else "blueprint"]
 		mmi.material_override = material
 		if not built:
 			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mmi)
-		store[def.id] = mmi
+		store[key] = mmi
 
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D

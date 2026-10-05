@@ -153,6 +153,8 @@ static func build(mb: MeshBuilder, id: StringName, w: float, d: float, h: float,
 			_lantern_post(mb)
 		&"bar_table":
 			_bar(mb, w)
+		&"lemon_stall":
+			_lemon_stall(mb, w)
 		&"parasol_table":
 			_parasol_table(mb, w)
 		&"garden_fence":
@@ -417,6 +419,50 @@ static func _bar(mb: MeshBuilder, w: float) -> void:
 	mb.add_box(Vector3(w * 0.5 + 0.065, 0.52, 0.89), Vector3(0.055, 0.025, 0.02), brass)
 	mb.surface_style = TavernMaterials.Surface.PLAIN
 	mb.add_box(Vector3(w * 0.5 - 0.07, 0.57, 0.89), Vector3(0.14, 0.025, 0.025), STRIPE_CREAM)
+
+
+## The bar as a lemonade stall: a plank counter under a striped awning on
+## four posts. The counter
+## top is where the drinks stand, a tile's worth each (each tile's centre, at
+## 0.95), so it is left clear there; a crate of lemons sits at one end and a
+## chalk board at the other.
+static func _lemon_stall(mb: MeshBuilder, w: float) -> void:
+	mb.surface_style = TavernMaterials.Surface.WOOD
+	# The body, with its planked front to +z, the guests' side.
+	mb.add_box(Vector3(0.1, 0.0, 0.3), Vector3(w - 0.2, 0.9, 0.55), STALL_WOOD)
+	var boards: int = 6
+	var board: float = (w - 0.24) / float(boards)
+	for i in range(boards):
+		mb.add_box(Vector3(0.12 + board * float(i), 0.06, 0.85), Vector3(board - 0.015, 0.8, 0.03),
+			STALL_WOOD.lightened(0.07 * float(i % 2)))
+	mb.add_box(Vector3(0.05, 0.9, 0.24), Vector3(w - 0.1, 0.05, 0.7), STALL_TOP)
+	for x in [0.06, w - 0.14]:
+		for z in [0.16, 0.86]:
+			mb.add_box(Vector3(x, 0.0, z), Vector3(0.08, 1.8, 0.08), STALL_DARK)
+	# A crate of lemons at the left end, a chalk board at the right.
+	mb.add_box(Vector3(0.1, 0.95, 0.36), Vector3(0.22, 0.09, 0.3), STALL_DARK)
+	mb.add_box(Vector3(w - 0.24, 0.95, 0.42), Vector3(0.04, 0.32, 0.22), STALL_DARK)
+	mb.surface_style = TavernMaterials.Surface.PLAIN
+	for p in [Vector3(0.16, 1.07, 0.44), Vector3(0.26, 1.07, 0.52), Vector3(0.17, 1.08, 0.58)]:
+		mb.add_blob(p, Vector3(0.055, 0.045, 0.045), 2, 5, LEMON)
+	mb.add_box(Vector3(w - 0.245, 0.99, 0.44), Vector3(0.005, 0.24, 0.18), Color("2e3a2f"))
+	# The sign on the front: a yellow board with a lemon on it.
+	mb.add_box(Vector3(0.55, 0.42, 0.885), Vector3(w - 1.1, 0.3, 0.02), STRIPE_YELLOW)
+	mb.add_blob(Vector3(w * 0.5, 0.57, 0.91), Vector3(0.11, 0.08, 0.025), 2, 6, LEMON.darkened(0.08))
+	mb.add_blob(Vector3(w * 0.5 + 0.1, 0.62, 0.915), Vector3(0.04, 0.02, 0.01), 1, 4, LEAF)
+	# The awning: yellow and cream stripes sloping to the front, scalloped.
+	mb.surface_style = TavernMaterials.Surface.CLOTH
+	var back_y: float = 1.86
+	var front_y: float = 1.6
+	var stripes: int = 8
+	for i in range(stripes):
+		var x0: float = w * float(i) / float(stripes)
+		var x1: float = w * float(i + 1) / float(stripes)
+		var colour: Color = STRIPE_YELLOW if i % 2 == 0 else STRIPE_CREAM
+		_canopy_quad(mb, Vector3(x0, back_y, 0.04), Vector3(x1, back_y, 0.04),
+			Vector3(x1, front_y, 1.0), Vector3(x0, front_y, 1.0), colour)
+		_both_sides(mb, Vector3(x0, front_y, 1.0), Vector3(x1, front_y, 1.0),
+			Vector3((x0 + x1) * 0.5, front_y - 0.1, 1.0), colour)
 
 
 ## A table for the garden under a striped parasol. The pole stands between
