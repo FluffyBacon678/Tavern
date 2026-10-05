@@ -189,7 +189,7 @@ func set_appearance(next: CharacterAppearance, equipment: Variant = null) -> voi
 	if is_instance_valid(_display_carried):
 		_display_carried.reparent(_rig.carry_anchor, false)
 	if is_instance_valid(_work_rod):
-		_work_rod.reparent(_rig.carry_anchor, false)
+		_work_rod.reparent(_rig.work_anchor, false)
 	if is_instance_valid(_keeper_marker):
 		_keeper_marker.reparent(_rig.root, false)
 	previous.root.queue_free()
@@ -328,9 +328,10 @@ func _process(_real_delta: float) -> void:
 	_work_target = request.get("target", position)
 	if _work_mode == &"fish" and _work_rod == null:
 		_work_rod = PawnWorkArt.rod(_pawn_material)
-		_rig.carry_anchor.add_child(_work_rod)
+		_rig.work_anchor.add_child(_work_rod)
 	if _work_rod != null:
 		_work_rod.visible = _work_mode == &"fish" and not is_carrying()
+		_work_rod.quaternion = _rig.arm_r.quaternion.inverse()
 	if _pending_anim <= 0.0:
 		return
 	_animate(minf(_pending_anim, 0.25))
@@ -509,4 +510,7 @@ func _animate(delta: float) -> void:
 		_rig.torso.position.y = lerpf(_rig.torso.position.y, PawnMesh.LEG_H, settle)
 	if state == State.WALKING:
 		_rig.arm_r.rotation.z = lerpf(_rig.arm_r.rotation.z, 0.0, minf(1.0, 8.0 * delta))
+	if _work_rod != null:
+		# Keep the pole aimed outward while its handle follows the animated palm.
+		_work_rod.quaternion = _rig.arm_r.quaternion.inverse()
 	_rig.sync_pose()

@@ -10,7 +10,7 @@ static var _marker_material: StandardMaterial3D
 static func rod(material: Material) -> MeshInstance3D:
 	if _rod == null:
 		var mb := MeshBuilder.new()
-		var hand := Vector3(0.18, -0.065, 0.29)
+		var hand := Vector3.ZERO
 		var tip := hand + Vector3(0, 0.70, 1.10)
 		mb.add_limb(hand - Vector3(0, 0.10, 0.16), tip, 0.018, 0.006, 5, Color("957043"))
 		mb.add_limb(hand - Vector3(0, 0.07, 0.11), hand + Vector3(0, 0.07, 0.11),

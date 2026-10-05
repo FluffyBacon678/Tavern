@@ -106,6 +106,8 @@ class Rig:
 	var joints: Array[Node3D] = []
 	## Where a carried item sits. Populated whether or not anything is held.
 	var carry_anchor: Node3D
+	## Tool grip follows the right palm independently of the general cargo point.
+	var work_anchor: Node3D
 	## In words, for the inspector: "a steel-clad warrior", "in the house uniform".
 	var description: String = ""
 	## The one skinned mesh everything is drawn in, for the outline overlay.
@@ -217,6 +219,10 @@ static func build_appearance(appearance: CharacterAppearance, material: Material
 	rig.root.add_child(rig.carry_anchor)
 
 	_merge_rig(rig, material)
+	rig.work_anchor = Node3D.new()
+	rig.work_anchor.name = "WorkGrip"
+	rig.work_anchor.position = Vector3(0, -ARM_H * 0.92 * arm_scale.y, 0.02 * arm_scale.z)
+	rig.arm_r.add_child(rig.work_anchor)
 	return rig
 
 
@@ -876,9 +882,11 @@ static func _chamfered_head(mb: MeshBuilder, bottom: float, top: float, width: f
 ## A faint outline for telling staff from guests at a glance: the body drawn
 ## again a little larger, inside out, in one flat colour -- so only a thin rim
 ## of it shows round the edge. Gold for staff, blue for guests.
-const OUTLINE_STAFF := Color(1.0, 0.78, 0.25, 0.55)
-const OUTLINE_GUEST := Color(0.4, 0.75, 1.0, 0.5)
-const OUTLINE_WIDTH: float = 0.032
+const OUTLINE_STAFF := Color(0.91, 0.72, 0.36, 0.35)
+const OUTLINE_GUEST := Color(0.44, 0.66, 0.79, 0.32)
+## A small rim preserves the outfit silhouette. Thick extrusion exposed the
+## faceted mesh's seams as bright wirework, especially on sleeves and faces.
+const OUTLINE_WIDTH: float = 0.012
 static var _outlines: Dictionary = {}
 
 

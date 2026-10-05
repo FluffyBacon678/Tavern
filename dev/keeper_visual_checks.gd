@@ -30,8 +30,14 @@ func _check_poses(group: Node, world: TavernWorld) -> void:
 	group.check(normals.size() > 0 and Array(normals).all(func(n: Vector3) -> bool: return n.y > 0.99),
 		"keeper ground marker faces upward with Godot's winding")
 	pawn.set_appearance(pawn.appearance)
-	group.check(rod.get_parent() == pawn._rig.carry_anchor and marker.get_parent() == pawn._rig.root,
+	group.check(rod.get_parent() == pawn._rig.work_anchor and marker.get_parent() == pawn._rig.root,
 		"a wardrobe rebuild preserves the work rod and keeper marker")
+	var grip_before: Vector3 = rod.global_position
+	pawn._rig.arm_r.rotation.x += 0.20
+	pawn._rig.sync_pose()
+	group.check(rod.global_position.distance_to(grip_before) > 0.02
+		and rod.global_position.distance_to(pawn._rig.work_anchor.global_position) < 0.001,
+		"the rod handle follows the moving palm, not the fixed cargo anchor")
 	pawn.work_visual = observer
 	pawn._process(0)
 	group.check(not rod.visible, "idle keeper leaves no working rod visible")

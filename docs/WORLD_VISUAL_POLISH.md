@@ -96,3 +96,30 @@ tavern's 60fps target and phone measurements remain outstanding.
 
 Evidence is in `.verification/visual_20261004/`; screenshots above are kept in
 the repository so the commit's before/after comparison survives cleanup.
+
+## Quieter character outlines — 2026-10-05
+
+The staff/guest rim keeps its gold/blue distinction and the existing player
+setting, but its extrusion is .012 instead of .032, with softer colours and
+lower opacity. The previous thick shell exposed the faceted geometry as bright
+wirework over sleeves and faces. The thinner rim lets clothing and the head
+silhouette read more clearly, especially in keeper view.
+
+The final fishing refinement also seats the rod at a dedicated right-palm
+grip, following arm movement and body-build changes. Its orientation remains
+aimed outward while the handle moves with the hand. A regression checks that
+moving the arm actually moves the handle; the ordinary cargo point is unchanged.
+
+![Thick outlines before](images/polish_20261004/outline_before.png)
+
+![Quieter outlines after](images/polish_20261004/outline_after.png)
+
+The final checkout passes `bash dev/run_tests.sh` again: **23/23 suites,
+tutorial 70/70**, the same three chaos fingerprints, the same 4,208g house and
+the same tutorial-soak totals. No script errors occur in those suite logs.
+The final screenshot run used the restricted sandbox after two automatic
+approval timeouts; Godot reported denied log rotation and root-certificate
+access there, but completed all four captures with no GDScript errors. The
+game's geometry or simulation did not cause those environment messages.
+Final logs/captures are in `.verification/visual_20261005/`. The five player
+save hashes remain unchanged.
