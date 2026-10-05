@@ -140,6 +140,18 @@ func _load_copy(path: String) -> void:
 	_compare_rows(expected.get("buildings", []), actual["buildings"], "buildings", ["def", "x", "y", "rot", "built", "filter", "crop", "growth", "harvest_remaining"])
 	_compare_rows(expected.get("items", []), actual["items"], "item stacks", ["id", "x", "y", "count", "quality"])
 	_compare_rows(expected.get("pawns", []), actual["pawns"], "staff and cargo", ["name", "seed", "role", "priorities", "cargo"])
+	# Placed is not the same as on screen: loads placed every piece and drew
+	# none of them, so a reloaded tavern worked with no walls or tables visible.
+	var placed: int = 0
+	for entry in world.build.grid.placements:
+		if entry != null:
+			placed += 1
+	var drawn: int = 0
+	for store in [world.build._instances, world.build._blueprints]:
+		for key in store:
+			if is_instance_valid(store[key]) and store[key].multimesh != null:
+				drawn += store[key].multimesh.instance_count
+	check(placed > 0 and drawn == placed, "every loaded piece is drawn (%d of %d)" % [drawn, placed])
 	check(int(expected["gold"]) == GameState.gold, "gold preserved: %d" % GameState.gold)
 	check(expected["plot"] == actual["plot"], "purchased plot preserved")
 	check(int(expected["world_seed"]) == world._world_seed, "world seed preserved")

@@ -453,6 +453,13 @@ func demolish_index(index: int) -> bool:
 	return true
 
 
+## Draw every piece on the grid afresh. For anything that places pieces in
+## bulk without drawing them one by one: a level, the test house, a load.
+func redraw_all() -> void:
+	for def in BuildingCatalog.all():
+		_rebuild_instances(def)
+
+
 ## Rebuild both MultiMeshes for one definition -- finished pieces and blueprints.
 ##
 ## Cheap enough to do on every click, and it keeps the renderer a pure function

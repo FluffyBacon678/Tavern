@@ -116,8 +116,7 @@ static func build(world) -> void:
 		if index >= 0 and world.build.grid.placements[index]["def"].id == &"farm_plot":
 			world.build.grid.placements[index]["crop"] = &"hops"
 
-	for def in BuildingCatalog.all():
-		world.build._rebuild_instances(def)
+	world.build.redraw_all()
 	world.nav.refresh_all()
 	world.customers.seating.refresh()
 

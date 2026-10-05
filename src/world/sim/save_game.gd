@@ -529,6 +529,10 @@ static func _apply_buildings(world: TavernWorld, rows: Array) -> void:
 			entry["growth"] = clampf(float(row.get("growth", -1.0)), -1.0, 1.0)
 			if Farm.growth_of(entry) >= 1.0 and int(row.get("harvest_remaining", -1)) > 0:
 				entry["harvest_remaining"] = clampi(int(row["harvest_remaining"]), 1, int(Farm.YIELD[Farm.crop_of(entry)]))
+	# Placing draws nothing by itself, and the builder's setup above threw away
+	# every batch the level had drawn: a loaded tavern stood there, worked and
+	# took guests, with not one wall or table on screen (2026-10-05).
+	world.build.redraw_all()
 
 
 static func _apply_keeper(world: TavernWorld, data: Dictionary) -> void:

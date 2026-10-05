@@ -180,18 +180,55 @@ func _play() -> void:
 	_press(world.hud.pause_menu, "Save game")
 	await _frames(10)
 	await _shot("saved", "Saved from the pause menu.")
+	var before: Dictionary = _tally()
+
+	# Coming back later: to the title, then Continue, as a returning player
+	# would. Everything saved must be there and on screen.
+	_press(world.hud.pause_menu, "Main menu")
+	for i in range(240):
+		await get_tree().process_frame
+		if not get_tree().current_scene is TavernWorld:
+			break
+	await _frames(20)
+	var title: Node = get_tree().current_scene
+	await _shot("title_again", "Back at the title. Entries: %s" % ", ".join(_button_texts(title)))
+	_press(title, "Continue")
+	for i in range(240):
+		await get_tree().process_frame
+		if get_tree().current_scene is TavernWorld:
+			break
+	world = get_tree().current_scene as TavernWorld
+	if world == null:
+		_note("!! Continue never reopened the tavern.")
+		return
+	await _frames(40)
+	var after: Dictionary = _tally()
+	await _shot("continued", "Continue: %d pieces placed (%d drawn), %d goods, %dg; before leaving %d placed, %d goods, %dg." % [
+		after["placed"], after["drawn"], after["goods"], after["gold"], before["placed"], before["goods"], before["gold"]])
+
+
+## What a returning player would check: pieces standing and on screen, goods,
+## gold.
+func _tally() -> Dictionary:
+	var placed: int = 0
+	for entry in world.build.grid.placements:
+		if entry != null:
+			placed += 1
+	var drawn: int = 0
+	for store in [world.build._instances, world.build._blueprints]:
+		for key in store:
+			if is_instance_valid(store[key]) and store[key].multimesh != null:
+				drawn += store[key].multimesh.instance_count
+	var goods: int = 0
+	for tile in world.items.all_tiles():
+		goods += world.items.count_at(tile)
+	return {"placed": placed, "drawn": drawn, "goods": goods, "gold": GameState.gold}
 
 
 # --- player actions ------------------------------------------------------------
 
 func _select(id: StringName) -> void:
-	var def: BuildingDef = BuildingCatalog.get_def(id)
-	if world.hud._build_bar != null and world.hud._build_bar._item_buttons.has(id):
-		var category: String = def.category
-		world.hud._build_bar._show_category(category)
-		world.hud._build_bar._item_buttons[id].pressed.emit()
-	else:
-		world.build.select(def)
+	PlayerActions.select(world, id)
 
 
 ## A click on a tile in build mode, as the input layer makes it. Judged by
