@@ -114,12 +114,18 @@ moving the arm actually moves the handle; the ordinary cargo point is unchanged.
 
 ![Quieter outlines after](images/polish_20261004/outline_after.png)
 
-The final checkout passes `bash dev/run_tests.sh` again: **23/23 suites,
-tutorial 70/70**, the same three chaos fingerprints, the same 4,208g house and
-the same tutorial-soak totals. No script errors occur in those suite logs.
+The complete run after the animated-palm refinement passes
+`bash dev/run_tests.sh`: **23/23 suites, tutorial 70/70**, the same three chaos
+fingerprints, the same 4,208g house and the same tutorial-soak totals. The runner
+exits 0; its summary is `suites_host_final.txt` in the evidence directory below.
+An earlier restricted run failed the three separate-process save/character/
+uniform suites because their child engines reported denied log and certificate
+access. Their restored-data checks passed. The complete rerun with normal host
+access passes those engine-error checks without weakening or filtering them.
 The final screenshot run used the restricted sandbox after two automatic
 approval timeouts; Godot reported denied log rotation and root-certificate
 access there, but completed all four captures with no GDScript errors. The
 game's geometry or simulation did not cause those environment messages.
 Final logs/captures are in `.verification/visual_20261005/`. The five player
-save hashes remain unchanged.
+save hashes remain unchanged. Later building changes being made concurrently
+are outside this visual pass and are not covered by this completed run.
