@@ -26,8 +26,15 @@ const WORK_SPEED: float = 1.0
 const SEEK_INTERVAL: float = 0.45
 ## How long to tolerate not making progress toward a job before giving it up.
 const STUCK_TIMEOUT: float = 6.0
+## A batch done but its ingredients gone: give it back after this long instead
+## of waiting at the bench for ever. A lone cook is the only one who can make
+## the dough the oven is waiting for, and waiting at the oven they never would:
+## with one cook the kitchen stopped dead (2026-10-05).
+const GIVE_UP_WAITING_FOR_INGREDIENTS: float = 3.0
 ## Jobs to consider in one seek before waiting for the next interval.
 const CANDIDATES_PER_SEEK: int = 5
+## How long the current batch has been waiting for ingredients that went.
+var _ingredient_wait: float = 0.0
 ## A job refused once stays refused for this long. Without expiry a worker
 ## permanently writes off work that only failed because something was in the way
 ## at the time -- and the world changes constantly while building.
@@ -295,6 +302,17 @@ func _process_working(delta: float) -> void:
 		return
 	if current.apply_work(WORK_SPEED * delta):
 		_finish()
+		return
+	if current.blocked_reason == "waiting for ingredients":
+		_ingredient_wait += delta
+		if _ingredient_wait >= GIVE_UP_WAITING_FOR_INGREDIENTS:
+			# Withdrawn, not just released: released, it would wait on the board
+			# for this same worker. The kitchen posts the batch afresh once its
+			# ingredients are back on the bench.
+			if current.key.is_empty() or not board.cancel_key(current.key):
+				_give_up()
+	else:
+		_ingredient_wait = 0.0
 
 
 ## True once the pawn is standing where the job wants it. Handles the case where
@@ -380,6 +398,7 @@ func abandon_job() -> void:
 
 func _reset() -> void:
 	current = null
+	_ingredient_wait = 0.0
 	state = State.HOLDING if _carried_count > 0 else State.SEEKING
 	_stand_tile = Vector2i(-1, -1)
 	_stuck_timer = 0.0
