@@ -67,6 +67,9 @@ var _profile_previous_lock: bool = false
 
 
 func _build_hud() -> void:
+	# Every good's and building's picture, shot now on two sheets, so no menu
+	# opens on placeholder dots.
+	IconStudio.prewarm()
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	_hud = Control.new()
@@ -597,6 +600,7 @@ func _show_speed(speed: int) -> void:
 		b.queue_redraw()
 	if _paused_label != null:
 		_paused_label.visible = speed == 0
+		_place_paused_label()
 		# Above panels opened since (the level's briefing is added late), but
 		# still beneath the day summary, which is modal.
 		if _paused_label.visible and _day_summary != null:
@@ -937,9 +941,31 @@ func show_briefing(level: LevelDef) -> void:
 	button.call_deferred("grab_focus")
 
 
+## Centred in the open view between the panels down each side. Centred on the
+## screen, it sat over the corner of the wider Stores panel, close button and all.
+func _place_paused_label() -> void:
+	if _paused_label == null or not _paused_label.visible or _hud == null:
+		return
+	var width: float = _hud.size.x
+	var left: float = 0.0
+	for panel in [_supply_panel, _land_panel, _details_panel]:
+		if panel != null and panel.visible:
+			left = maxf(left, panel.position.x + panel.size.x)
+	var right: float = width
+	for panel in [_objectives_panel, _production_panel]:
+		if is_instance_valid(panel) and panel.visible:
+			right = minf(right, panel.get_global_rect().position.x - _hud.get_global_rect().position.x)
+	var centre: float = width * 0.5
+	if left > centre - 170.0 or right < centre + 170.0:
+		centre = (left + right) * 0.5
+	_paused_label.offset_left = centre - width * 0.5 - 160.0
+	_paused_label.offset_right = centre - width * 0.5 + 160.0
+
+
 func refresh_stats() -> void:
 	if _title_label == null:
 		return
+	_place_paused_label()
 	_title_label.text = _tavern_name()
 	if _owner_button != null:
 		var owner_name: String = GameState.owner_profile.name if GameState.owner_profile != null else "Your tavern keeper"

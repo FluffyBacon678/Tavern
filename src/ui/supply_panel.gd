@@ -398,7 +398,10 @@ func add_ware(id: StringName, direction: int) -> void:
 		added -= 1
 	if added <= 0:
 		_set_line(id, before)
-		_ware_info.text = "No room in the yard for more %s: haul the waiting goods in, or take something off." % def.display_name.to_lower()
+		if world.delivery_tiles().is_empty():
+			_ware_info.text = "Nowhere to unload: something blocks the yard. Clear the path to it."
+		else:
+			_ware_info.text = "No room in the yard for more %s: haul the waiting goods in, or take something off." % def.display_name.to_lower()
 		AudioDirector.play("ui_back")
 	elif added < step:
 		_ware_info.text = "Only %d more %s fit in the yard." % [added, def.display_name.to_lower()]
@@ -439,8 +442,21 @@ func fill_for_meals() -> void:
 	order.clear()
 	for id in wanted:
 		_set_line(id, int(wanted[id]))
-	_ware_info.text = "On the cart: what the meals are short of." if not wanted.is_empty() \
-		else "The meals have what they need right now."
+	# Trimmed to what the yard can take now, as the automatic cart is.
+	var trimmed: bool = false
+	for i in range(4):
+		var short: Dictionary = world.delivery_preview(order)["short"]
+		if short.is_empty():
+			break
+		trimmed = true
+		for id in short:
+			_set_line(id, int(order.get(id, 0)) - int(short[id]))
+	if wanted.is_empty():
+		_ware_info.text = "The meals have what they need right now."
+	elif trimmed:
+		_ware_info.text = "On the cart: as much of what the meals are short of as the yard can take."
+	else:
+		_ware_info.text = "On the cart: what the meals are short of."
 	AudioDirector.play("ui_click")
 	refresh()
 
@@ -454,9 +470,12 @@ func reset_to_standard() -> void:
 	refresh()
 
 
+## Paid for and unloaded: the cart empties, and Stores reopens on Restock,
+## where the meals are, rather than on a cart already bought.
 func _buy() -> void:
 	if world.order_supplies(order):
 		order.clear()
+		show_meals()
 		hide()
 		closed.emit()
 	refresh()
@@ -561,8 +580,11 @@ func _yard_space(def: ItemDef, there: int, coming: int, overflow: bool = false) 
 
 # --- shared ------------------------------------------------------------------
 
+## Both tabs set by hand: a button set without its signal does not release
+## the rest of its group, and both tabs stayed lit.
 func show_manual() -> void:
 	_merchant_tab.set_pressed_no_signal(true)
+	_restock_tab.set_pressed_no_signal(false)
 	_meals.hide()
 	_manual.show()
 	refresh()
@@ -570,6 +592,7 @@ func show_manual() -> void:
 
 func show_meals() -> void:
 	_restock_tab.set_pressed_no_signal(true)
+	_merchant_tab.set_pressed_no_signal(false)
 	_manual.hide()
 	_meals.show()
 	refresh()

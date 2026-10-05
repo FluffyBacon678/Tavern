@@ -339,7 +339,9 @@ static func _bench_rows(world, index: int, entry: Dictionary, recipes: Array) ->
 		var parts: PackedStringArray = PackedStringArray()
 		for name in held:
 			parts.append("%d %s" % [held[name], name])
-		rows.append(_goods_stat("On the bench", ", ".join(parts) if not parts.is_empty() else "nothing",
+		# A bar keeps its drinks on a counter, not a bench.
+		var surface: String = "On the counter" if entry["def"].furniture_role in [&"bar", &"counter"] else "On the bench"
+		rows.append(_goods_stat(surface, ", ".join(parts) if not parts.is_empty() else "nothing",
 			GoodsStrip.entries_from(by_id)))
 
 	rows.append(_rule())

@@ -201,24 +201,54 @@ func _shoot_sheet(batch: Array) -> void:
 		m.position = right * (cell.x - middle.x * fit) + up * (cell.y - middle.y * fit)
 		_stage.add_child(m)
 		shown.append(m)
-	_scene_view.render_target_update_mode = SubViewport.UPDATE_ONCE
-	_ink_view.render_target_update_mode = SubViewport.UPDATE_ONCE
-	await RenderingServer.frame_post_draw
-	# The outline pass reads the scene pass, so give it a frame of its own.
-	_ink_view.render_target_update_mode = SubViewport.UPDATE_ONCE
-	await RenderingServer.frame_post_draw
-	var img: Image = _ink_view.get_texture().get_image()
+	# Checked, not trusted. Coming in from the title screen, the first sheet
+	# rendered while the character creator's own viewport was being freed came
+	# back with most squares empty, and every menu showed blanks. Each square
+	# is checked; any empty one has the sheet shot again a frame later, and a
+	# square still empty keeps its dot rather than becoming invisible.
+	var img: Image = null
+	var empty: Array[int] = []
+	for attempt in range(4):
+		_scene_view.render_target_update_mode = SubViewport.UPDATE_ONCE
+		_ink_view.render_target_update_mode = SubViewport.UPDATE_ONCE
+		await RenderingServer.frame_post_draw
+		# The outline pass reads the scene pass, so give it a frame of its own.
+		_ink_view.render_target_update_mode = SubViewport.UPDATE_ONCE
+		await RenderingServer.frame_post_draw
+		img = _ink_view.get_texture().get_image()
+		if img != null and not img.is_empty():
+			img.convert(Image.FORMAT_RGBA8)
+		empty = _empty_squares(img, batch.size())
+		if empty.is_empty():
+			break
+		await get_tree().process_frame
+	if not empty.is_empty():
+		push_warning("IconStudio: %d of %d pictures still empty after four tries." % [empty.size(), batch.size()])
 	for m in shown:
 		m.queue_free()
 	if img == null or img.is_empty():
 		return
-	img.convert(Image.FORMAT_RGBA8)
 	for i in range(batch.size()):
-		var region: Image = img.get_region(Rect2i((i % COLUMNS) * SIZE, (i / COLUMNS) * SIZE, SIZE, SIZE))
+		if empty.has(i):
+			continue
+		var region: Image = img.get_region(_square(i))
 		region.generate_mipmaps()
 		var tex: ImageTexture = _textures.get(batch[i][0])
 		if tex != null:
 			tex.set_image(region)
+
+
+func _square(i: int) -> Rect2i:
+	return Rect2i((i % COLUMNS) * SIZE, (i / COLUMNS) * SIZE, SIZE, SIZE)
+
+
+## Which squares of a sheet came back with nothing in them.
+func _empty_squares(img: Image, count: int) -> Array[int]:
+	var out: Array[int] = []
+	for i in range(count):
+		if img == null or img.is_empty() or img.get_region(_square(i)).get_used_rect().size == Vector2i.ZERO:
+			out.append(i)
+	return out
 
 
 func _ensure_studio() -> void:

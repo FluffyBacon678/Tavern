@@ -58,6 +58,18 @@ static func render(box: VBoxContainer, rows: Array, compact: bool = false, value
 					rule.custom_minimum_size = Vector2(0, 1)
 					rule.mouse_filter = Control.MOUSE_FILTER_IGNORE
 					box.add_child(rule)
+	# The hover card never takes the mouse: it sits under the pointer, and a
+	# picture holding its tooltip would swallow the click meant for the world.
+	if compact:
+		for child in box.get_children():
+			_let_mouse_through(child)
+
+
+static func _let_mouse_through(node: Node) -> void:
+	if node is Control:
+		node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in node.get_children():
+		_let_mouse_through(child)
 
 
 static func _stat(label_text: String, value: String, colour: Color, value_width: float = 0.0) -> HBoxContainer:
