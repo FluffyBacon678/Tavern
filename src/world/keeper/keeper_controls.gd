@@ -159,6 +159,30 @@ func _process(delta: float) -> void:
 
 var _signs: Dictionary = {}  ## placement index -> Sprite3D
 var _sign_timer: float = 0.0
+static var _till_badge: ImageTexture
+
+
+## HUD timber and candle-gold, readable without hovering. One cached texture.
+static func _till_texture() -> ImageTexture:
+	if _till_badge == null:
+		var img := Image.create(48, 48, false, Image.FORMAT_RGBA8)
+		img.fill(Color.TRANSPARENT)
+		for y in range(48):
+			for x in range(48):
+				var distance: float = Vector2(x - 23.5, y - 23.5).length()
+				if distance <= 23.0:
+					img.set_pixel(x, y, TavernTheme.CANDLE_DIM if distance > 20.5 else TavernTheme.TIMBER)
+				if distance <= 14.5:
+					img.set_pixel(x, y, TavernTheme.CANDLE_DIM if distance > 12.0 else TavernTheme.CANDLE)
+		# A simple stamped coin, kept bold at management size.
+		for y in range(15, 32):
+			for x in range(21, 26):
+				img.set_pixel(x, y, TavernTheme.TIMBER)
+		for y in [16, 29]:
+			for x in range(18, 29):
+				img.set_pixel(x, y, TavernTheme.TIMBER)
+		_till_badge = ImageTexture.create_from_image(img)
+	return _till_badge
 
 
 ## A gold coin over every till, so the player can see where guests pay.
@@ -176,11 +200,11 @@ func _refresh_till_signs() -> void:
 		if sign == null:
 			sign = Sprite3D.new()
 			sign.name = "TillSign"
-			sign.texture = ThoughtBubble.icon("coin")
+			sign.texture = _till_texture()
 			sign.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 			sign.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-			sign.pixel_size = 0.03
-			sign.modulate = Color(1.0, 0.85, 0.35)
+			sign.pixel_size = 0.011
+			sign.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			add_child(sign)
 			_signs[i] = sign
 		var middle := Vector2.ZERO
@@ -188,7 +212,7 @@ func _refresh_till_signs() -> void:
 			middle += Vector2(t) + Vector2(0.5, 0.5)
 		middle /= float(entry["tiles"].size())
 		sign.position = Vector3(middle.x * TerrainMeshBuilder.TILE,
-			world.terrain.plot_height + entry["def"].height + 0.5, middle.y * TerrainMeshBuilder.TILE)
+			world.terrain.plot_height + maxf(entry["def"].height + 0.5, 1.70), middle.y * TerrainMeshBuilder.TILE)
 	for i in _signs.keys():
 		if not wanted.has(i):
 			_signs[i].queue_free()

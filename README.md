@@ -12,6 +12,14 @@ Full design is in [`docs/medieval_tavern_game_design_notes.txt`](docs/medieval_t
 
 ## Current state
 
+**2026-10-05 world presentation:** a proper timber bar, visible walk-up
+purchases and fishing rods, shared working poses, a keeper marker, improved
+cosmetic crowd separation and a scrolling keeper options menu. Ambient light
+is lifted in shadowed interiors. Gameplay totals and all 23 suites pass;
+live frame-time and phone targets remain open. See
+[`docs/WORLD_VISUAL_POLISH.md`](docs/WORLD_VISUAL_POLISH.md) for before/after
+screenshots, measurements and limits.
+
 **2026-10-04 faces:** four distinct lower-head silhouettes and five clearer
 expressions, with broader smiles, open eyes and covered-hair fit. All 400
 appearance combinations pass the unchanged geometry budget. See

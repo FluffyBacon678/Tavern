@@ -105,6 +105,26 @@ var _dirt_sum: float = 0.0
 var _dirt_samples: int = 0
 var _observe_timer: float = 0.0
 var _rng := RandomNumberGenerator.new()
+var _held_visual_id: StringName = &""
+
+
+## A purchase is counted as consumed at the bar. This node only represents it
+## on the walk back: never add a second item or include it in physical cargo.
+## Deriving it from saved state also restores the mug after a mid-walk load.
+func _process(_delta: float) -> void:
+	if not is_instance_valid(pawn) or items == null:
+		return
+	var id: StringName = &""
+	if state == State.BACK_FROM_BAR and at_bar:
+		for line in order:
+			if int(line.get("served", 0)) > 0:
+				id = StringName(line["id"])
+				break
+	if id == _held_visual_id:
+		return
+	_held_visual_id = id
+	var def: ItemDef = ItemCatalog.get_def(id) if not id.is_empty() else null
+	pawn.show_carried(items.make_carry_node(def) if def != null else null)
 
 
 ## Came on a booking: they have a table to come to, so they will wait for it.

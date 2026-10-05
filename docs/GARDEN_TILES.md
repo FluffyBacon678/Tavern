@@ -58,11 +58,15 @@ ends and crossings meet cleanly.
 
 ## The bar (Build → Dining)
 
-![A fenced garden with a bar on a stone square](../.verification/garden_20261004b/garden.png)
+![A fenced garden with a bar on a stone square](images/polish_20261004/bar_after.png)
 
 The **Bar Table** (2 x 1, 30g) keeps drinks on its counter, one to each tile:
 its own lemonade, pressed there, and then the other drinks on the menu (beer).
 It works inside or out, and serves both.
+
+The October 5 visual pass replaces the market canopy and lemon sign with a
+timber counter, brass taps, foot rail and open bottle shelf: 514 triangles,
+within the same 2 x 1 footprint. Both drink positions remain clear at .95 high.
 
 - **Lemonade**: lemons (2g, from the merchant) and water, pressed at the bar
   into four jugs (sold at 7g). Lemonade has a meal target in Stores like

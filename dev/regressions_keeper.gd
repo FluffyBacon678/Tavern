@@ -15,6 +15,7 @@ func run() -> void:
 	_check_fish(world)
 	_check_till(world)
 	_check_save(world)
+	await load("res://dev/keeper_visual_checks.gd").new().run(self, world)
 	world.clear_keeper()
 
 
@@ -129,6 +130,17 @@ func _check_fish(world: TavernWorld) -> void:
 	var tile: Vector2i = world.build.grid.placements[spot]["tiles"][0]
 	var options: Array = world.keeper_controls.options_for(tile)
 	check(not options.is_empty() and String(options[0]["text"]) == "Fish (basic rod)", "a left-click on a fishing spot fishes")
+	keeper.work(spot, RecipeCatalog.get_recipe(&"catch_fish"))
+	check(_until(world, func() -> bool: return not keeper.pawn.is_busy(), 120.0), "the keeper reaches the fishing spot before posing")
+	var work_left: float = keeper._work_left
+	var dice: int = world.sim_rng.state
+	keeper.pawn._process(0)
+	check(keeper.pawn._work_rod != null and keeper.pawn._work_rod.visible and keeper.pawn._work_mode == &"fish",
+		"working the fishing spot shows a basic rod")
+	check(keeper._work_left == work_left and world.sim_rng.state == dice, "showing the rod does not advance work or simulation dice")
+	keeper.walk_to(keeper.pawn.tile)
+	keeper.pawn._process(0)
+	check(not keeper.pawn._work_rod.visible, "cancelling fishing hides the rod even while paused")
 	keeper.work(spot, RecipeCatalog.get_recipe(&"catch_fish"))
 	check(_until(world, func() -> bool: return keeper.catches >= 1, 120.0), "the keeper fishes with the basic rod")
 	check(keeper.carry_def != null and keeper.carry_def.id in [&"trout", &"perch"], "and the catch comes into their hands")

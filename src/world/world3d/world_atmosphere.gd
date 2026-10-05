@@ -99,7 +99,8 @@ func _apply_light() -> void:
 	sun.rotation_degrees = Vector3(-lerpf(24.0, 55.0, daylight), lerpf(-80.0, 25.0, clampf((state.hour - 7.0) / 14.0, 0.0, 1.0)), 0)
 	environment.ambient_light_color = Color("a4b4d0").lerp(Color("c5bc9d"), daylight).lerp(Color("acb7bf"), clouds * 0.35)
 	# A floor on ambient light preserves management readability after sunset.
-	environment.ambient_light_energy = lerpf(0.43, 0.70, daylight) * (1.0 - clouds * 0.10)
+	# Lift shadowed timber and faces without adding lights or shadow passes.
+	environment.ambient_light_energy = lerpf(0.48, 0.80, daylight) * (1.0 - clouds * 0.10)
 	sky.set_shader_parameter("zenith", Color("101c36").lerp(Color("527db1"), daylight).lerp(Color("536b7a"), clouds * 0.65 * daylight))
 	sky.set_shader_parameter("horizon", Color("35445e").lerp(Color("b7c4c8"), daylight).lerp(Color("da9d7f"), warmth * 0.65))
 	sky.set_shader_parameter("ground", Color("1d2630").lerp(Color("414a33"), daylight))

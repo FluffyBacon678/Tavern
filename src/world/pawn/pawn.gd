@@ -106,6 +106,15 @@ var _facing: float = 0.0
 var _stride_phase: float = 0.0
 var _idle_timer: float = 0.0
 var _carried: Node3D = null
+## Presentation of already-consumed guest purchases; never authoritative cargo.
+var _display_carried: Node3D = null
+## Behaviour supplies a read-only pose request, evaluated once per drawn frame.
+var work_visual: Callable
+var _work_mode: StringName = &""
+var _work_target := Vector3.ZERO
+var _work_phase: float = 0.0
+var _work_rod: MeshInstance3D
+var _keeper_marker: MeshInstance3D
 var _rng := RandomNumberGenerator.new()
 ## Cosmetic offset from the tile centre, so a crowd does not stack into one
 ## body. Never fed back into `tile` or pathing.
@@ -116,10 +125,12 @@ var _floor_lift: float = 0.0
 func _enter_tree() -> void:
 	if not all.has(self):
 		all.append(self)
+	_crowd_frame = -1
 
 
 func _exit_tree() -> void:
 	all.erase(self)
+	_crowd_frame = -1
 
 
 func setup(p_nav: NavGrid, p_terrain: TerrainMeshBuilder, start_tile: Vector2i, material: Material, rng_seed: int, is_customer: bool = false) -> void:
@@ -175,6 +186,12 @@ func set_appearance(next: CharacterAppearance, equipment: Variant = null) -> voi
 		new_parts[i].quaternion = old_parts[i].quaternion
 	if is_instance_valid(_carried):
 		_carried.reparent(_rig.carry_anchor, false)
+	if is_instance_valid(_display_carried):
+		_display_carried.reparent(_rig.carry_anchor, false)
+	if is_instance_valid(_work_rod):
+		_work_rod.reparent(_rig.carry_anchor, false)
+	if is_instance_valid(_keeper_marker):
+		_keeper_marker.reparent(_rig.root, false)
 	previous.root.queue_free()
 	look = _rig.description
 	set_outline(GameSettings.outline_people)
@@ -234,6 +251,31 @@ func is_carrying() -> bool:
 	return _carried != null
 
 
+func show_carried(item: Node3D) -> void:
+	if is_instance_valid(_display_carried):
+		_display_carried.queue_free()
+	_display_carried = item
+	if item != null:
+		_rig.carry_anchor.add_child(item)
+
+
+func mark_keeper() -> void:
+	if _keeper_marker == null:
+		_keeper_marker = PawnWorkArt.keeper_marker()
+		_rig.root.add_child(_keeper_marker)
+
+
+## Map existing work kinds to poses; no work or recipe is performed here.
+static func pose_for_work(kind: int, station: StringName = &"") -> StringName:
+	match kind:
+		WorkType.Kind.FISH: return &"fish"
+		WorkType.Kind.CLEAN: return &"wash"
+		WorkType.Kind.COOK:
+			return &"pour" if station in [&"bar_table", &"brewing_vat"] else &"stir"
+		WorkType.Kind.GATHER: return &"pour"
+	return &""
+
+
 func _begin_step() -> void:
 	var next: Vector2i = _path[_path_index]
 	_move_from = position
@@ -277,7 +319,19 @@ var _pending_anim: float = 0.0
 
 
 func _process(_real_delta: float) -> void:
-	if _pending_anim <= 0.0 or _rig == null:
+	if _rig == null:
+		return
+	# Refresh even while paused, so cancelled work/changed outfits cannot leave
+	# a rod behind. The pose phase itself advances only with simulation time.
+	var request: Dictionary = work_visual.call() if work_visual.is_valid() else {}
+	_work_mode = request.get("mode", &"") if state != State.WALKING else &""
+	_work_target = request.get("target", position)
+	if _work_mode == &"fish" and _work_rod == null:
+		_work_rod = PawnWorkArt.rod(_pawn_material)
+		_rig.carry_anchor.add_child(_work_rod)
+	if _work_rod != null:
+		_work_rod.visible = _work_mode == &"fish" and not is_carrying()
+	if _pending_anim <= 0.0:
 		return
 	_animate(minf(_pending_anim, 0.25))
 	_pending_anim = 0.0
@@ -369,20 +423,25 @@ static func _crowd_near(at: Vector3) -> Array:
 
 func _update_crowding(delta: float) -> void:
 	var push := Vector2.ZERO
+	var coincident: Array = []
 	for other in _crowd_near(position):
-		if other == self or not is_instance_valid(other):
+		if not is_instance_valid(other):
 			continue
 		var away := Vector2(position.x - other.position.x, position.z - other.position.z)
 		var distance: float = away.length()
+		if distance < 0.02:
+			coincident.append(other)
+			continue
+		if other == self:
+			continue
 		if distance >= SEPARATION_RADIUS:
 			continue
-		if distance < 0.0001:
-			# Exactly co-located: pick a deterministic direction from identity so
-			# the pair separates instead of both jittering on the same axis.
-			var a: float = float(get_instance_id() % 628) * 0.01
-			push += Vector2(cos(a), sin(a))
-			continue
 		push += (away / distance) * (1.0 - distance / SEPARATION_RADIUS)
+	if coincident.size() > 1:
+		# Stable list order gives each co-located body a distinct place on a ring;
+		# identity-derived angles could put several neighbours on the same side.
+		var a: float = TAU * float(coincident.find(self)) / float(coincident.size())
+		push = Vector2(cos(a), sin(a))
 
 	if push.length() > 1.0:
 		push = push.normalized()
@@ -397,9 +456,16 @@ func _update_crowding(delta: float) -> void:
 
 func _animate(delta: float) -> void:
 	_update_crowding(delta)
+	_work_phase = fposmod(_work_phase + delta * 3.5, TAU)
 	# Turn toward the facing direction rather than snapping, so corners read as
 	# the pawn turning rather than teleporting to a new orientation.
-	_rig.root.rotation.y = lerp_angle(_rig.root.rotation.y, _facing, minf(1.0, TURN_SPEED * delta))
+	var facing: float = _facing
+	if not _work_mode.is_empty():
+		var toward := Vector2(_work_target.x - position.x, _work_target.z - position.z)
+		if toward.length_squared() > 0.001:
+			facing = atan2(toward.x, toward.y)
+	_rig.root.rotation.y = lerp_angle(_rig.root.rotation.y, facing, minf(1.0, TURN_SPEED * delta))
+	var held: bool = is_carrying() or is_instance_valid(_display_carried)
 
 	if state == State.WALKING:
 		var swing: float = sin(_stride_phase) * SWING
@@ -407,7 +473,7 @@ func _animate(delta: float) -> void:
 		_rig.leg_r.rotation.x = -swing
 		# Arms counter-swing, and less than the legs. Carrying pins them forward
 		# instead, which is what makes a hauling pawn read differently at a glance.
-		if is_carrying():
+		if held:
 			_rig.arm_l.rotation.x = -1.15
 			_rig.arm_r.rotation.x = -1.15
 		else:
@@ -419,8 +485,28 @@ func _animate(delta: float) -> void:
 		var settle: float = minf(1.0, 8.0 * delta)
 		_rig.leg_l.rotation.x = lerpf(_rig.leg_l.rotation.x, 0.0, settle)
 		_rig.leg_r.rotation.x = lerpf(_rig.leg_r.rotation.x, 0.0, settle)
-		var arm_rest: float = -1.15 if is_carrying() else 0.0
-		_rig.arm_l.rotation.x = lerpf(_rig.arm_l.rotation.x, arm_rest, settle)
-		_rig.arm_r.rotation.x = lerpf(_rig.arm_r.rotation.x, arm_rest, settle)
+		var left: float = -1.15 if held else 0.0
+		var right: float = left
+		var roll: float = 0.0
+		if not held:
+			match _work_mode:
+				&"stir":
+					left = -0.85
+					right = -1.05 + sin(_work_phase) * 0.14
+					roll = cos(_work_phase) * 0.16
+				&"pour":
+					left = -1.0
+					right = -1.35 + sin(_work_phase) * 0.20
+				&"wash":
+					left = -1.0 + sin(_work_phase * 2.0) * 0.16
+					right = -1.0 - sin(_work_phase * 2.0) * 0.16
+				&"fish":
+					left = -1.05
+					right = -1.10 + sin(_work_phase * 0.4) * 0.025
+		_rig.arm_l.rotation.x = lerpf(_rig.arm_l.rotation.x, left, settle)
+		_rig.arm_r.rotation.x = lerpf(_rig.arm_r.rotation.x, right, settle)
+		_rig.arm_r.rotation.z = lerpf(_rig.arm_r.rotation.z, roll, settle)
 		_rig.torso.position.y = lerpf(_rig.torso.position.y, PawnMesh.LEG_H, settle)
+	if state == State.WALKING:
+		_rig.arm_r.rotation.z = lerpf(_rig.arm_r.rotation.z, 0.0, minf(1.0, 8.0 * delta))
 	_rig.sync_pose()

@@ -255,6 +255,8 @@ func _update_hover(delta: float) -> void:
 ## build mode (which has its own hover), not while the camera is being dragged,
 ## and not while the day summary holds the game.
 func _hover_allowed() -> bool:
+	if world.keeper_controls != null and world.keeper_controls.menu != null and world.keeper_controls.menu.visible:
+		return false
 	if world.simulation_paused or world.rig == null or not hover_enabled:
 		return false
 	if world.build != null and world.build.mode != BuildController.Mode.OFF:

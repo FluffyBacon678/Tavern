@@ -5,7 +5,14 @@ person and do any of the work by hand, RuneScape-style. It's optional: a
 tavern runs without them. It matters most at the start, with no money, and
 when the money runs out and everyone has to be let go.
 
-![The options menu on the bar, which takes payments (the coin)](../.verification/keeper_20261004/2_menu.png)
+![The options menu on the bar, which takes payments (the coin)](images/polish_20261004/menu_after.png)
+
+**Visual pass, 2026-10-05:** a candle-gold ground ring identifies the keeper
+without changing their chosen clothes. Fishing shows a basic rod; keeper and
+staff share work poses. The options menu now scrolls, wraps long action names
+and keeps rows at least 48 screen pixels tall. See
+[WORLD_VISUAL_POLISH.md](WORLD_VISUAL_POLISH.md) for screenshots and measured
+limits; touch has been checked in a portrait window, not yet on a phone.
 
 ## Controls
 

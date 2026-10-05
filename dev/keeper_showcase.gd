@@ -15,7 +15,7 @@ func _ready() -> void:
 	if args.size() > 0:
 		out_dir = args[0]
 	DirAccess.make_dir_recursive_absolute(out_dir)
-	if not GameState.begin_test_session():
+	if not OS.is_debug_build() or not GameState.begin_test_session():
 		get_tree().quit(2)
 		return
 	GameState.full_house_start = true
@@ -58,6 +58,35 @@ func _ready() -> void:
 	world.keeper.put(bar_tile)
 	await _frames(120)
 	await _shot("3_carrying", "Carrying the lemons to the bar, which takes payments (the coin): %s" % world.keeper.status_text())
+	# Wait for the real delivery, then start a real fishing task. Freeze only
+	# after arriving, so the shot shows the actual keeper's working state.
+	var deadline: int = Time.get_ticks_msec() + 20000
+	while world.keeper.carry_count > 0 and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	var spot: int = -1
+	for i in range(world.build.grid.placements.size()):
+		var entry = world.build.grid.placements[i]
+		if entry != null and entry["built"] and entry["def"].id == &"fishing_spot":
+			spot = i
+			break
+	if spot >= 0 and world.keeper.work(spot, RecipeCatalog.get_recipe(&"catch_fish")):
+		world.sim.speed = 5
+		deadline = Time.get_ticks_msec() + 30000
+		while world.keeper.pawn.is_busy() and Time.get_ticks_msec() < deadline:
+			await get_tree().process_frame
+		if world.keeper.pawn.is_busy():
+			push_error("Keeper showcase did not reach the fishing spot")
+			get_tree().quit(1)
+			return
+		world.keeper.pawn._process(0)
+		SimWait.hold(world)
+		world.rig._distance_target = 5.5
+		await _frames(60)
+		await _shot("4_fishing", "Real fishing task, with a basic rod and the keeper's ground marker")
+	else:
+		push_error("Keeper showcase could not start fishing")
+		get_tree().quit(1)
+		return
 	print("KEEPER SHOWCASE: done")
 	get_tree().quit()
 

@@ -82,7 +82,20 @@ func setup(p_pawn: Pawn, p_board: JobBoard, p_nav: NavGrid, p_items: ItemWorld =
 	board = p_board
 	nav = p_nav
 	items = p_items
+	pawn.work_visual = _pose_request
 	set_role(StaffRole.of(pawn.staff_role_id if not pawn.staff_role_id.is_empty() else &"hand"))
+
+
+## The renderer observes existing work without advancing it or taking dice.
+func _pose_request() -> Dictionary:
+	if state != State.WORKING or current == null:
+		return {}
+	var station: StringName = &""
+	if nav != null and nav._build != null:
+		var index: int = nav._build.object_index_at(current.target)
+		if index >= 0 and nav._build.placements[index] != null:
+			station = nav._build.placements[index]["def"].id
+	return {"mode": Pawn.pose_for_work(current.kind, station), "target": pawn.world_position_of(current.target)}
 
 
 ## Hire into a position: its rules, and its starting order of work.

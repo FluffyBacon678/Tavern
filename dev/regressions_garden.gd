@@ -290,6 +290,7 @@ func _check_bar(world: TavernWorld) -> void:
 		"a guest wanting lemonade stands at the bar, where its lemonade is to hand")
 	check(world.customers.bar_stand([{"id": &"bread", "count": 1, "served": 0}], at) == Vector2i(-1, -1),
 		"nobody is sent to a bar for something it does not keep")
+	_check_guest_purchase(world, stand, at + Vector2i(2, 1))
 
 	# A review part the game no longer scores (a garden's Surroundings, for a
 	# while) loads without it, rather than costing the save its guests.
@@ -316,6 +317,35 @@ func _check_bar(world: TavernWorld) -> void:
 		world.build._rebuild_instances(BuildingCatalog.get_def(id))
 	world.nav.refresh_all()
 	world.customers.seating.refresh()
+
+
+func _check_guest_purchase(world: TavernWorld, stand: Vector2i, chair: Vector2i) -> void:
+	if stand.x < 0:
+		return
+	var pawn := Pawn.new()
+	world.add_child(pawn)
+	pawn.setup(world.nav, world.terrain, stand, world._pawn_material, 804, true)
+	pawn.autonomous_idle = false
+	var brain := CustomerBrain.new()
+	brain.setup(pawn, world.customers, world.customers.seating, world.items, world.nav, 806)
+	brain.state = CustomerBrain.State.GOING_TO_BAR
+	brain.seat = chair
+	brain.at_bar = true
+	brain.order = [{"id": &"lemonade", "count": 1, "served": 0}]
+	var before: int = world.items.total_of(&"lemonade")
+	var eaten: int = world.customers.consumed.get(&"lemonade", 0)
+	brain._process_going_to_bar()
+	brain._process(0)
+	var dice: int = world.sim_rng.state
+	for i in range(20):
+		brain._process(0)
+	check(brain.state == CustomerBrain.State.BACK_FROM_BAR and pawn.is_busy() and is_instance_valid(pawn._display_carried),
+		"a real walk-up purchase shows its drink while the guest walks back to the chair")
+	check(world.items.total_of(&"lemonade") == before - 1 and world.customers.consumed.get(&"lemonade", 0) == eaten + 1
+		and world.sim_rng.state == dice and not pawn.is_carrying(),
+		"twenty rendered purchase frames still debit exactly one drink, with no physical cargo or dice")
+	brain.free()
+	pawn.free()
 
 
 ## Paths join any path and are edged where they meet anything else.

@@ -67,6 +67,8 @@ func spawn(p_world, at: Vector2i) -> void:
 	pawn.autonomous_idle = false
 	pawn.wander_area = world.plot
 	pawn.set_meta("keeper", true)
+	pawn.mark_keeper()
+	pawn.work_visual = _pose_request
 	world.sim.attach(pawn)
 	world.sim.attach(self)
 
@@ -174,6 +176,16 @@ func status_text() -> String:
 
 
 # --- the simulation ----------------------------------------------------------------
+
+## Read by the renderer only; facing and props never feed back into the task.
+func _pose_request() -> Dictionary:
+	var mode: StringName = &""
+	if _do == Do.WASH:
+		mode = &"wash"
+	elif _do == Do.WORK and _recipe != null:
+		var entry = world.build.grid.placements[_index] if _index >= 0 and _index < world.build.grid.placements.size() else null
+		mode = Pawn.pose_for_work(_recipe.work_kind, entry["def"].id if entry != null else &"")
+	return {"mode": mode, "target": pawn.world_position_of(_target)} if not mode.is_empty() else {}
 
 func sim_step(delta: float) -> void:
 	if pawn == null or not is_instance_valid(pawn) or _do == Do.NOTHING:

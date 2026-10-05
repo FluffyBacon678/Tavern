@@ -19,3 +19,80 @@ The garden regression group passes: 514 triangles (budget 900), fittings
 inside the 2 x 1 footprint, clear drink positions, recipes, porter restocking
 and walk-up service. These are the actual windowed garden showcase renders.
 All mesh work is original procedural geometry; no third-party assets added.
+
+## Keeper, guests and work — completed 2026-10-05
+
+The keeper has a segmented candle-gold ground ring, independent of their
+chosen outfit. Fishing shows a basic rod; staff and keeper share stirring,
+pouring and washing poses. Behaviour supplies a read-only presentation request
+once per drawn frame. Poses advance with game time, face the work and freeze
+when paused. Cancelling fishing hides its rod even while paused.
+
+Walk-up guests display their purchased drink on the return trip. The display
+is derived from the saved visit state, survives appearance changes, and clears
+at the table. It represents goods already debited at the bar: it never creates
+physical cargo, touches stock or charges a second bill.
+
+Exact-overlap bodies now receive distinct stable positions on a small ring.
+Only their rendered bodies move, at most .26 tiles; logical positions, routes
+and service timing stay unchanged. Dense groups can still overlap. This is
+cosmetic separation, not a physical queue or collision system.
+
+Before:
+
+![Previous keeper presentation](images/polish_20261004/keeper_before.png)
+
+After:
+
+![Identifiable keeper](images/polish_20261004/keeper_after.png)
+
+![Actual fishing task](images/polish_20261004/keeper_fishing.png)
+
+The keeper options menu uses the HUD's timber/candle palette, wrapped action
+text, keyboard focus and a scrolling list. Every row is at least 48 screen
+pixels tall; the title stays visible. The till coin is a cached framed badge
+in the same palette. Hover cards are suppressed behind an open options menu.
+
+![Previous menu](images/polish_20261004/menu_before.png)
+
+![Styled options menu](images/polish_20261004/menu_after.png)
+
+## Lighting and checks
+
+Ambient light rises from .43–.70 to .48–.80 across night/day. This lifts
+shadowed interiors and faces without adding lights or shadow passes, while
+retaining the day/night cycle and warm hearth light.
+
+![Fixed-scene lighting before](images/polish_20261004/lighting_before.png)
+
+![Fixed-scene lighting after](images/polish_20261004/lighting_after.png)
+
+![Live house after dark](images/polish_20261004/house_evening.png)
+
+The requested `bash dev/run_tests.sh` passes all 23 suites, tutorial 70/70,
+six-day tutorial soak, three chaos seeds, saves/resume and level completion.
+After the final rod-fit and crowd-cache refinements the complete regression
+suite passes again. Added checks live inside its existing garden and keeper
+groups: real bar purchases debit exactly once across repeated rendered frames;
+poses preserve both RNG streams and positions; rods clear on cancellation;
+outfit changes preserve presentation attachments; four exact-overlap bodies
+separate; the keeper marker faces upward. Long menus fit 1280x720, 1024x768,
+1440x900 and portrait 720x1280 in headless and real-window runs, with their final
+action reachable by scrolling/focus. This is not an on-device phone test.
+
+The three-day sandbox still ends at **4,208g** with unchanged production totals:
+bread 54, beer 72, water 27, fish 60, wheat 72. The actual walk-up purchase
+regression separately checks consumption, ground stock and RNG. The five real
+player save files retain their original SHA-256 hashes.
+
+On the Arc 140V laptop, the frozen 1280x720 render profile at 30 people records
+**1.621 → 1.611ms median**, **7.122 → 7.544ms p95**, and **318 → 318 draw calls**.
+That fixture has no active work and measures rendering, not simulation or new
+held props. A visible purchase or rod adds one mesh draw; the single keeper's
+marker adds one. The live 1080p house at 5x records **17.0ms median, 38.3ms p95**
+with 15 guests and 14 staff. It uses a different generated seed from earlier
+live runs, so it is not a controlled performance comparison. The largest
+tavern's 60fps target and phone measurements remain outstanding.
+
+Evidence is in `.verification/visual_20261004/`; screenshots above are kept in
+the repository so the commit's before/after comparison survives cleanup.
