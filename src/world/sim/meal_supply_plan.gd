@@ -83,6 +83,20 @@ func _take(id: StringName, count: int, state: Dictionary, path: Array) -> bool:
 		count -= taken
 	return true
 
+## The same, as item ids, for pictures: dough opened up into what it is made of.
+static func ingredient_ids(recipe: Recipe) -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for input in recipe.inputs:
+		var id := StringName(input["id"])
+		if id == &"dough":
+			for inner in ingredient_ids(RecipeCatalog.get_recipe(&"make_dough")):
+				if not ids.has(inner):
+					ids.append(inner)
+		elif not ids.has(id):
+			ids.append(id)
+	return ids
+
+
 static func ingredients(recipe: Recipe) -> String:
 	var names: PackedStringArray = PackedStringArray()
 	for input in recipe.inputs:

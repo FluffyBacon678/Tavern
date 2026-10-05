@@ -142,6 +142,7 @@ func _meal_row(recipe: Recipe) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 	box.add_child(row)
+	row.add_child(IconStudio.rect(IconStudio.recipe(recipe), 34.0))
 	var toggle := CheckBox.new()
 	toggle.text = ItemCatalog.get_def(recipe.outputs[0]["id"]).display_name
 	toggle.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -164,7 +165,20 @@ func _meal_row(recipe: Recipe) -> Control:
 	amount.add_theme_font_size_override("font_size", 13)
 	row.add_child(amount)
 	row.add_child(_button("+", "Raise target by 1", _adjust_meal.bind(recipe.id, 1)))
-	box.add_child(_caption("Needs: " + MealSupplyPlan.ingredients(recipe), 11))
+	# What it is made from, as pictures: the names are the tooltips.
+	var needs := HBoxContainer.new()
+	needs.add_theme_constant_override("separation", 6)
+	needs.tooltip_text = "Needs: " + MealSupplyPlan.ingredients(recipe)
+	needs.mouse_filter = Control.MOUSE_FILTER_PASS
+	var label := _caption("Needs", 11)
+	label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	needs.add_child(label)
+	var kinds: Array = []
+	for id in MealSupplyPlan.ingredient_ids(recipe):
+		kinds.append([id, -1])
+	needs.add_child(GoodsStrip.of(kinds, 24.0, 11, TavernTheme.PARCHMENT_DIM, 6))
+	box.add_child(needs)
 	var stock := _caption("", 11)
 	stock.add_theme_color_override("font_color", TavernTheme.CANDLE)
 	box.add_child(stock)
@@ -197,6 +211,7 @@ func _fit_screen() -> void:
 func _row(def: ItemDef) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
+	row.add_child(IconStudio.rect(IconStudio.item(def.id), 28.0))
 	var name := Label.new()
 	name.text = "%s  ·  %dg" % [def.display_name, def.purchase_price]
 	name.custom_minimum_size.x = 112

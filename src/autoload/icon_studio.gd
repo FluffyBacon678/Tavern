@@ -174,16 +174,22 @@ func _shoot_sheet(batch: Array) -> void:
 	var shown: Array[MeshInstance3D] = []
 	for i in range(batch.size()):
 		var mesh: Mesh = batch[i][1]
-		var box: AABB = mesh.get_aabb()
+		# Fitted to the model's own outline as the camera sees it, not its
+		# box: a box's corners stick out past a jar or a sack, and the picture
+		# came out a size smaller than its square.
 		var lo := Vector2(INF, INF)
 		var hi := Vector2(-INF, -INF)
-		for c in range(8):
-			var p: Vector3 = box.get_endpoint(c)
-			var flat := Vector2(p.dot(right), p.dot(up))
-			lo = lo.min(flat)
-			hi = hi.max(flat)
+		for s in range(mesh.get_surface_count()):
+			for p in mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]:
+				var flat := Vector2(p.dot(right), p.dot(up))
+				lo = lo.min(flat)
+				hi = hi.max(flat)
+		if lo.x > hi.x:
+			lo = Vector2.ZERO
+			hi = Vector2.ONE
 		var extent: float = maxf(maxf(hi.x - lo.x, hi.y - lo.y), 0.001)
 		var fit: float = FILL / extent
+		var middle: Vector2 = (lo + hi) * 0.5
 		var column: int = i % COLUMNS
 		var row: int = i / COLUMNS
 		var cell := Vector2(column - COLUMNS * 0.5 + 0.5, rows * 0.5 - row - 0.5)
@@ -192,7 +198,7 @@ func _shoot_sheet(batch: Array) -> void:
 		m.material_override = TavernMaterials.shared()
 		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		m.scale = Vector3.ONE * fit
-		m.position = right * cell.x + up * cell.y - box.get_center() * fit
+		m.position = right * (cell.x - middle.x * fit) + up * (cell.y - middle.y * fit)
 		_stage.add_child(m)
 		shown.append(m)
 	_scene_view.render_target_update_mode = SubViewport.UPDATE_ONCE

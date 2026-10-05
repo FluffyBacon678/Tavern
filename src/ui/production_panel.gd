@@ -93,6 +93,7 @@ func _recipe_row(recipe: Recipe) -> Control:
 
 	var header := HBoxContainer.new()
 	box.add_child(header)
+	header.add_child(IconStudio.rect(IconStudio.recipe(recipe), 32.0))
 
 	var toggle := CheckBox.new()
 	toggle.text = recipe.display_name
@@ -109,10 +110,9 @@ func _recipe_row(recipe: Recipe) -> Control:
 	status.add_theme_font_size_override("font_size", 13)
 	header.add_child(status)
 
-	var ingredients := Label.new()
-	ingredients.text = recipe.summary()
-	ingredients.add_theme_color_override("font_color", TavernTheme.PARCHMENT_DIM)
-	ingredients.add_theme_font_size_override("font_size", 11)
+	# In and out as pictures; the words are the tooltip.
+	var ingredients: GoodsStrip = GoodsStrip.recipe(recipe, 26.0, 12, TavernTheme.PARCHMENT_DIM)
+	ingredients.tooltip_text = recipe.summary()
 	box.add_child(ingredients)
 
 	# What it is doing right now, one line per bench that can make it.

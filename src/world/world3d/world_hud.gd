@@ -171,9 +171,10 @@ func _build_hud() -> void:
 	world.sim.speed_changed.connect(_show_speed)
 	_show_speed(world.sim.speed)
 	_gold_label = _stock_chip(header_row, "coins", "Gold in the purse")
-	_bread_label = _stock_chip(header_row, "bread", "Bread, including carried stock")
-	_beer_label = _stock_chip(header_row, "beer-stein", "Beer, including carried stock")
-	_fish_label = _stock_chip(header_row, "pixel:fish", "Fish dishes: grilled fish and fish soup")
+	_bread_label = _stock_chip(header_row, "item:bread", "Bread, including carried stock")
+	_beer_label = _stock_chip(header_row, "item:beer", "Beer, including carried stock")
+	_lemonade_label = _stock_chip(header_row, "item:lemonade", "Lemonade, including carried stock")
+	_fish_label = _stock_chip(header_row, "item:grilled_fish", "Fish dishes: grilled fish and fish soup")
 	_gold_chip = _gold_label.get_parent()
 	# Today's running total sits with the purse it changes. It lived at the end
 	# of the clock line, whose length then pushed the header onto a second row
@@ -185,6 +186,7 @@ func _build_hud() -> void:
 	_bread_chip = _bread_label.get_parent()
 	_beer_chip = _beer_label.get_parent()
 	_fish_chip = _fish_label.get_parent()
+	_lemonade_chip = _lemonade_label.get_parent()
 	_staff_label = Label.new()
 	# Takes the mouse so it can carry a tooltip: who is doing what.
 	_staff_label.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -567,18 +569,22 @@ func _stock_chip(parent: Container, icon: String, hint: String) -> Label:
 	row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	row.add_theme_constant_override("separation", 6)
 	parent.add_child(row)
-	var picture := TextureRect.new()
-	if icon.begins_with("pixel:"):
-		# Drawn from the thought-bubble art: fish has no game-icons picture.
-		picture.texture = ThoughtBubble.icon(icon.trim_prefix("pixel:"))
-		picture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if icon.begins_with("item:"):
+		# The goods themselves, in their own colours, as on every card.
+		row.add_child(IconStudio.rect(IconStudio.item(StringName(icon.trim_prefix("item:"))), 30.0))
 	else:
-		picture.texture = load("res://assets/prototype/ui/game_icons/%s.svg" % icon)
-	picture.custom_minimum_size = Vector2(22, 22)
-	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	picture.modulate = Color("d7b568")
-	row.add_child(picture)
+		var picture := TextureRect.new()
+		if icon.begins_with("pixel:"):
+			# Drawn from the thought-bubble art.
+			picture.texture = ThoughtBubble.icon(icon.trim_prefix("pixel:"))
+			picture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		else:
+			picture.texture = load("res://assets/prototype/ui/game_icons/%s.svg" % icon)
+		picture.custom_minimum_size = Vector2(22, 22)
+		picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		picture.modulate = Color("d7b568")
+		row.add_child(picture)
 	var label := Label.new()
 	label.add_theme_font_size_override("font_size", 17)
 	row.add_child(label)
@@ -738,6 +744,8 @@ func _hud_button(text: String, handler: Callable) -> Button:
 var _keyed: Array[Button] = []
 var _fish_label: Label
 var _fish_chip: Control
+var _lemonade_label: Label
+var _lemonade_chip: Control
 var _day_bar: DayBar
 
 
@@ -947,6 +955,10 @@ func refresh_stats() -> void:
 	var fish: int = world.stock_of(&"grilled_fish") + world.stock_of(&"fish_soup")
 	_fish_chip.visible = fish > 0 or (world.build != null and world.build.grid.count_built([&"fishing_spot"]) > 0)
 	_fish_label.text = str(fish)
+	# Lemonade likewise, once there is a bar to press it at.
+	var lemonade: int = world.stock_of(&"lemonade")
+	_lemonade_chip.visible = lemonade > 0 or (world.build != null and world.build.grid.count_built([&"bar_table"]) > 0)
+	_lemonade_label.text = str(lemonade)
 	_staff_label.text = _people_line()
 	if _day_bar != null and world.clock != null:
 		_day_bar.fraction = clampf((world.clock.hour() - DayClock.OPEN_HOUR) / (DayClock.CLOSE_HOUR - DayClock.OPEN_HOUR), 0.0, 1.0)
@@ -963,6 +975,8 @@ func refresh_stats() -> void:
 			_bread_chip.tooltip_text = WorldStats.stock_breakdown(world, &"bread")
 		if _beer_chip.get_global_rect().has_point(at):
 			_beer_chip.tooltip_text = WorldStats.stock_breakdown(world, &"beer")
+		if _lemonade_chip.visible and _lemonade_chip.get_global_rect().has_point(at):
+			_lemonade_chip.tooltip_text = WorldStats.stock_breakdown(world, &"lemonade")
 		if _fish_chip.visible and _fish_chip.get_global_rect().has_point(at):
 			_fish_chip.tooltip_text = WorldStats.stock_breakdown(world, &"grilled_fish") + "\n\n" \
 				+ WorldStats.stock_breakdown(world, &"fish_soup")

@@ -1,8 +1,8 @@
 extends Node
 
-## The menus with pictures, on the sandbox house: the build bar, a bench's
-## card, a shelf's card and a guest's order. Not pass/fail: screenshots to
-## look at. Run windowed:
+## The menus with pictures, on the sandbox house: the build bar, the stores,
+## the kitchen's standing orders, a bench's card, a shelf's card and a guest's
+## order. Not pass/fail: screenshots to look at. Run windowed:
 ##   godot --path . --resolution 1600x900 res://dev/picture_ui_check.tscn -- <out dir>
 
 var out_dir: String = "user://picture_ui_check"
@@ -34,6 +34,18 @@ func _ready() -> void:
 		await _settle()
 		await _shot("build_" + category.to_lower(), "Build bar, %s" % category)
 	world.hud._toggle_build_bar()
+
+	world.hud.toggle_supplies()
+	await _settle()
+	await _shot("stores_meals", "Stores: meals and what they need")
+	world.hud._supply_panel.show_manual()
+	await _settle()
+	await _shot("stores_manual", "Stores: a one-off cart")
+	world.hud.toggle_supplies()
+	world.hud._production_panel.toggle()
+	await _settle()
+	await _shot("kitchen_details", "Kitchen details: standing orders")
+	world.hud._production_panel.toggle()
 
 	for id in [&"prep_table", &"oven", &"storage_shelf", &"barrel", &"bar_table"]:
 		var index: int = _first(id)

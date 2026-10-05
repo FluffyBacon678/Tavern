@@ -317,6 +317,9 @@ func _present_filter(entry: Dictionary) -> void:
 	for item in ItemCatalog.all():
 		var box := CheckBox.new()
 		box.text = item.display_name
+		box.icon = IconStudio.item(item.id)
+		box.add_theme_constant_override("icon_max_width", 24)
+		box.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		box.button_pressed = filter.has(item.id)
 		box.add_theme_font_size_override("font_size", 12)
 		var id: StringName = item.id

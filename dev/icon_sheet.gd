@@ -17,7 +17,7 @@ func _ready() -> void:
 	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(back)
 	var grid := GridContainer.new()
-	grid.columns = 12
+	grid.columns = 10
 	grid.position = Vector2(16, 16)
 	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 6)
