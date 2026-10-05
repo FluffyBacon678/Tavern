@@ -18,21 +18,39 @@ static func render(box: VBoxContainer, rows: Array, compact: bool = false, value
 	for row in rows:
 		match String(row["t"]):
 			"title":
-				box.add_child(_label(row["text"], 16 if compact else 17, TavernTheme.PARCHMENT))
+				var title: Label = _label(row["text"], 16 if compact else 17, TavernTheme.PARCHMENT)
+				if row.get("icon") is Texture2D:
+					var head := HBoxContainer.new()
+					head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+					head.add_theme_constant_override("separation", 6)
+					head.add_child(IconStudio.rect(row["icon"], 30.0 if compact else 36.0))
+					title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+					head.add_child(title)
+					box.add_child(head)
+				else:
+					box.add_child(title)
 			"sub":
 				box.add_child(_label(row["text"], 11, TavernTheme.CANDLE_DIM))
 			"stat":
-				box.add_child(_stat(row["label"], row["value"], row.get("colour", TavernTheme.PARCHMENT_DIM), value_width))
+				if not row.get("goods", []).is_empty():
+					box.add_child(_goods(row["label"], row["goods"], row.get("colour", TavernTheme.PARCHMENT_DIM), value_width))
+				else:
+					box.add_child(_stat(row["label"], row["value"], row.get("colour", TavernTheme.PARCHMENT_DIM), value_width))
 			"bar":
 				box.add_child(_bar(row["label"], row["fraction"], row["text"], row["colour"]))
 			"stars":
 				box.add_child(_stars(row["label"], int(row["stars"]), row["text"], row["colour"]))
 			"line":
-				var line: Label = _label(row["text"], 12, row.get("colour", TavernTheme.PARCHMENT_DIM))
-				line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				if value_width > 0.0:
-					line.custom_minimum_size.x = value_width + LABEL_WIDTH + 8.0
-				box.add_child(line)
+				if row.get("recipe") is Recipe:
+					var made: GoodsStrip = GoodsStrip.recipe(row["recipe"], 24.0, 12, row.get("colour", TavernTheme.PARCHMENT_DIM))
+					made.tooltip_text = row["text"]
+					box.add_child(made)
+				else:
+					var line: Label = _label(row["text"], 12, row.get("colour", TavernTheme.PARCHMENT_DIM))
+					line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+					if value_width > 0.0:
+						line.custom_minimum_size.x = value_width + LABEL_WIDTH + 8.0
+					box.add_child(line)
 			"rule":
 				if not compact:
 					var rule := ColorRect.new()
@@ -55,6 +73,24 @@ static func _stat(label_text: String, value: String, colour: Color, value_width:
 	if value_width > 0.0:
 		shown.custom_minimum_size.x = value_width
 	row.add_child(shown)
+	return row
+
+
+## A labelled row of goods: pictures with counts where the words would be.
+## The words stay on the row, for tests and anything else reading it as text.
+static func _goods(label_text: String, goods: Array, colour: Color, value_width: float = 0.0) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 8)
+	var label: Label = _label(label_text, 12, TavernTheme.IRON.lightened(0.25))
+	label.custom_minimum_size = Vector2(LABEL_WIDTH, 0)
+	label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(label)
+	var strip: GoodsStrip = GoodsStrip.of(goods, 26.0, 13, colour)
+	strip.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if value_width > 0.0:
+		strip.custom_minimum_size.x = value_width
+	row.add_child(strip)
 	return row
 
 

@@ -14,6 +14,9 @@ extends PanelContainer
 enum Kind { NONE, PAWN, BUILDING, ITEMS, GROUND }
 
 const REFRESH_INTERVAL: float = 0.25
+## Where a short card has always sat, from the bottom of the screen.
+const RESTING_TOP: float = 380.0
+const BOTTOM_GAP: float = 12.0
 
 ## Emitted whenever what the panel describes changes, including to nothing, so
 ## the world can move its selection ring.
@@ -151,6 +154,8 @@ func _present() -> void:
 	_timer = 0.0
 	refresh()
 	_rebuild_extras()
+	reset_size()
+	_keep_on_screen()
 
 
 func _process(delta: float) -> void:
@@ -177,6 +182,17 @@ func refresh() -> void:
 	reset_size()
 	if (kind == Kind.BUILDING or kind == Kind.ITEMS) and _extras_now() != _extras_key:
 		_rebuild_extras()
+		reset_size()
+	_keep_on_screen()
+
+
+## reset_size() keeps the top edge where it was, so a long card -- a bench
+## with three recipes and their shortages -- ran off the bottom of the screen.
+## A long card rises instead, as far as the toolbar.
+func _keep_on_screen() -> void:
+	var area: Vector2 = get_parent_area_size()
+	var ceiling: float = world.hud._below_top if world != null and world.get("hud") != null else 134.0
+	position.y = maxf(minf(area.y - RESTING_TOP, area.y - BOTTOM_GAP - size.y), ceiling)
 
 
 ## What the buttons below depend on: the recipes that can be done by hand, or

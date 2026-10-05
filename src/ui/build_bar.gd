@@ -36,7 +36,7 @@ func _build() -> void:
 	grow_vertical = Control.GROW_DIRECTION_BEGIN
 	offset_left = 12
 	offset_right = -12
-	offset_top = -168
+	offset_top = -206
 	offset_bottom = -12
 
 	var rows := VBoxContainer.new()
@@ -71,9 +71,16 @@ func _build() -> void:
 	)
 	_category_row.add_child(_demolish_button)
 
+	# A picture of each piece, so the row reads at a glance. Scrolls sideways
+	# when a category holds more than the window is wide.
+	var items_scroll := ScrollContainer.new()
+	items_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	items_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	items_scroll.custom_minimum_size.y = 100
+	rows.add_child(items_scroll)
 	_item_row = HBoxContainer.new()
 	_item_row.add_theme_constant_override("separation", 6)
-	rows.add_child(_item_row)
+	items_scroll.add_child(_item_row)
 
 	_status = Label.new()
 	_status.add_theme_font_size_override("font_size", 13)
@@ -100,9 +107,16 @@ func _show_category(category: String) -> void:
 		# Cost on the button rather than in a tooltip: on touch there is no hover,
 		# so anything only reachable by tooltip is invisible on a phone.
 		b.text = "%s\n%dg" % [def.display_name, def.cost]
+		b.icon = IconStudio.building(def)
+		b.expand_icon = true
+		b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+		b.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		b.add_theme_font_size_override("font_size", 12)
+		b.add_theme_constant_override("line_spacing", -2)
 		b.focus_mode = Control.FOCUS_NONE
 		b.toggle_mode = true
-		b.custom_minimum_size = Vector2(112, 56)
+		b.custom_minimum_size = Vector2(104, 92)
 		b.pressed.connect(func() -> void:
 			AudioDirector.play("ui_click")
 			item_chosen.emit(def)

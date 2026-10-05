@@ -14,11 +14,14 @@ extends RefCounted
 ## at the moment of asking, so neither view can show what *was* true.
 ##
 ## Row shapes, by "t":
-##   title  {text}                 the thing's name
+##   title  {text, icon?}          the thing's name, and its picture
 ##   sub    {text}                 what kind of thing it is
-##   stat   {label, value, colour} one labelled figure
+##   stat   {label, value, colour, goods?}  one labelled figure; `goods`,
+##          [[id, count], ...], draws pictures where the words would be,
+##          and `value` keeps the same thing in words
 ##   bar    {label, fraction, text, colour}
-##   line   {text, colour}         a sentence
+##   line   {text, colour, recipe?}  a sentence; a Recipe draws as pictures
+##          of what goes in and what comes out
 ##   stars  {label, stars, text, colour, value}  a drawn rating; `value` is
 ##          the same thing in words, for anything reading rows as text
 ##   rule   {}                     a divider, inspector only
@@ -108,8 +111,8 @@ static func pawn_rows(world, pawn: Pawn) -> Array:
 		rows.append(_sub("Your keeper · no wage"))
 		rows.append(_stat("Doing", _capitalise(keeper.status_text()), TavernTheme.CANDLE, true))
 		if keeper.carry_count > 0 and keeper.carry_def != null:
-			rows.append(_stat("Carrying", "%d× %s (%s)" % [keeper.carry_count, keeper.carry_def.display_name.to_lower(),
-				quality_word(keeper.carry_quality).to_lower()], TavernTheme.PARCHMENT, true))
+			rows.append(_goods_stat("Carrying", "%d× %s (%s)" % [keeper.carry_count, keeper.carry_def.display_name.to_lower(),
+				quality_word(keeper.carry_quality).to_lower()], [[keeper.carry_def.id, keeper.carry_count]], TavernTheme.PARCHMENT, true))
 		rows.append(_line("%s to play as them: click to walk, right-click for options." % KeyBindings.first("play_keeper"),
 			TavernTheme.PARCHMENT_DIM, true))
 		return rows
@@ -126,9 +129,10 @@ static func pawn_rows(world, pawn: Pawn) -> Array:
 	if job != null and worker.state == Worker.State.WORKING and job.work_amount > 0.0:
 		rows.append(_bar("Progress", job.progress(), "%d%%" % int(job.progress() * 100.0), TavernTheme.CANDLE, true))
 	if worker.carried_count() > 0 and worker.carried_def() != null:
-		rows.append(_stat("Carrying", "%d× %s (%s)" % [
+		rows.append(_goods_stat("Carrying", "%d× %s (%s)" % [
 			worker.carried_count(), worker.carried_def().display_name.to_lower(),
-			quality_word(worker.carried_quality()).to_lower()], TavernTheme.PARCHMENT, true))
+			quality_word(worker.carried_quality()).to_lower()],
+			[[worker.carried_def().id, worker.carried_count()]], TavernTheme.PARCHMENT, true))
 	rows.append(_stat("Done today", _tally_text(worker.done_today), TavernTheme.PARCHMENT, true))
 	if world.nav != null:
 		rows.append(_stat("Underfoot", "%s · %s" % [surface_name(world, pawn.tile), pace_text(world.nav.cost_at(pawn.tile))]))
@@ -175,11 +179,13 @@ static func _patron_rows(world, pawn: Pawn, brain: CustomerBrain) -> Array:
 
 	if not brain.order.is_empty():
 		var lines: PackedStringArray = PackedStringArray()
+		var ordered: Array = []
 		for line in brain.order:
 			var def: ItemDef = ItemCatalog.get_def(line["id"])
 			lines.append("%s %d/%d" % [
 				def.display_name.to_lower() if def != null else "?", int(line["served"]), int(line["count"])])
-		rows.append(_stat("Order", " · ".join(lines), TavernTheme.PARCHMENT, true))
+			ordered.append([line["id"], "%d/%d" % [int(line["served"]), int(line["count"])]])
+		rows.append(_goods_stat("Order", " · ".join(lines), ordered, TavernTheme.PARCHMENT, true))
 		var bill: int = brain.bill_so_far()
 		if bill > 0:
 			rows.append(_stat("Bill so far", "%dg%s, tip %dg if they left now" % [bill,
@@ -215,7 +221,7 @@ static func building_rows(world, index: int) -> Array:
 	if entry == null:
 		return rows
 	var def: BuildingDef = entry["def"]
-	rows.append(_title(def.display_name))
+	rows.append(_title(def.display_name, IconStudio.building(def)))
 	rows.append(_sub("%s · %dg" % [def.category, def.cost]))
 	if entry.get("till", false):
 		rows.append(_stat("Payments", "taken here: guests buy what is on it", TavernTheme.CANDLE, true))
@@ -275,7 +281,7 @@ static func building_rows(world, index: int) -> Array:
 	if def.id == &"farm_plot" and entry["built"]:
 		var growth: float = Farm.growth_of(entry)
 		var crop: ItemDef = ItemCatalog.get_def(Farm.crop_of(entry))
-		rows.append(_stat("Crop", crop.display_name, TavernTheme.CANDLE, true))
+		rows.append(_goods_stat("Crop", crop.display_name, [[crop.id, -1]], TavernTheme.CANDLE, true))
 		var state: String = "bare: a farmer will plant it" if growth < 0.0 \
 			else ("ripe: a farmer will harvest %d" % int(entry.get("harvest_remaining", Farm.YIELD.get(crop.id, 1))) if growth >= 1.0 \
 			else "growing, %d%%" % int(growth * 100.0))
@@ -324,21 +330,26 @@ static func _bench_rows(world, index: int, entry: Dictionary, recipes: Array) ->
 			station = s
 	if not station.is_empty():
 		var held: Dictionary = {}
+		var by_id: Dictionary = {}
 		for tile in station["input_tiles"]:
 			var item: ItemDef = world.items.def_at(tile)
 			if item != null:
 				held[item.display_name.to_lower()] = int(held.get(item.display_name.to_lower(), 0)) + world.items.count_at(tile)
+				by_id[item.id] = int(by_id.get(item.id, 0)) + world.items.count_at(tile)
 		var parts: PackedStringArray = PackedStringArray()
 		for name in held:
 			parts.append("%d %s" % [held[name], name])
-		rows.append(_stat("On the bench", ", ".join(parts) if not parts.is_empty() else "nothing"))
+		rows.append(_goods_stat("On the bench", ", ".join(parts) if not parts.is_empty() else "nothing",
+			GoodsStrip.entries_from(by_id)))
 
 	rows.append(_rule())
 	rows.append(_sub("Makes"))
 	for recipe in recipes:
 		var stock: int = world.items.total_of(recipe.outputs[0]["id"]) if not recipe.outputs.is_empty() else 0
 		rows.append(_stat(recipe.display_name, world.bills.status_text(recipe.id, stock), TavernTheme.CANDLE_DIM, true))
-		rows.append(_line(recipe.summary(), TavernTheme.IRON))
+		var made: Dictionary = _line(recipe.summary(), TavernTheme.IRON.lightened(0.3))
+		made["recipe"] = recipe
+		rows.append(made)
 		# Shortages matter only while the bill wants more. A paused bench is
 		# short of everything by design, and listing it read as a fault. The bill
 		# is read, never asked: should_produce() flips its latch.
@@ -408,21 +419,27 @@ static func _storage_rows(world, entry: Dictionary) -> Array:
 	var rows: Array = []
 	var used: int = 0
 	var holding: PackedStringArray = PackedStringArray()
+	var by_id: Dictionary = {}
 	for t in entry["tiles"]:
 		var held: ItemDef = world.items.def_at(t)
 		if held != null:
 			used += 1
 			holding.append("%d %s" % [world.items.count_at(t), held.display_name.to_lower()])
+			by_id[held.id] = int(by_id.get(held.id, 0)) + world.items.count_at(t)
 	var tiles: int = entry["tiles"].size()
 	rows.append(_stat("In use", "%d of %d tiles" % [used, tiles],
 		TavernTheme.DANGER if used == tiles else TavernTheme.PARCHMENT, true))
-	rows.append(_stat("Holding", ", ".join(holding) if not holding.is_empty() else "nothing", TavernTheme.PARCHMENT, true))
+	rows.append(_goods_stat("Holding", ", ".join(holding) if not holding.is_empty() else "nothing",
+		GoodsStrip.entries_from(by_id), TavernTheme.PARCHMENT, true))
 	var filter: Dictionary = entry.get("filter", {})
 	var names: PackedStringArray = PackedStringArray()
+	var kinds: Array = []
 	for id in filter:
 		var item: ItemDef = ItemCatalog.get_def(id)
 		names.append(item.display_name.to_lower() if item != null else String(id))
-	rows.append(_stat("Will hold", "anything" if names.is_empty() else ", ".join(names), TavernTheme.PARCHMENT_DIM, true))
+		if item != null:
+			kinds.append([id, -1])
+	rows.append(_goods_stat("Will hold", "anything" if names.is_empty() else ", ".join(names), kinds, TavernTheme.PARCHMENT_DIM, true))
 	return rows
 
 
@@ -477,7 +494,7 @@ static func item_rows(world, tile: Vector2i) -> Array:
 	if def == null:
 		return rows
 	var count: int = world.items.count_at(tile)
-	rows.append(_title(def.display_name))
+	rows.append(_title(def.display_name, IconStudio.item(def.id)))
 	rows.append(_sub("%s · %d of a possible %d here" % [category_name(def.category), count, def.stack_size]))
 	if def.category != ItemDef.Category.REFUSE:
 		rows.append(_stat("Quality", quality_word(world.items.quality_at(tile)), TavernTheme.PARCHMENT, true))
@@ -914,7 +931,9 @@ static func _capitalise(text: String) -> String:
 
 # --- row builders -----------------------------------------------------------
 
-static func _title(text: String) -> Dictionary:
+static func _title(text: String, icon: Texture2D = null) -> Dictionary:
+	if icon != null:
+		return {"t": "title", "text": text, "icon": icon}
 	return {"t": "title", "text": text}
 
 
@@ -924,6 +943,11 @@ static func _sub(text: String) -> Dictionary:
 
 static func _stat(label: String, value: String, colour: Color = TavernTheme.PARCHMENT_DIM, hover: bool = false) -> Dictionary:
 	return {"t": "stat", "label": label, "value": value, "colour": colour, "hover": hover}
+
+
+## A stat drawn as pictures of goods; `value` keeps the same thing in words.
+static func _goods_stat(label: String, value: String, goods: Array, colour: Color = TavernTheme.PARCHMENT_DIM, hover: bool = false) -> Dictionary:
+	return {"t": "stat", "label": label, "value": value, "goods": goods, "colour": colour, "hover": hover}
 
 
 static func _bar(label: String, fraction: float, text: String, colour: Color, hover: bool = false) -> Dictionary:

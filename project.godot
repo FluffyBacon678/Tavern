@@ -19,6 +19,7 @@ GameSettings="*res://src/autoload/game_settings.gd"
 GameState="*res://src/autoload/game_state.gd"
 AudioDirector="*res://src/autoload/audio_director.gd"
 SceneRouter="*res://src/autoload/scene_router.gd"
+IconStudio="*res://src/autoload/icon_studio.gd"
 
 [display]
 
