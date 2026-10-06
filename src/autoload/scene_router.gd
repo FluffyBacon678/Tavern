@@ -13,6 +13,10 @@ signal transition_finished(scene_path: String)
 var _layer: CanvasLayer
 var _fade: ColorRect
 var _busy: bool = false
+## The scene the transition under way is going to.
+var _target: String = ""
+## A different scene asked for while a transition was under way.
+var _queued: String = ""
 
 
 func _ready() -> void:
@@ -31,12 +35,18 @@ func _ready() -> void:
 	_layer.add_child(_fade)
 
 
-## Fade out, swap scene, fade back in. Ignores re-entrant calls so a double-tap
-## on a menu button cannot start two transitions at once.
+## Fade out, swap scene, fade back in. A second request for the scene already
+## on its way is ignored, so a double-tap cannot start two transitions. A
+## request for a different scene waits for this one to finish: it used to be
+## dropped, so Continue clicked while the title was still fading in did nothing
+## -- and had already marked the save to be loaded.
 func change_scene(scene_path: String) -> void:
 	if _busy:
+		if scene_path != _target:
+			_queued = scene_path
 		return
 	_busy = true
+	_target = scene_path
 
 	await fade_out()
 
@@ -45,6 +55,7 @@ func change_scene(scene_path: String) -> void:
 		push_error("SceneRouter: could not load '%s' (error %d)." % [scene_path, err])
 		await fade_in()
 		_busy = false
+		_target = ""
 		return
 
 	# Let the new scene finish entering the tree before revealing it, otherwise
@@ -53,7 +64,12 @@ func change_scene(scene_path: String) -> void:
 	await fade_in()
 
 	_busy = false
+	_target = ""
 	transition_finished.emit(scene_path)
+	if not _queued.is_empty():
+		var next: String = _queued
+		_queued = ""
+		change_scene(next)
 
 
 func fade_out(duration: float = FADE_DURATION) -> void:

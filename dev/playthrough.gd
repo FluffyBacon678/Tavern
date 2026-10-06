@@ -51,13 +51,18 @@ func _play() -> void:
 	_press(menu, "New game")
 	await _frames(15)
 	await _shot("new_game", "New game page, demo scenario selected by default.")
-	_press(menu, "Sandbox")
+	# A newcomer's choice: the tutorial, which starts on an empty plot.
+	_press(menu, "Tutorial")
 	await _frames(10)
-	await _shot("sandbox", "Sandbox chosen: name, seed and slot appear.")
-	_press(menu, "Open the doors")
-	await _frames(10)
-	await _shot("character", "Choose the tavern keeper before opening a new tavern.")
+	await _shot("tutorial_card", "Tutorial chosen: name, seed and slot appear.")
 	_press(menu, "Create character")
+	await _frames(20)
+	await _shot("character", "Choose the tavern keeper before opening a new tavern.")
+	var creator = menu.get("_character_creator")
+	if creator == null or creator.accept_button == null:
+		_note("!! The character creator did not open; buttons: %s" % ", ".join(_button_texts(menu)))
+		return
+	creator.accept_button.pressed.emit()
 	for i in range(240):
 		await get_tree().process_frame
 		if get_tree().current_scene is TavernWorld:
@@ -180,7 +185,7 @@ func _play() -> void:
 	_press(world.hud.pause_menu, "Save game")
 	await _frames(10)
 	await _shot("saved", "Saved from the pause menu.")
-	var before: Dictionary = _tally()
+	var left_with: Dictionary = _tally()
 
 	# Coming back later: to the title, then Continue, as a returning player
 	# would. Everything saved must be there and on screen.
@@ -204,7 +209,7 @@ func _play() -> void:
 	await _frames(40)
 	var after: Dictionary = _tally()
 	await _shot("continued", "Continue: %d pieces placed (%d drawn), %d goods, %dg; before leaving %d placed, %d goods, %dg." % [
-		after["placed"], after["drawn"], after["goods"], after["gold"], before["placed"], before["goods"], before["gold"]])
+		after["placed"], after["drawn"], after["goods"], after["gold"], left_with["placed"], left_with["goods"], left_with["gold"]])
 
 
 ## What a returning player would check: pieces standing and on screen, goods,

@@ -309,7 +309,7 @@ func _build_merchant(column: VBoxContainer) -> void:
 	var fills := HBoxContainer.new()
 	fills.add_theme_constant_override("separation", 6)
 	_manual.add_child(fills)
-	fills.add_child(_button("Usual order", "Flour, yeast, water, malt and hops: a day of bread and beer", reset_to_standard))
+	fills.add_child(_button("Usual order", "Flour, yeast, water, malt and hops: two batches of bread and two brews of beer", reset_to_standard))
 	fills.add_child(_button("What the meals need", "Exactly what the Restock targets are short of", fill_for_meals))
 	fills.add_child(_button("Empty", "Take everything off the cart", func() -> void:
 		order.clear()
@@ -466,7 +466,8 @@ func reset_to_standard() -> void:
 	for id in world.STANDARD_ORDER:
 		_set_line(id, int(world.STANDARD_ORDER[id]))
 	if _ware_info != null:
-		_ware_info.text = "On the cart: the usual order, a day of bread and beer."
+		# Twenty of each, not "a day": a busy first day sells more than that.
+		_ware_info.text = "On the cart: the usual order, about twenty loaves and twenty beers."
 	refresh()
 
 

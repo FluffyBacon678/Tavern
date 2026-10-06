@@ -952,7 +952,11 @@ func _place_paused_label() -> void:
 		if panel != null and panel.visible:
 			left = maxf(left, panel.position.x + panel.size.x)
 	var right: float = width
-	for panel in [_objectives_panel, _production_panel]:
+	var right_side: Array = [_objectives_panel, _production_panel]
+	# The tutorial's own panel sits on the right too, when a tutorial runs.
+	if tutorial != null and tutorial._panel != null:
+		right_side.append(tutorial._panel)
+	for panel in right_side:
 		if is_instance_valid(panel) and panel.visible:
 			right = minf(right, panel.get_global_rect().position.x - _hud.get_global_rect().position.x)
 	var centre: float = width * 0.5
