@@ -122,6 +122,27 @@ func _ready() -> void:
 	await _frames(3)
 	await _shot("touch_tip", "A finger held on the flour: its name, and the cart's minus button")
 	world.hud.toggle_supplies()
+
+	# Playing the keeper: the bar at the bottom, and waiting on a guest.
+	world.keeper_controls.start()
+	world.keeper.restore_carry({"id": "beer", "count": 3, "quality": 0.6})
+	await _settle()
+	await _frames(20)
+	await _shot("keeper_bar", "Playing the keeper: what they hold, with Put down")
+	world.keeper._clear_cargo()
+	for brain in world.customers.customers:
+		var options: Array = world.keeper_controls._guest_options(brain)
+		if options.is_empty():
+			continue
+		var all: Array = world.keeper_controls.options_for(brain.pawn.tile, brain.pawn)
+		var menu := KeeperMenu.new()
+		world.hud._hud.add_child(menu)
+		menu.open(all, get_viewport().get_visible_rect().size * 0.5, func(_o: Dictionary) -> void: pass)
+		await _settle()
+		await _shot("keeper_guest", "The keeper's options on a guest: %s" % String(all[0]["text"]))
+		menu.queue_free()
+		break
+	world.keeper_controls.stop()
 	print("PICTURE UI CHECK: done")
 	get_tree().quit()
 

@@ -32,6 +32,16 @@ limits; touch has been checked in a portrait window, not yet on a phone.
 - **Managing shortcuts while playing.** Build, demolish, rooms and land step
   you back out first; panels such as Stores and Staff open in either mode.
 - **The yellow cross** marks where a left-click sent the keeper.
+- **The keeper bar** at the bottom of the screen, while playing, shows what
+  the keeper holds and is doing, with **Put down** and **Stop** buttons
+  (2026-10-10). Right-clicking the keeper offers the same.
+- **What a left-click does** is the first option:
+  - for a person, what they need, or a look at them (never the chair they
+    sit on);
+  - for a bench, its recipe (the one using what you hold first), ahead of
+    taking its ingredients;
+  - for goods, take them;
+  - for open ground, walk.
 
 ## What the keeper can do now
 
@@ -44,7 +54,19 @@ limits; touch has been checked in a portrait window, not yet on a phone.
 | A table with dirty dishes | **Clear the table**. |
 | A wash basin with dishes in it | **Wash up**. |
 | A prep table or a Bar Table | **Take payments here / Stop taking payments here**. |
+| A guest with a hand up, or their table | **Take …'s order**. A waiter only on the way stands down; one already taking it keeps it. |
+| A guest waiting for food or drink, or their table | **Serve … to …**: from your hands, or fetched from the nearest stack, and only as much as they ordered. Not offered if a waiter is already bringing it. |
+| A guest who has eaten | **Bring … the bill**: they pay, tip and all. |
+| A blueprint | **Build …**, as a porter would. |
+| A farm plot | **Plant … / Harvest …**, when it wants it. |
+| The host's stand | Whatever the host would do there: **Greet the guests**, the morning's bookings. |
+| Yourself | **Put down …** where you stand, **Stop …**. |
 | Anything, anyone | **Examine** (opens its card). |
+
+Taking orders, bills, building, farming and greeting are the staff's own jobs
+from the board, worked by the keeper's hands (`Keeper.do_job`). Whatever
+finishing them does is exactly what it does for staff: the order goes to the
+kitchen, the bill is paid, the piece is built.
 
 Ordering supplies is the Stores panel as before. With nobody to haul,
 deliveries wait in the yard for the keeper.
@@ -78,11 +100,35 @@ until there's money to hire again.
 | 3 | 24 | +119g | 2235g |
 | 4 | 26 | +117g | 2352g |
 
+**Waiting tables alone** (2026-10-10, 4 days, `sim=3`). The keeper now also
+takes orders, serves and brings bills. When that comes in the solo routine
+decides how it goes:
+
+| Waits on guests | Served | Profit | Last reputation |
+|---|---|---|---|
+| never (bar and dishes only) | 120 | +510g | 60 |
+| before everything | 84 | +431g | 6 by day 2 |
+| after the dishes | 93 | +478g | 8 |
+| after the bar is seen to | 121 | +530g | 20 |
+
+One pair of hands can't keep the bar *and* the tables. Waiting tables first
+lets the bar run dry, so every guest puts a hand up and waits.
+
+- **Alone:** the till is the living, and waiting tables only fills the gaps.
+- **With staff:** stepping in to take an order or bring a bill helps at a
+  rush.
+
 **Tests:**
-- `dev/regressions.tscn -- group=keeper` covers spawning, stepping in and out,
-  taking and putting down, a recipe by hand, fishing, the till and saving.
+- `dev/regressions.tscn -- group=keeper` covers:
+  - spawning, and stepping in and out;
+  - taking and putting down, a recipe by hand, fishing, the till;
+  - a guest's order, their dish and their bill;
+  - building a blueprint;
+  - putting down and stopping, from the menu and from the bar;
+  - left-click choices, and saving.
 - The tutorial's last lesson, *Your keeper*, does it all end to end: step in,
-  fish, clean the catch at the prep table, make the bar a till, step out.
+  fish, clean the catch at the prep table, make the bar a till, wait on a
+  guest, step out.
 - `dev/keeper_showcase.tscn` renders the pictures.
 
 ## Fixed along the way
@@ -98,6 +144,7 @@ until there's money to hire again.
 - Lemon trees on the unbuildable land, with lemons picked by the keeper.
 - Guests who prefer paying at the bar versus at the table, and hiring a waiter
   to offer table service with receipts.
-- More for the keeper to do: take orders and serve tables, carry plates,
-  greet guests. Work by hand could use the existing timing mini-game for
-  quality.
+- Work by hand could use the existing timing mini-game for quality.
+- A guest raises a hand only when nobody on the staff takes orders and the
+  bar is empty. A keeper who wants to wait tables could say so, so guests
+  stay seated for them.

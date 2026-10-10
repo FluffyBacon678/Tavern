@@ -9,8 +9,9 @@ extends Node
 ##           on the grass, lanterns and trees, and checks off a wishlist.
 ##   idle    does nothing at all, for comparison.
 ##   solo    lets every member of staff go on day 1 and runs the place as the
-##           keeper alone: lemons and water to the bar, lemonade pressed by
-##           hand, the bar taking payments, tables cleared and washed up.
+##           keeper alone: guests waited on (orders, dishes, bills), lemons and
+##           water to the bar, lemonade pressed by hand, the bar taking
+##           payments, tables cleared and washed up.
 ##
 ## Every move is a player's: blueprints the porters build and gold pays for,
 ## the hire and let-go buttons' calls, the production targets. Each evening
@@ -470,6 +471,20 @@ func _solo_tick() -> void:
 				continue
 			keeper.take(tile)
 			return
+	# The bar seen to, the guests: a raised hand, a dish waited for, a bill --
+	# the first thing the options menu offers on each, as a click picks it.
+	# Last, not first: run off waiting tables, the keeper let the bar run dry,
+	# every guest then put a hand up, and the days sold less. Four days, sim=3:
+	# guests first 84 served, +431g; after the dishes 93, +478g; here, after
+	# the bar, 121, +530g; never waiting tables, 120, +510g.
+	for brain in world.customers.customers:
+		if not is_instance_valid(brain):
+			continue
+		var options: Array = world.keeper_controls._guest_options(brain)
+		if not options.is_empty():
+			options[0]["run"].call()
+			if keeper._do != Keeper.Do.NOTHING:
+				return
 
 
 func _solo_find_piece(id: StringName) -> Vector2i:

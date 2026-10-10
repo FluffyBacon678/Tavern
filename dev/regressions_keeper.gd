@@ -2,8 +2,9 @@ extends "res://dev/regression_group.gd"
 
 ## The keeper the player plays: called in, stepped in and out of, walked,
 ## carrying goods to a bench, making a recipe by hand, fishing with the basic
-## rod, taking payments at a till, offering the right options on a click, and
-## saved. Run:
+## rod, taking payments at a till, waiting on guests (the order, their dish,
+## the bill), building a blueprint, putting down and stopping, offering the
+## right options on a click, and saved. Run:
 ##   godot --headless --path . res://dev/regressions.tscn -- group=keeper
 
 
@@ -14,6 +15,9 @@ func run() -> void:
 	_check_work(world)
 	_check_fish(world)
 	_check_till(world)
+	_check_guests(world)
+	_check_blueprint(world)
+	_check_self(world)
 	_check_save(world)
 	await load("res://dev/keeper_visual_checks.gd").new().run(self, world)
 	world.clear_keeper()
@@ -112,6 +116,9 @@ func _check_work(world: TavernWorld) -> void:
 	check(_until(world, func() -> bool: return keeper.batches >= 1, 60.0), "holding the lemons, Press lemonade puts them down and presses")
 	check(world.stock_of(&"lemonade") == made + 10 and world.stock_of(&"lemons") == 0 and keeper.carry_count == 0,
 		"ten jugs from a crate of lemons and a barrel, by the keeper's own hand")
+	var after: Array = world.keeper_controls.options_for(at + Vector2i(1, 1))
+	check(not after.is_empty() and String(after[0]["text"]) == press.display_name,
+		"with lemonade on it, a left-click on the bar still presses rather than taking the jugs (%s)" % (after[0]["text"] if not after.is_empty() else "nothing"))
 	set_meta("bar", bar)
 	set_meta("bar_tile", at + Vector2i(1, 1))
 
@@ -180,6 +187,152 @@ func _check_till(world: TavernWorld) -> void:
 	director.staff = staff
 	world.set_till(bar, false)
 	check(not world.build.grid.placements[bar].has("till"), "and the till can be put away again")
+
+
+## Waiting on guests in person: the order, the dish, the bill. The staff's own
+## jobs, so what finishing them does is what it always does.
+func _check_guests(world: TavernWorld) -> void:
+	var keeper: Keeper = world.keeper
+	var controls: KeeperControls = world.keeper_controls
+	var director: CustomerDirector = world.customers
+	director.seating.refresh()
+	var guest: CustomerBrain = director._try_spawn()
+	check(guest != null, "the fixture lets a guest in")
+	if guest == null:
+		return
+	guest.set_process(false)
+	guest.pawn.set_process(false)
+	guest.pawn.stop()
+	guest.seat = director.seating.claim(guest, guest.pawn.tile)
+	check(guest.seat != Seating.NO_SEAT, "and seats them")
+	if guest.seat == Seating.NO_SEAT:
+		director.remove_customer(guest)
+		return
+	var name: String = guest.pawn.pawn_name
+	var table: Vector2i = guest.seating.table_for(guest.seat)
+
+	# A raised hand: the keeper takes the order themselves.
+	guest.state = CustomerBrain.State.READY_TO_ORDER
+	guest._patience = 9999.0
+	director._generate_serve_jobs()
+	var take: Job = world.board.job_with_key("take:%d,%d" % [guest.seat.x, guest.seat.y])
+	var waiter: Worker = null
+	for worker in world.workers:
+		if worker.allows(WorkType.Kind.SERVE):
+			waiter = worker
+			break
+	if take != null and waiter != null:
+		take.claim(waiter)
+	var options: Array = controls.options_for(guest.pawn.tile, guest.pawn)
+	check(not options.is_empty() and String(options[0]["text"]) == "Take %s's order" % name,
+		"a left-click on a guest with a hand up takes their order (%s)" % (options[0]["text"] if not options.is_empty() else "nothing"))
+	if not options.is_empty():
+		options[0]["run"].call()
+	check(take != null and take.claimant == keeper, "and a waiter only on the way stands down for the keeper")
+	check(_until(world, func() -> bool: return guest.state == CustomerBrain.State.WAITING_FOR_ORDER, 120.0)
+		and not guest.order.is_empty(), "the keeper walks over and takes it")
+	check(keeper.jobs_done >= 1 and not keeper.is_busy(), "and is done")
+
+	# Their dish, fetched from wherever it is and put on their table.
+	var lines: Array = guest.unserved()
+	if not lines.is_empty():
+		var id: StringName = StringName(lines[0]["id"])
+		var count: int = int(lines[0]["count"])
+		if world.stock_of(id) < count:
+			var spot: Vector2i = _clear_patch(world, Vector2i(1, 1))
+			world.items.add(ItemCatalog.get_def(id), count, spot)
+		director._generate_serve_jobs()
+		for job in world.board.jobs.duplicate():
+			if job.key.begins_with("serve:") or job.key.begins_with("plate:"):
+				world.board.cancel_key(job.key)
+		var on_table: int = world.items.count_at(table) if world.items.def_at(table) != null and world.items.def_at(table).id == id else 0
+		var serve: Array = controls.options_for(table)
+		var text: String = "Serve %s to %s" % [ItemCatalog.get_def(id).display_name, name]
+		check(serve.any(func(o: Dictionary) -> bool: return String(o["text"]) == text),
+			"their table offers to serve their %s" % ItemCatalog.get_def(id).display_name.to_lower())
+		for option in serve:
+			if String(option["text"]) == text:
+				option["run"].call()
+				break
+		var on_their_table: Callable = func() -> bool:
+			return world.items.def_at(table) != null and world.items.def_at(table).id == id \
+				and world.items.count_at(table) >= on_table + count and not keeper.is_busy()
+		check(_until(world, on_their_table, 120.0), "the keeper fetches it and puts it on their table")
+		check(keeper.carry_count == 0 and keeper.served >= count, "bringing just what was ordered")
+		for line in guest.order:
+			line["served"] = line["count"]
+		world.items.take(table, world.items.count_at(table))
+
+	# Eaten: the keeper brings the bill, and the guest pays.
+	guest.state = CustomerBrain.State.WAITING_FOR_BILL
+	guest._patience = 9999.0
+	director._generate_serve_jobs()
+	var gold: int = GameState.gold
+	var bill: Array = controls.options_for(guest.pawn.tile, guest.pawn)
+	check(not bill.is_empty() and String(bill[0]["text"]) == "Bring %s the bill" % name,
+		"a guest who has eaten is offered the bill (%s)" % (bill[0]["text"] if not bill.is_empty() else "nothing"))
+	if not bill.is_empty():
+		bill[0]["run"].call()
+	check(_until(world, func() -> bool: return guest.state != CustomerBrain.State.WAITING_FOR_BILL, 120.0)
+		and GameState.gold > gold, "the keeper brings it and is paid")
+	if is_instance_valid(guest):
+		director.seating.release_for(guest)
+		director.remove_customer(guest)
+	director._generate_serve_jobs()
+
+
+## A blueprint, built by the keeper's own hands.
+func _check_blueprint(world: TavernWorld) -> void:
+	var at: Vector2i = _clear_patch(world, Vector2i(3, 3))
+	if at.x < 0:
+		return
+	var index: int = world.build.place_programmatic(BuildingCatalog.get_def(&"chair"), at + Vector2i(1, 1), 0, true)
+	check(index >= 0, "the fixture takes a chair blueprint")
+	if index < 0:
+		return
+	for worker in world.workers:
+		worker.set_process(false)
+	var options: Array = world.keeper_controls.options_for(at + Vector2i(1, 1))
+	check(not options.is_empty() and String(options[0]["text"]) == "Build Chair",
+		"a left-click on a blueprint builds it (%s)" % (options[0]["text"] if not options.is_empty() else "nothing"))
+	if not options.is_empty():
+		options[0]["run"].call()
+	check(_until(world, func() -> bool: return world.build.grid.is_built(index), 120.0), "and the keeper builds it")
+	for worker in world.workers:
+		worker.set_process(true)
+	world.build.grid.remove(index)
+	world.build._rebuild_instances(BuildingCatalog.get_def(&"chair"))
+	world.nav.refresh_all()
+
+
+## A right-click on the keeper: put down what is held, or stop; and the bar
+## at the bottom of the screen says the same.
+func _check_self(world: TavernWorld) -> void:
+	var keeper: Keeper = world.keeper
+	var controls: KeeperControls = world.keeper_controls
+	keeper.restore_carry({"id": "water", "count": 2, "quality": 0.5})
+	var mine: Array = controls.options_for(keeper.pawn.tile, keeper.pawn)
+	check(not mine.is_empty() and String(mine[0]["text"]) == "Put down Water Barrel",
+		"a click on the keeper offers to put down what they hold (%s)" % (mine[0]["text"] if not mine.is_empty() else "nothing"))
+	controls.start()
+	var bar: KeeperBar = world.hud.keeper_bar
+	bar._process(1.0)
+	check(bar.visible and bar._held.text == "2 Water Barrel" and bar._drop.visible and not bar._stop.visible,
+		"playing, the bar shows what is held and offers to put it down ('%s')" % bar._held.text)
+	var water: int = world.stock_of(&"water")
+	bar._drop.pressed.emit()
+	check(keeper.carry_count == 0 and world.stock_of(&"water") == water, "putting down keeps every barrel")
+	var far: Vector2i = _clear_patch(world, Vector2i(2, 2))
+	if far.x >= 0 and keeper.walk_to(far):
+		bar.refresh()
+		var busy: Array = controls.options_for(keeper.pawn.tile, keeper.pawn)
+		check(bar._stop.visible and busy.any(func(o: Dictionary) -> bool: return String(o["text"]).begins_with("Stop")),
+			"walking, the keeper can be stopped")
+		bar._stop.pressed.emit()
+		check(not keeper.is_busy() and not keeper.pawn.is_busy(), "and stops")
+	controls.stop()
+	bar._process(1.0)
+	check(not bar.visible, "managing again, the bar is gone")
 
 
 func _check_save(world: TavernWorld) -> void:

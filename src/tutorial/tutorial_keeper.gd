@@ -3,8 +3,9 @@ extends RefCounted
 
 ## Your keeper, after the bar so saved tutorial indices stay valid: step in as
 ## the character you made, fish with the basic rod, clean the catch at the prep
-## table by hand, make the bar a till, and step back out. Everything the staff
-## do, the keeper can do -- for when the money runs out, or before it comes in.
+## table by hand, make the bar a till, wait on a guest, and step back out.
+## Everything the staff do, the keeper can do -- for when the money runs out,
+## or before it comes in.
 
 
 static func fishing_spot(world) -> int:
@@ -17,6 +18,11 @@ static func fishing_spot(world) -> int:
 
 static func piece_at(world, spot: Vector2i) -> int:
 	return world.build.grid.object_index_at(TutorialPlan.at(world, spot))
+
+
+## Orders taken, bills brought and dishes served by the keeper so far.
+static func _waited_on(world) -> int:
+	return world.keeper.jobs_done + world.keeper.served if world.keeper != null else 0
 
 
 static func steps() -> Array[TutorialStep]:
@@ -63,6 +69,22 @@ static func steps() -> Array[TutorialStep]:
 			return bar >= 0 and bool(w.build.grid.placements[bar].get("till", false)),
 		func(w, _ctx) -> void: w.set_till(piece_at(w, TutorialBar.BAR), true)
 	).pointing_at(func(w) -> Dictionary: return {"tiles": TutorialPlan.area(w, TutorialBar.BAR, Vector2i(2, 1))}))
+	out.append(TutorialStep.make("keeper_serve", lesson,
+		"Right-click a guest and choose what they need: take their order, serve their dish, or bring the bill.",
+		"A waiter's work, by your hand: the order goes to the kitchen and the bill to the purse, tip and all.",
+		func(w, ctx) -> bool: return w.keeper != null and _waited_on(w) > int(ctx["waited"]),
+		func(w, _ctx) -> void:
+			w.sim.speed = 4
+			for i in range(6000):
+				for brain in w.customers.customers:
+					if not is_instance_valid(brain):
+						continue
+					var options: Array = w.keeper_controls._guest_options(brain)
+					if not options.is_empty():
+						options[0]["run"].call()
+						return
+				await w.get_tree().process_frame
+	).starting(func(w, ctx) -> void: ctx["waited"] = _waited_on(w)).running(300.0))
 	out.append(TutorialStep.make("keeper_out", lesson,
 		"Press Manage (%s) to go back to running the tavern from above." % KeyBindings.first("play_keeper"),
 		"Your keeper stays where they are, and is saved with the tavern. Step in again whenever you like.",

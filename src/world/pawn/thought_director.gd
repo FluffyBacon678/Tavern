@@ -45,6 +45,12 @@ static func worker_icon(worker: Worker) -> String:
 	var job: Job = worker.current
 	if job == null:
 		return "idle"
+	return job_icon(job)
+
+
+## The bubble for a kind of work: the staff's, the keeper's and the keeper's
+## options menu all draw it.
+static func job_icon(job: Job) -> String:
 	match job.kind:
 		WorkType.Kind.CONSTRUCT:
 			return "build"

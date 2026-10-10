@@ -11,8 +11,20 @@ extends Node
 ## as stock, what they make is made by `perform_by_hand`, what they catch is a
 ## catch. That is what lets a keeper with no money and no staff still trade:
 ## buy lemons, carry them to the bar, press the lemonade, take the payments.
+##
+## And the work at the tables and the door: taking an order, bringing a dish
+## to the guest who ordered it, bringing the bill, greeting, building a
+## blueprint, planting and harvesting. Those are the staff's own jobs from the
+## board, done by the keeper's hands, so whatever finishing them does -- the
+## order taken, the bill paid, the piece built -- happens exactly as it would.
 
-enum Do { NOTHING, WALK, TAKE, PUT, WORK, WASH }
+enum Do { NOTHING, WALK, TAKE, PUT, WORK, WASH, JOB }
+
+## Board jobs the keeper may do in person: work at a place, with nothing to
+## fetch first. Cooking, fishing and washing up go through their own recipes
+## and benches instead.
+const JOB_KINDS: Array[int] = [WorkType.Kind.SERVE, WorkType.Kind.BILL, WorkType.Kind.CONSTRUCT,
+	WorkType.Kind.FARM, WorkType.Kind.HOST]
 
 ## Seconds of work put in per second: the same as a member of staff.
 const WORK_SPEED: float = 1.0
@@ -34,6 +46,9 @@ var carry_quality: float = ItemWorld.BASE_QUALITY
 var batches: int = 0
 var catches: int = 0
 var washed: int = 0
+## Board jobs finished in person, and dishes and drinks brought to guests.
+var jobs_done: int = 0
+var served: int = 0
 
 var _do: int = Do.NOTHING
 ## The tile acted on, and the tile of it to stand beside.
@@ -43,6 +58,13 @@ var _index: int = -1
 var _recipe: Recipe = null
 var _work_left: float = 0.0
 var _stuck: float = 0.0
+## The board job being done in person (Do.JOB), claimed by the keeper.
+var _job: Job = null
+## How many to pick up (TAKE) or put down (PUT); 0 for as many as will go.
+var _take_limit: int = 0
+var _put_limit: int = 0
+## Put only on these tiles (a guest's table), not wherever the piece allows.
+var _put_only: Array = []
 ## Run once this task is done: "press lemonade" while holding the lemons puts
 ## them down at the bar first.
 var _then: Callable = Callable()
@@ -156,6 +178,78 @@ func wash(tile: Vector2i) -> bool:
 	return true
 
 
+## Do a job from the board in person: take an order, bring a bill, greet the
+## guests, build a blueprint, plant or harvest a bed. A member of staff on
+## their way to it stands down; one already at work on it keeps it.
+func do_job(job: Job) -> bool:
+	if not can_do(job):
+		return false
+	if not _begin(Do.JOB, job.target, [job.target]):
+		return false
+	if job.claimant != null and job.claimant != self:
+		if job.claimant.has_method("abandon_job"):
+			job.claimant.abandon_job()
+		job.release(null, false)
+	job.claim(self)
+	_job = job
+	return true
+
+
+## Whether `job` is one the keeper could take on now.
+func can_do(job: Job) -> bool:
+	if job == null or not JOB_KINDS.has(job.kind) or job.needs_pickup():
+		return false
+	if job.state == Job.State.DONE or job.state == Job.State.ACTIVE or not job.is_valid():
+		return false
+	return world.board.jobs.has(job)
+
+
+## Bring a guest what they ordered: put `count` of what is held on their
+## table, keeping the rest in hand.
+func serve(table: Vector2i, count: int) -> bool:
+	if carry_count <= 0 or count <= 0:
+		return false
+	if not _begin(Do.PUT, table, [table]):
+		return false
+	_put_only = [table]
+	_put_limit = count
+	return true
+
+
+## Fetch `count` of the goods on `source` and bring them to a guest's table.
+func fetch_and_serve(source: Vector2i, table: Vector2i, count: int) -> bool:
+	if not take(source):
+		return false
+	_take_limit = count
+	_then = func() -> void: serve(table, count)
+	return true
+
+
+## Put down what is held, here and now.
+func drop() -> void:
+	_clear_task()
+	_drop_at_feet()
+
+
+## Stop whatever is under way, and stand.
+func stop() -> void:
+	_clear_task()
+	if is_instance_valid(pawn):
+		pawn.stop()
+
+
+func is_busy() -> bool:
+	return _do != Do.NOTHING
+
+
+## Called by the board when the job being done stops existing: the guest has
+## gone, the blueprint was demolished.
+func abandon_job() -> void:
+	_job = null
+	_clear_task()
+	said.emit("That's no longer needed.")
+
+
 ## What the keeper is doing, for their card and the bubble.
 func status_text() -> String:
 	match _do:
@@ -167,6 +261,10 @@ func status_text() -> String:
 			return "carrying %s" % carry_def.display_name.to_lower() if carry_def != null else "carrying"
 		Do.WASH:
 			return "washing up"
+		Do.JOB:
+			if _job != null:
+				return "%s (%d%%)" % [_job.label.to_lower(), int(100.0 * _job.progress())] \
+					if not pawn.is_busy() else "going to %s" % _job.label.to_lower()
 		Do.WORK:
 			if _recipe != null:
 				return "%s (%d%%)" % [_recipe.display_name.to_lower(), int(100.0 * (1.0 - _work_left / maxf(_recipe.work_amount, 0.001)))] \
@@ -184,6 +282,10 @@ func _pose_request() -> Dictionary:
 	elif _do == Do.WORK and _recipe != null:
 		var entry = world.build.grid.placements[_index] if _index >= 0 and _index < world.build.grid.placements.size() else null
 		mode = Pawn.pose_for_work(_recipe.work_kind, entry["def"].id if entry != null else &"")
+	elif _do == Do.JOB and _job != null and not pawn.is_busy():
+		var index: int = world.build.grid.placement_at(_job.target)
+		var entry = world.build.grid.placements[index] if index >= 0 else null
+		mode = Pawn.pose_for_work(_job.kind, entry["def"].id if entry != null else &"")
 	return {"mode": mode, "target": pawn.world_position_of(_target)} if not mode.is_empty() else {}
 
 func sim_step(delta: float) -> void:
@@ -216,6 +318,8 @@ func sim_step(delta: float) -> void:
 			if _work_left <= 0.0:
 				_work_now()
 				_finish_task()
+		Do.JOB:
+			_work_job(delta)
 		Do.WASH:
 			pawn.think("clean")
 			_work_left -= WORK_SPEED * delta
@@ -229,6 +333,28 @@ func sim_step(delta: float) -> void:
 				_finish_task()
 
 
+## A board job's work, as a member of staff does it: the job's own completion
+## decides what finishing means. Gone from the board meanwhile -- somebody else
+## finished it, or its reason went -- and there is nothing left to do.
+func _work_job(delta: float) -> void:
+	if _job == null or not world.board.jobs.has(_job) or not _job.is_valid() or _job.state == Job.State.DONE:
+		_job = null
+		said.emit("That's been seen to.")
+		_clear_task()
+		return
+	pawn.think(ThoughtDirector.job_icon(_job))
+	_job.state = Job.State.ACTIVE
+	if not _job.apply_work(WORK_SPEED * delta):
+		return
+	var done: Job = _job
+	_job = null
+	pawn.think("")
+	world.board.complete(done)
+	jobs_done += 1
+	said.emit("Done: %s." % done.label.to_lower())
+	_finish_task()
+
+
 func _take_now() -> void:
 	var def: ItemDef = world.items.def_at(_target)
 	world.board.yield_to_keeper(_target)
@@ -240,7 +366,12 @@ func _take_now() -> void:
 		said.emit("Your hands are full.")
 		return
 	var quality: float = world.items.quality_at(_target)
-	var taken: int = world.items.take(_target, mini(def.stack_size - carry_count, available))
+	var room: int = def.stack_size - carry_count
+	if _take_limit > 0:
+		room = mini(room, maxi(_take_limit - carry_count, 0))
+	if room <= 0:
+		return
+	var taken: int = world.items.take(_target, mini(room, available))
 	if taken <= 0:
 		return
 	carry_quality = (carry_quality * float(carry_count) + quality * float(taken)) / float(carry_count + taken)
@@ -253,15 +384,19 @@ func _put_now() -> void:
 	if carry_count <= 0 or carry_def == null:
 		return
 	var put_down: int = 0
-	for tile in _put_tiles(_target):
-		if carry_count <= 0:
+	var to_put: int = carry_count if _put_limit <= 0 else mini(_put_limit, carry_count)
+	for tile in (_put_only if not _put_only.is_empty() else _put_tiles(_target)):
+		if to_put <= 0:
 			break
-		var n: int = world.items.add(carry_def, carry_count, tile, carry_quality)
+		var n: int = world.items.add(carry_def, to_put, tile, carry_quality)
 		carry_count -= n
+		to_put -= n
 		put_down += n
 	if put_down == 0:
 		said.emit("There's no room for the %s there." % carry_def.display_name.to_lower())
 		return
+	if not _put_only.is_empty():
+		served += put_down
 	if carry_count <= 0:
 		_clear_cargo()
 
@@ -371,13 +506,20 @@ func _finish_task() -> void:
 
 
 func _clear_task() -> void:
-	if (_do == Do.WORK or _do == Do.WASH) and pawn != null:
+	if (_do == Do.WORK or _do == Do.WASH or _do == Do.JOB) and pawn != null:
 		pawn.think("")
+	# A job let go of goes back on the board for the staff, its work so far kept.
+	if _job != null and _job.claimant == self and _job.state != Job.State.DONE:
+		_job.release(null, false)
+	_job = null
 	_do = Do.NOTHING
 	_index = -1
 	_recipe = null
 	_stuck = 0.0
 	_then = Callable()
+	_take_limit = 0
+	_put_limit = 0
+	_put_only = []
 
 
 func _clear_cargo() -> void:

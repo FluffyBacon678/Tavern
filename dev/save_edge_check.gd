@@ -50,9 +50,15 @@ func _ready() -> void:
 	GameState.load_requested = true
 	world = load("res://src/world/world3d/world_3d.tscn").instantiate()
 	add_child(world)
+	# Held still: the load is what is being compared, and a loaded tavern left
+	# running for ten real frames moved a stack under a busy machine.
+	SimWait.hold(world)
 	await _frames(10)
 	var after: Dictionary = SaveGame.capture(world)
-	# Goods restored to someone's hands go to a shelf, not onto the floor.
+	# Goods restored to someone's hands go to a shelf, not onto the floor:
+	# the first steps after the load set them off.
+	for i in range(3):
+		world.sim.ticked.emit(SimClock.STEP)
 	var carriers: int = 0
 	var to_storage: int = 0
 	var storage: Array[Vector2i] = world.generator._storage_tiles()

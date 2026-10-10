@@ -295,72 +295,259 @@ func _piece_under(screen_pos: Vector2) -> Vector2i:
 	return Vector2i(-1, -1)
 
 
-## The options for one tile, and whoever is standing on it.
+## The options for one tile, and whoever is standing on it, best first: a
+## left-click does the first. For someone: what they need (an order taken,
+## their dish, the bill), or a look at them. For a bench: its recipes, an
+## ingredient in hand first. For goods: take them. For open ground: walk.
 func options_for(tile: Vector2i, person: Pawn = null) -> Array:
 	var keeper: Keeper = world.keeper
 	var first: Array = []
 	var rest: Array = []
-	var walk := {"text": "Walk here", "run": func() -> void: keeper.walk_to(tile), "tile": tile}
-	var holding: String = keeper.carry_def.display_name if keeper.carry_def != null else ""
-	var held_picture: Texture2D = IconStudio.item(keeper.carry_def.id) if keeper.carry_def != null else null
+	var walk: Dictionary = _option("Walk here", func() -> void: keeper.walk_to(tile), tile)
+	var someone: bool = person != null and is_instance_valid(person) and person != keeper.pawn
+	if person != null and person == keeper.pawn:
+		first.append_array(_self_options())
+	if someone:
+		var guest: CustomerBrain = _guest_of(person)
+		if guest != null:
+			first.append_array(_guest_options(guest))
 
 	var index: int = world.build.grid.object_index_at(tile)
 	var entry = world.build.grid.placements[index] if index >= 0 else null
+	# Beds and floors are their own layer: a farm plot, or a floor still a blueprint.
+	if entry == null:
+		var floor_index: int = world.build.grid.floor_index_at(tile)
+		var floor_entry = world.build.grid.placements[floor_index] if floor_index >= 0 else null
+		if floor_entry != null and (not floor_entry["built"] or floor_entry["def"].id == &"farm_plot"):
+			index = floor_index
+			entry = floor_entry
 	var goods: ItemDef = world.items.def_at(tile)
 	var on_table: bool = entry != null and entry["def"].furniture_role == &"table"
-	var refuse: bool = goods != null and goods.category == ItemDef.Category.REFUSE
+	var take: Array = []
 	# Counted whole: a job nobody has set out on gives way to the keeper.
 	if goods != null and world.items.count_at(tile) > 0:
-		if on_table and refuse:
+		if on_table and goods.category == ItemDef.Category.REFUSE:
 			# A guest's own plate is theirs; the dirty dishes they left are not.
-			first.append({"text": "Clear the table", "run": func() -> void: keeper.take(tile), "tile": tile,
-				"icon": IconStudio.item(goods.id)})
+			take.append(_option("Clear the table", func() -> void: keeper.take(tile), tile, IconStudio.item(goods.id)))
 		elif not on_table:
-			first.append({"text": "Take %s" % goods.display_name, "run": func() -> void: keeper.take(tile), "tile": tile,
-				"icon": IconStudio.item(goods.id)})
+			take.append(_option("Take %s" % goods.display_name, func() -> void: keeper.take(tile), tile, IconStudio.item(goods.id)))
+
+	if entry != null and not entry["built"]:
+		# A blueprint: build it, as the porters would.
+		first.append_array(_piece_jobs(index, entry))
+		first.append_array(take)
+		rest.append(_examine_piece(index, entry, tile))
+	elif entry != null:
+		first.append_array(_built_options(index, entry, tile, take))
+		if on_table:
+			for guest in _guests_at(tile):
+				for option in _guest_options(guest):
+					if not first.any(func(o: Dictionary) -> bool: return o["text"] == option["text"]):
+						first.append(option)
+		if entry["def"].takes_payments:
+			var till: bool = bool(entry.get("till", false))
+			rest.append(_option("Stop taking payments here" if till else "Take payments here",
+				func() -> void: world.set_till(index, not till), tile, ThoughtBubble.icon("coin")))
+		rest.append(_examine_piece(index, entry, tile))
+	else:
+		# Open ground, or a floor: walking comes first, unless there are goods
+		# lying there, which a click picks up -- as in RuneScape.
+		first.append_array(take)
+		if first.is_empty():
+			first.append(walk)
+		if keeper.carry_def != null:
+			rest.append(_option("Put %s down here" % keeper.carry_def.display_name, func() -> void: keeper.put(tile), tile,
+				IconStudio.item(keeper.carry_def.id)))
+	if goods != null:
+		rest.append(_option("Examine %s" % goods.display_name,
+			func() -> void: _examine({"kind": WorldStats.Kind.ITEMS, "tile": tile}), tile, IconStudio.item(goods.id)))
+	if someone:
+		var look: Dictionary = _option("Examine %s" % person.pawn_name,
+			func() -> void: _examine({"kind": WorldStats.Kind.PAWN, "pawn": person}), tile, ThoughtBubble.icon("hand"))
+		look.erase("tile")
+		# Somebody under the pointer is what was clicked, not the chair they sit on.
+		if first.is_empty():
+			first.append(look)
+		else:
+			rest.push_front(look)
+	if not first.has(walk):
+		rest.append(walk)
+	return first + rest
+
+
+## A built piece: wash up, its recipes (the one using what is in hand first),
+## putting down what is held, its jobs, then its goods.
+func _built_options(index: int, entry: Dictionary, tile: Vector2i, take: Array) -> Array:
+	var keeper: Keeper = world.keeper
+	var def: BuildingDef = entry["def"]
+	var out: Array = []
 	# Dirty dishes standing in a basin can be washed up there.
-	if entry != null and entry["built"] and entry["def"].id == &"sink":
+	if def.id == &"sink":
 		for t in entry["tiles"]:
 			var in_basin: ItemDef = world.items.def_at(t)
 			if in_basin != null and in_basin.category == ItemDef.Category.REFUSE:
 				var basin: Vector2i = t
-				first.push_front({"text": "Wash up", "run": func() -> void: keeper.wash(basin), "tile": basin,
-					"icon": ThoughtBubble.icon("clean")})
+				out.append(_option("Wash up", func() -> void: keeper.wash(basin), basin, ThoughtBubble.icon("clean")))
 				break
-
-	if entry != null and entry["built"]:
-		var def: BuildingDef = entry["def"]
-		if not holding.is_empty() and not on_table:
-			first.push_front({"text": "Put %s on %s" % [holding, def.display_name], "run": func() -> void: keeper.put(tile), "tile": tile,
-				"icon": held_picture})
-		for recipe in RecipeCatalog.for_station(def.id):
-			var label: String = "Fish (basic rod)" if not recipe.pick_from.is_empty() else recipe.display_name
-			var chosen: Recipe = recipe
-			first.append({"text": label, "run": func() -> void: keeper.work(index, chosen), "tile": tile,
-				"icon": IconStudio.recipe(recipe)})
-		if def.takes_payments:
-			var till: bool = bool(entry.get("till", false))
-			rest.append({"text": "Stop taking payments here" if till else "Take payments here",
-				"run": func() -> void: world.set_till(index, not till), "tile": tile, "icon": ThoughtBubble.icon("coin")})
-		rest.append({"text": "Examine %s" % def.display_name, "run": func() -> void: _examine({"kind": WorldStats.Kind.BUILDING, "index": index, "tile": tile}),
-			"icon": IconStudio.building(def)})
+	var with_held: Array = []
+	var recipes: Array = []
+	for recipe in RecipeCatalog.for_station(def.id):
+		var chosen: Recipe = recipe
+		var option: Dictionary = _option("Fish (basic rod)" if not recipe.pick_from.is_empty() else recipe.display_name,
+			func() -> void: keeper.work(index, chosen), tile, IconStudio.recipe(recipe))
+		var uses_held: bool = keeper.carry_def != null and recipe.inputs.any(
+			func(need: Dictionary) -> bool: return need["id"] == keeper.carry_def.id)
+		(with_held if uses_held else recipes).append(option)
+	out.append_array(with_held)
+	if keeper.carry_def != null and def.furniture_role != &"table":
+		out.append(_option("Put %s on %s" % [keeper.carry_def.display_name, def.display_name],
+			func() -> void: keeper.put(tile), tile, IconStudio.item(keeper.carry_def.id)))
+	out.append_array(recipes)
+	out.append_array(_piece_jobs(index, entry))
+	# On a bench its ingredients come second to what it makes; on a shelf or
+	# in the yard, taking is the point.
+	if recipes.is_empty() and with_held.is_empty():
+		var at: int = 1 if not out.is_empty() and out[0]["text"] == "Wash up" else 0
+		for i in range(take.size()):
+			out.insert(at + i, take[i])
 	else:
-		# Open ground, or a floor: walking comes first, unless there are goods
-		# lying there, which a click picks up -- as in RuneScape.
-		if first.is_empty():
-			first.append(walk)
-		if not holding.is_empty():
-			rest.append({"text": "Put %s down here" % holding, "run": func() -> void: keeper.put(tile), "tile": tile,
-				"icon": held_picture})
-	if goods != null:
-		rest.append({"text": "Examine %s" % goods.display_name, "run": func() -> void: _examine({"kind": WorldStats.Kind.ITEMS, "tile": tile}),
-			"icon": IconStudio.item(goods.id)})
-	if person != null and person != keeper.pawn and is_instance_valid(person):
-		rest.append({"text": "Examine %s" % person.pawn_name, "run": func() -> void: _examine({"kind": WorldStats.Kind.PAWN, "pawn": person}),
-			"icon": ThoughtBubble.icon("hand")})
-	if not first.has(walk):
-		rest.append(walk)
-	return first + rest
+		out.append_array(take)
+	return out
+
+
+## The board's work at a piece that the keeper can do in person: build a
+## blueprint, plant or harvest a bed, greet the guests at the host's stand.
+func _piece_jobs(index: int, entry: Dictionary) -> Array:
+	var keeper: Keeper = world.keeper
+	var out: Array = []
+	for job in world.board.jobs:
+		if job.kind == WorkType.Kind.SERVE or job.kind == WorkType.Kind.BILL:
+			continue
+		if job.subject != index and not entry["tiles"].has(job.target):
+			continue
+		if not keeper.can_do(job):
+			continue
+		var chosen: Job = job
+		var icon: Texture2D = IconStudio.building(entry["def"]) if job.kind == WorkType.Kind.CONSTRUCT \
+			else ThoughtBubble.icon(ThoughtDirector.job_icon(job))
+		out.append(_option(job.label, func() -> void: keeper.do_job(chosen), job.target, icon))
+	return out
+
+
+## What a guest needs that the keeper can give: the order taken, what they
+## are waiting for brought to the table, the bill.
+func _guest_options(brain: CustomerBrain) -> Array:
+	var out: Array = []
+	if brain.seat == Seating.NO_SEAT:
+		return out
+	var keeper: Keeper = world.keeper
+	var name: String = brain.pawn.pawn_name
+	match brain.state:
+		CustomerBrain.State.READY_TO_ORDER:
+			var job: Job = world.board.job_with_key("take:%d,%d" % [brain.seat.x, brain.seat.y])
+			if keeper.can_do(job):
+				out.append(_option("Take %s's order" % name, func() -> void: keeper.do_job(job), job.target,
+					ThoughtBubble.icon("order")))
+		CustomerBrain.State.WAITING_FOR_BILL:
+			var job: Job = world.board.job_with_key("bill:%d,%d" % [brain.seat.x, brain.seat.y])
+			if keeper.can_do(job):
+				out.append(_option("Bring %s the bill" % name, func() -> void: keeper.do_job(job), job.target,
+					ThoughtBubble.icon("coin")))
+		CustomerBrain.State.WAITING_FOR_ORDER:
+			var table: Vector2i = brain.seating.table_for(brain.seat)
+			for line in brain.unserved():
+				var option: Dictionary = _serve_option(table, StringName(line["id"]), int(line["count"]), name)
+				if not option.is_empty():
+					out.append(option)
+	return out
+
+
+## Bring a guest's dish or drink: from the keeper's hands, or fetched from the
+## nearest stack of it. Not if a waiter is already bringing it.
+func _serve_option(table: Vector2i, id: StringName, count: int, name: String) -> Dictionary:
+	var keeper: Keeper = world.keeper
+	var def: ItemDef = ItemCatalog.get_def(id)
+	if def == null:
+		return {}
+	var text: String = "Serve %s to %s" % [def.display_name, name]
+	if keeper.carry_def == def and keeper.carry_count > 0:
+		return _option(text, func() -> void: keeper.serve(table, count), table, IconStudio.item(id))
+	if keeper.carry_def != null:
+		return {}
+	var waiter: Job = world.board.job_with_key("serve:%d,%d:%s" % [table.x, table.y, id])
+	if waiter != null and waiter.claimant != null:
+		return {}
+	var source: Vector2i = _serving_source(id, table)
+	if source.x < 0:
+		return {}
+	return _option(text, func() -> void: keeper.fetch_and_serve(source, table, count), source, IconStudio.item(id))
+
+
+## The nearest stack of something that is not on a guest's table, free to take
+## before any that a job is holding.
+func _serving_source(id: StringName, from: Vector2i) -> Vector2i:
+	var tables: Dictionary = {}
+	for seat in world.customers.seating.seats:
+		tables[seat["table"]] = true
+	var held := Vector2i(-1, -1)
+	for tile in world.items.tiles_with(id, from):
+		if tables.has(tile):
+			continue
+		if world.items.available_at(tile) > 0:
+			return tile
+		if held.x < 0:
+			held = tile
+	return held
+
+
+## The keeper clicked on themselves: put down what is held, or stop.
+func _self_options() -> Array:
+	var keeper: Keeper = world.keeper
+	var out: Array = []
+	if keeper.carry_def != null:
+		out.append(_option("Put down %s" % keeper.carry_def.display_name, keeper.drop, keeper.pawn.tile,
+			IconStudio.item(keeper.carry_def.id)))
+	if keeper.is_busy():
+		out.append(_option("Stop %s" % keeper.status_text(), keeper.stop, keeper.pawn.tile, ThoughtBubble.icon("idle")))
+	return out
+
+
+## The guests sitting at the table on `tile`.
+func _guests_at(tile: Vector2i) -> Array:
+	var out: Array = []
+	if world.customers == null:
+		return out
+	var index: int = world.build.grid.object_index_at(tile)
+	var tiles: Array = world.build.grid.placements[index]["tiles"] if index >= 0 else [tile]
+	for brain in world.customers.customers:
+		if is_instance_valid(brain) and brain.seat != Seating.NO_SEAT and tiles.has(brain.seating.table_for(brain.seat)):
+			out.append(brain)
+	return out
+
+
+## The guest whose body this is, or null for staff and passers-by.
+func _guest_of(person: Pawn) -> CustomerBrain:
+	if world.customers == null:
+		return null
+	for brain in world.customers.customers:
+		if is_instance_valid(brain) and brain.pawn == person:
+			return brain
+	return null
+
+
+func _examine_piece(index: int, entry: Dictionary, tile: Vector2i) -> Dictionary:
+	return _option("Examine %s" % entry["def"].display_name,
+		func() -> void: _examine({"kind": WorldStats.Kind.BUILDING, "index": index, "tile": tile}), tile,
+		IconStudio.building(entry["def"]))
+
+
+## One row of the menu: what it says, what it does, where the yellow cross
+## goes, and its picture.
+static func _option(text: String, run: Callable, tile: Vector2i, icon: Texture2D = null) -> Dictionary:
+	var out: Dictionary = {"text": text, "run": run, "tile": tile}
+	if icon != null:
+		out["icon"] = icon
+	return out
 
 
 func _examine(subject: Dictionary) -> void:

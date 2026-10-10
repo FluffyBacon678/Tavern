@@ -10,6 +10,8 @@ var _build_bar: BuildBar
 var _flash_label: Label
 var _day_summary: DaySummary
 var _hands_on: HandsOnPanel
+## What the keeper holds and is doing, while the player plays them.
+var keeper_bar: KeeperBar
 var _production_panel: ProductionPanel
 var _priority_panel: PriorityPanel
 var _title_label: Label
@@ -478,6 +480,10 @@ func _build_hud() -> void:
 	_hands_on.name = "HandsOn"
 	_hands_on.finished.connect(func(_p: float) -> void: refresh_stats())
 	_hud.add_child(_hands_on)
+	keeper_bar = KeeperBar.new()
+	_hud.add_child(keeper_bar)
+	keeper_bar.setup(world)
+	keeper_bar.add_theme_stylebox_override("panel", _panel_style())
 
 	_day_summary = DaySummary.new()
 	_day_summary.name = "DaySummary"
