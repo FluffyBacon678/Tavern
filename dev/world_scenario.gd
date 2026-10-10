@@ -281,6 +281,9 @@ func reconcile(quit_on_failure: bool = true) -> bool:
 		for worker in world.workers:
 			if worker.carried_def() == def:
 				carried += worker.carried_count()
+		# The keeper's hands are stock too.
+		if world.keeper != null and world.keeper.carry_def == def:
+			carried += world.keeper.carry_count
 		var made: int = world.generator.produced.get(def.id, 0)
 		# Dishes are not baked, they are left behind -- but they are still goods
 		# that came into existence, so they belong on the same side of the books

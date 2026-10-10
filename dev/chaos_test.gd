@@ -44,6 +44,7 @@ var level_id: StringName = &""
 var _holes: Dictionary = {}       ## message -> {count, first_at, context}
 var _recent: PackedStringArray = PackedStringArray()
 var _counts: Dictionary = {}      ## action -> times
+var _keeper_did: Dictionary = {}  ## first word of a keeper option -> times
 var _persist: Dictionary = {}     ## invariant key -> consecutive failures
 var _stuck_for: Dictionary = {}   ## worker id -> seconds stuck
 var _state_since: Dictionary = {}  ## patron id -> [state, seconds in it]
@@ -132,7 +133,7 @@ const ACTIONS: Dictionary = {
 	"place": 5.0, "demolish": 2.0, "order": 2.0, "hire": 0.4, "priority": 2.0,
 	"bill": 1.0, "filter": 1.0, "save_load": 0.5, "buy_land": 0.3, "inspect": 1.5,
 	"hover": 2.0, "follow": 0.5, "dismiss": 0.4, "hands_on": 0.8, "drag_floor": 0.6,
-	"panels": 1.0, "escape": 0.6, "camera": 0.6,
+	"panels": 1.0, "escape": 0.6, "camera": 0.6, "keeper": 2.0,
 }
 
 
@@ -172,6 +173,7 @@ func _act() -> void:
 				var refusal: String = world.dismiss_worker(leaving)
 				_log("let %s go -> %s" % [name, "done" if refusal.is_empty() else refusal])
 		"hands_on": _hands_on_random()
+		"keeper": _keeper_random()
 		"drag_floor": _drag_floor_random()
 		"panels":
 			var which: int = rng.randi() % 4
@@ -281,6 +283,50 @@ func _hands_on_random() -> void:
 
 
 ## Drag out an area of floor, as the build bar does.
+## Play the keeper as a player clicking about would: step in or out now and
+## then, otherwise pick something -- a guest, or any tile -- and do one of the
+## things its menu offers, the first more often than the rest.
+func _keeper_random() -> void:
+	var controls: KeeperControls = world.keeper_controls
+	if world.keeper == null or rng.randf() < 0.15:
+		controls.toggle()
+		_log("keeper %s" % ("in" if controls.playing else "out"))
+		return
+	var options: Array = []
+	var what: String = ""
+	# Where a player clicks: people, pieces and goods, more than bare ground.
+	var guests: Array = world.customers.customers.filter(func(b) -> bool: return is_instance_valid(b))
+	var stacks: Array = world.items.all_tiles()
+	var pieces: Array = world.build.grid.placements.filter(func(e) -> bool: return e != null)
+	var roll: float = rng.randf()
+	if roll < 0.35 and not guests.is_empty():
+		var brain: CustomerBrain = guests[rng.randi() % guests.size()]
+		options = controls.options_for(brain.pawn.tile, brain.pawn)
+		what = brain.pawn.pawn_name
+	elif roll < 0.65 and not pieces.is_empty():
+		var entry: Dictionary = pieces[rng.randi() % pieces.size()]
+		options = controls.options_for(entry["tiles"][0])
+		what = String(entry["def"].id)
+	elif roll < 0.85 and not stacks.is_empty():
+		var at: Vector2i = stacks[rng.randi() % stacks.size()]
+		options = controls.options_for(at)
+		what = "goods at %s" % at
+	elif roll < 0.92:
+		options = controls.options_for(world.keeper.pawn.tile, world.keeper.pawn)
+		what = "self"
+	else:
+		var tile: Vector2i = _random_tile()
+		options = controls.options_for(tile)
+		what = str(tile)
+	if options.is_empty():
+		return
+	var pick: Dictionary = options[0] if rng.randf() < 0.6 else options[rng.randi() % options.size()]
+	pick["run"].call()
+	var verb: String = String(pick["text"]).split(" ")[0]
+	_keeper_did[verb] = int(_keeper_did.get(verb, 0)) + 1
+	_log("keeper on %s: %s" % [what, pick["text"]])
+
+
 func _drag_floor_random() -> void:
 	var from: Vector2i = _random_tile()
 	var to: Vector2i = from + Vector2i(rng.randi_range(-4, 4), rng.randi_range(-4, 4))
@@ -382,6 +428,8 @@ func _goods_everywhere(w: TavernWorld) -> Dictionary:
 	for worker in w.workers:
 		if worker.carried_def() != null:
 			out[worker.carried_def().id] = int(out.get(worker.carried_def().id, 0)) + worker.carried_count()
+	if w.keeper != null and w.keeper.carry_def != null:
+		out[w.keeper.carry_def.id] = int(out.get(w.keeper.carry_def.id, 0)) + w.keeper.carry_count
 	return out
 
 
@@ -664,6 +712,10 @@ func _report() -> void:
 	for key in _counts:
 		acts.append("%s %d" % [key, _counts[key]])
 	TestOutput.detail("  Actions: %s" % ", ".join(acts))
+	var did: PackedStringArray = PackedStringArray()
+	for key in _keeper_did:
+		did.append("%s %d" % [key, _keeper_did[key]])
+	TestOutput.detail("  Keeper did: %s" % ", ".join(did))
 	print("  Ended on day %d with %dg, %d buildings, %d staff" % [
 		world.clock.day, GameState.gold, world.build.grid.live_count(), world.workers.size()])
 	print("  FINGERPRINT %s" % _fingerprint())

@@ -275,6 +275,14 @@ func _check_guests(world: TavernWorld) -> void:
 		bill[0]["run"].call()
 	check(_until(world, func() -> bool: return guest.state != CustomerBrain.State.WAITING_FOR_BILL, 120.0)
 		and GameState.gold > gold, "the keeper brings it and is paid")
+
+	# Gone while it was being fetched: nobody at the table, so it stays in hand.
+	var empty_table: int = world.items.count_at(table)
+	keeper.restore_carry({"id": "lemonade", "count": 1, "quality": 0.5})
+	keeper.serve(table, 1)
+	check(_until(world, func() -> bool: return not keeper.is_busy(), 120.0) and keeper.carry_count == 1
+		and world.items.count_at(table) == empty_table, "a dish for a guest who has gone stays in the keeper's hands")
+	keeper.drop()
 	if is_instance_valid(guest):
 		director.seating.release_for(guest)
 		director.remove_customer(guest)

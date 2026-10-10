@@ -145,19 +145,24 @@ func tooltip_at(point: Vector2) -> String:
 ## canvas layer is on top.
 func control_at(point: Vector2) -> Control:
 	var found: Array = [null, -1000000, -1]
-	_search(get_tree().root, point, 0, [0], found)
+	var order: Array = [0]
+	# The interface only. The root's own controls (a menu scene), then every
+	# canvas layer, found by the engine: walking the whole tree by hand went
+	# through thousands of trees and rocks with no controls in them.
+	var root: Window = get_tree().root
+	_search(root, point, 0, order, found)
+	for layer in root.find_children("*", "CanvasLayer", true, false):
+		if layer != self and layer.visible and layer.get_viewport() == root:
+			_search(layer, point, layer.layer, order, found)
 	return found[0]
 
 
 func _search(node: Node, point: Vector2, canvas: int, order: Array, found: Array) -> void:
 	for child in node.get_children():
-		if child == self or child is SubViewport or child is Window:
+		# Layers are searched on their own; 3D nodes hold no controls.
+		if child is CanvasLayer or child is SubViewport or child is Window or child is Node3D:
 			continue
 		var layer_here: int = canvas
-		if child is CanvasLayer:
-			if not child.visible:
-				continue
-			layer_here = child.layer
 		if child is Control:
 			if not child.visible:
 				continue

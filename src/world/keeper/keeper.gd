@@ -385,6 +385,13 @@ func _put_now() -> void:
 		return
 	var put_down: int = 0
 	var to_put: int = carry_count if _put_limit <= 0 else mini(_put_limit, carry_count)
+	# Serving: only what somebody at that table is still waiting for. A guest
+	# who gave up while the keeper fetched it has left nobody to eat it.
+	if not _put_only.is_empty():
+		to_put = mini(to_put, _wanted_at(_target, carry_def))
+		if to_put <= 0:
+			said.emit("Nobody at that table is waiting for %s now." % carry_def.display_name.to_lower())
+			return
 	for tile in (_put_only if not _put_only.is_empty() else _put_tiles(_target)):
 		if to_put <= 0:
 			break
@@ -488,6 +495,22 @@ func _put_tiles(tile: Vector2i) -> Array:
 			out.append(t)
 		return out
 	return entry["tiles"]
+
+
+## How much of `def` the guests at the table on `table` are still waiting for.
+func _wanted_at(table: Vector2i, def: ItemDef) -> int:
+	var n: int = 0
+	if world.customers == null or def == null:
+		return n
+	for brain in world.customers.customers:
+		if not is_instance_valid(brain) or brain.seat == Seating.NO_SEAT:
+			continue
+		if brain.seating.table_for(brain.seat) != table:
+			continue
+		for line in brain.unserved():
+			if StringName(line["id"]) == def.id:
+				n += int(line["count"])
+	return n
 
 
 func _ingredients_text(recipe: Recipe) -> String:

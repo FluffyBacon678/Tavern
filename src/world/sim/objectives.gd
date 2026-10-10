@@ -81,8 +81,9 @@ func _init() -> void:
 	]
 
 
-## Re-evaluate everything. Cheap enough to run on a timer; nothing is cached
-## between calls because a demolished oven should un-tick its objective.
+## Re-evaluate everything. Cheap enough to run on a timer; nothing here is
+## kept between calls, because a demolished oven should un-tick its objective
+## (the grid's own counts are kept only until the grid changes).
 func refresh(world) -> void:
 	var done_count: int = 0
 	for objective in list:
@@ -118,6 +119,8 @@ func all_done() -> bool:
 ## tavern: a shelf is two tiles and a barrel one, and "one shelf" was measured
 ## to be nowhere near enough for nine kinds of goods.
 static func _storage_tiles(world) -> int:
+	if world.generator != null:
+		return world.generator._storage_tiles().size()
 	var n: int = 0
 	for entry in world.build.grid.placements:
 		if entry == null or not entry["built"] or not entry["def"].is_storage:

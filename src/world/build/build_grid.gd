@@ -347,12 +347,25 @@ func live_count() -> int:
 
 ## Finished pieces of any of these kinds. The checklist, the warning line and
 ## the inspector each counted this for themselves until they were made to share.
+## How many finished pieces of these kinds stand. Counted once per change to
+## the grid: the checklist, the header's chips and the advice ask several times
+## a refresh, and each asking walked every piece of a big tavern.
 func count_built(ids: Array) -> int:
+	if _counted_revision != revision:
+		_counted_revision = revision
+		_built_counts.clear()
+		for entry in placements:
+			if entry != null and entry["built"]:
+				var id: StringName = entry["def"].id
+				_built_counts[id] = int(_built_counts.get(id, 0)) + 1
 	var n: int = 0
-	for entry in placements:
-		if entry != null and entry["built"] and ids.has(entry["def"].id):
-			n += 1
+	for id in ids:
+		n += int(_built_counts.get(StringName(id), 0))
 	return n
+
+
+var _built_counts: Dictionary = {}
+var _counted_revision: int = -1
 
 
 func total_value() -> int:
