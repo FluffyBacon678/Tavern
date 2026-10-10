@@ -36,9 +36,31 @@ var placements: Array = []
 
 var _floor_at: PackedInt32Array
 var _object_at: PackedInt32Array
+## Goes up with every change to what is placed, built, styled or filtered, and
+## to the plot. Whatever is worked out from the layout (the job generator's
+## benches and shelves) is kept until this moves, rather than walked again
+## from every placement on every scan.
+var revision: int = 0
+
+
+func _init() -> void:
+	# Methods, not lambdas: a lambda holding this grid, connected to its own
+	# signal, would keep it alive for ever.
+	for changed in [placement_added, placement_built, placement_changed, placement_restyled]:
+		changed.connect(_moved)
+	placement_removed.connect(_removed)
+
+
+func _moved(_index: int) -> void:
+	revision += 1
+
+
+func _removed(_index: int, _def: BuildingDef) -> void:
+	revision += 1
 
 
 func setup(p_cols: int, p_rows: int, p_plot: Rect2i) -> void:
+	revision += 1
 	cols = p_cols
 	rows = p_rows
 	plot = p_plot
@@ -56,6 +78,7 @@ func setup(p_cols: int, p_rows: int, p_plot: Rect2i) -> void:
 ## occupancy arrays are indexed by map tile, not by plot tile, so growing the
 ## plot needs nothing rebuilt -- only the rule about what counts as "your land".
 func set_plot(p_plot: Rect2i) -> void:
+	revision += 1
 	plot = p_plot
 
 

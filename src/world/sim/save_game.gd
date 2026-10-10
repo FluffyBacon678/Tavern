@@ -475,7 +475,8 @@ static func _apply_day_summary(world: TavernWorld) -> void:
 		entry,
 		world.hud._tavern_name(),
 		world.customers.reputation if world.customers != null else null,
-		world.customers.day_reviews if world.customers != null else [] as Array[Review]
+		world.customers.day_reviews if world.customers != null else [] as Array[Review],
+		{}, world.customers.consumed_today if world.customers != null else {}
 	)
 
 
@@ -583,8 +584,13 @@ static func _apply_pawns(world: TavernWorld, rows: Array) -> void:
 	world.pawns.clear()
 	world.workers.clear()
 
+	# Out of the tree before it is freed, so the new holder can take the name.
+	# Freed in place, the old one still held "Pawns" for the rest of the frame;
+	# the new one was renamed, and every later lookup by name found nothing:
+	# hiring failed and a restored keeper's body was put in the dying holder.
 	var holder: Node = world.get_node_or_null("Pawns")
 	if holder != null:
+		world.remove_child(holder)
 		holder.queue_free()
 	holder = Node3D.new()
 	holder.name = "Pawns"

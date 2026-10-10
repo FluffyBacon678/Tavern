@@ -18,6 +18,10 @@ const INGREDIENTS: Array[StringName] = [&"flour", &"water", &"yeast", &"malt", &
 ## One or two lost guests in a day is ordinary bad luck. This many is a pattern
 ## worth interrupting the player about.
 const LOSSES_WORTH_NAMING: int = 3
+## Unstaffed work, the kind guests notice first at the front.
+const GUEST_FIRST: Array[int] = [WorkType.Kind.SERVE, WorkType.Kind.COOK, WorkType.Kind.BILL,
+	WorkType.Kind.CLEAR, WorkType.Kind.CLEAN, WorkType.Kind.HAUL, WorkType.Kind.HOST,
+	WorkType.Kind.CONSTRUCT, WorkType.Kind.GATHER, WorkType.Kind.FISH, WorkType.Kind.FARM]
 
 
 ## Most urgent first: a cause before its symptoms. Out of hops explains "nothing
@@ -53,14 +57,35 @@ static func diagnose(world) -> String:
 		var waiting: Dictionary = {}
 		for job in world.board.jobs:
 			waiting[job.kind] = true
+		var missing: Array[int] = []
 		for kind in [WorkType.Kind.COOK, WorkType.Kind.HAUL, WorkType.Kind.SERVE,
 				WorkType.Kind.CLEAN, WorkType.Kind.CLEAR, WorkType.Kind.CONSTRUCT, WorkType.Kind.GATHER,
 				WorkType.Kind.BILL, WorkType.Kind.FISH, WorkType.Kind.HOST, WorkType.Kind.FARM]:
 			if waiting.has(kind) and not _anyone_allowed(world, kind):
-				# With the keeper in the tavern, doing it yourself is the other answer.
-				var yourself: String = (" Or do it yourself as your keeper (%s)." % KeyBindings.first("play_keeper")) \
-					if world.get("keeper") != null else ""
-				return "Nobody on the staff can %s. %s%s" % [_verb(kind), _hire_advice(kind), yourself]
+				missing.append(kind)
+		if not missing.is_empty():
+			# With the keeper in the tavern, doing it yourself is the other answer.
+			var yourself: String = (" Or do it yourself as your keeper (%s)." % KeyBindings.first("play_keeper")) \
+				if world.get("keeper") != null else ""
+			if missing.size() == 1:
+				return "Nobody on the staff can %s. %s%s" % [_verb(missing[0]), _hire_advice(missing[0]), yourself]
+			# More than the first: a keeper alone lost forty guests a day waiting
+			# for a waiter while the advice only ever asked for a cook. What guests
+			# feel first, and the fewest positions that cover it, three at most.
+			missing.sort_custom(func(a: int, b: int) -> bool: return GUEST_FIRST.find(a) < GUEST_FIRST.find(b))
+			var verbs: PackedStringArray = PackedStringArray()
+			var hires: PackedStringArray = PackedStringArray()
+			var covered: Dictionary = {}
+			for kind in missing.slice(0, 3):
+				verbs.append(_short_verb(kind))
+				var role: StaffRole = StaffRole.for_kind(kind)
+				if covered.has(kind) or role == null:
+					continue
+				for k in role.kinds:
+					covered[k] = true
+				hires.append("a %s (%dg)" % [role.title.to_lower(), role.fee])
+			return "Nobody on the staff can %s. Hire %s under Staff%s.%s" % [
+				_joined(verbs, "or"), _joined(hires), KeyBindings.hint("staff"), yourself]
 
 	# Only once goods have ever arrived: before the first order, running out is
 	# the checklist's business, not a fault.
@@ -132,6 +157,23 @@ static func diagnose(world) -> String:
 ## not worth warning about -- that is what the demo level's missing prep table
 ## looks like for flour.
 static func _ingredients_in_use(world) -> Array[StringName]:
+	# The same answer until the grid changes (BuildGrid.revision), and the
+	# trouble line asks four times a second.
+	var grid: BuildGrid = world.build.grid
+	if grid.get_instance_id() == _in_use_grid and grid.revision == _in_use_revision:
+		return _in_use
+	_in_use_grid = grid.get_instance_id()
+	_in_use_revision = grid.revision
+	_in_use = _find_ingredients_in_use(world)
+	return _in_use
+
+
+static var _in_use_grid: int = 0
+static var _in_use_revision: int = -1
+static var _in_use: Array[StringName] = []
+
+
+static func _find_ingredients_in_use(world) -> Array[StringName]:
 	var wanted: Dictionary = {}
 	for entry in world.build.grid.placements:
 		if entry == null or not entry["built"]:
@@ -169,6 +211,14 @@ static func _hire_advice(kind: int) -> String:
 	return ("Hire a %s under Staff" + KeyBindings.hint("staff") + ": %dg, then %dg a day.") % [role.title.to_lower(), role.fee, role.wage]
 
 
+## For a list of several: "serve" where one alone says "take orders or serve".
+static func _short_verb(kind: int) -> String:
+	match kind:
+		WorkType.Kind.SERVE: return "serve"
+		WorkType.Kind.BILL: return "bring bills"
+	return _verb(kind)
+
+
 static func _verb(kind: int) -> String:
 	match kind:
 		WorkType.Kind.COOK: return "cook"
@@ -184,7 +234,7 @@ static func _verb(kind: int) -> String:
 	return "do that work"
 
 
-static func _joined(names: PackedStringArray) -> String:
+static func _joined(names: PackedStringArray, last: String = "and") -> String:
 	if names.size() <= 1:
 		return "".join(names)
-	return "%s and %s" % [", ".join(names.slice(0, names.size() - 1)), names[names.size() - 1]]
+	return "%s %s %s" % [", ".join(names.slice(0, names.size() - 1)), last, names[names.size() - 1]]

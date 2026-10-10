@@ -33,6 +33,10 @@ var budget: float = 5.0
 var done: Callable
 var begin: Callable
 var perform: Callable
+## (world, ctx) -> bool: the player has plainly gone past this step without
+## doing it. The director then moves on quietly instead of holding them on an
+## instruction they have outgrown. Unset for anything the tutorial must teach.
+var moved_on: Callable
 
 
 static func make(p_id: String, p_lesson: String, p_text: String, p_why: String,
@@ -61,6 +65,11 @@ func running(seconds: float) -> TutorialStep:
 
 func starting(callable: Callable) -> TutorialStep:
 	begin = callable
+	return self
+
+
+func unless(callable: Callable) -> TutorialStep:
+	moved_on = callable
 	return self
 
 

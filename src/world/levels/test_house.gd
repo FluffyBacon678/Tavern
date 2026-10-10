@@ -40,11 +40,14 @@ const BAR := Vector2i(15, 12)
 const PARASOL := Vector2i(19, 12)
 const LANTERN := Vector2i(21, 11)
 const DOOR_X: int = 12
-## The rest of a full crew, on top of the opening five. The third waiter is
-## the garden's: tables out the front door are the far ones from the kitchen,
-## and even with walk-up guests fetching their own drinks from the bar, the
-## house earned about 150g more over five days with one (four dice seeds).
-const EXTRA_CREW: Array[StringName] = [&"porter", &"cook", &"waiter", &"waiter", &"waiter", &"busser", &"host", &"fisherman", &"farmer"]
+## The rest of a full crew, on top of the opening five: three cooks and four
+## waiters in all. The fourth waiter is the garden's: tables out the front door
+## are the far ones from the kitchen, and the house earned about 150g more over
+## five days with one (four dice seeds). When the opening five went to one cook
+## and two waiters, this list kept its three waiters and the house was left
+## with two cooks for five waiters: a garden tavern pressing lemonade lost 39
+## guests in a day to an empty menu (2026-10-07).
+const EXTRA_CREW: Array[StringName] = [&"porter", &"cook", &"cook", &"waiter", &"waiter", &"busser", &"host", &"fisherman", &"farmer"]
 ## Ingredients, and a first batch of bread and beer: without them the first
 ## guests found an empty menu while the kitchen warmed up.
 ## In bulk units: two batches of dough, three brews and two lemon pressings.
@@ -122,7 +125,7 @@ static func build(world) -> void:
 
 	# Everyone, and a stocked larder.
 	for role_id in EXTRA_CREW:
-		world.bootstrap._add_pawn(world._find("Pawns"), world.sim_rng.randi(), StaffRole.of(role_id))
+		world.bootstrap._add_pawn(world.pawn_holder(), world.sim_rng.randi(), StaffRole.of(role_id))
 	var shelf: Vector2i = at.call(SHELVES[0])
 	for id in STOCK:
 		var def: ItemDef = ItemCatalog.get_def(id)

@@ -187,6 +187,14 @@ func _process(delta: float) -> void:
 	if step != null and step.done.is_valid() and step.done.call(world, ctx):
 		world.hud.flash("Done: %s" % step.text.split(".")[0], 1.6)
 		advance()
+		return
+	# Gone ahead: building straight away left a newcomer reading "Move the
+	# view" for as long as they never touched the camera. Every step the player
+	# has outgrown is passed together, before the next one sets the pace.
+	if step != null and step.moved_on.is_valid() and step.moved_on.call(world, ctx):
+		while current() != null and current().moved_on.is_valid() and current().moved_on.call(world, ctx):
+			index += 1
+		_begin()
 
 
 # --- highlights ----------------------------------------------------------------------

@@ -25,6 +25,10 @@ var _reputation_stars: StarRating
 var _walls_button: Button
 var _rooms_button: Button
 var _details_panel: PanelContainer
+var _ledger: LedgerPanel
+var _ledger_scroll: ScrollContainer
+## The developer's readout that used to be the Ledger: F3, debug builds only.
+var _dev_panel: PanelContainer
 var _land_panel: PanelContainer
 ## The merchant's order form, behind the Supplies button.
 var _supply_panel: SupplyPanel
@@ -194,20 +198,25 @@ func _build_hud() -> void:
 	# Takes the mouse so it can carry a tooltip: who is doing what.
 	_staff_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	_staff_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_staff_label.add_theme_font_size_override("font_size", 13)
+	_staff_label.add_theme_font_size_override("font_size", 12)
+	_staff_label.add_theme_constant_override("line_spacing", -2)
 	header_row.add_child(_staff_label)
 	# Standing sits in the header beside the purse, because it is the other
-	# number that decides tomorrow.
+	# number that decides tomorrow. The word under the stars, and the people
+	# on two short lines: side by side, a busy lunchtime ("3 waiting") pushed
+	# the stars onto a second header row at 1280 x 720.
 	_reputation_stars = StarRating.new()
 	_reputation_stars.star_size = 15.0
-	_reputation_stars.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var standing_row := HBoxContainer.new()
+	_reputation_stars.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var standing_row := VBoxContainer.new()
 	standing_row.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	standing_row.add_theme_constant_override("separation", 2)
 	header_row.add_child(standing_row)
 	standing_row.add_child(_reputation_stars)
 	_reputation_label = Label.new()
-	_reputation_label.add_theme_font_size_override("font_size", 13)
+	_reputation_label.add_theme_font_size_override("font_size", 12)
 	_reputation_label.add_theme_color_override("font_color", Color("edcf90"))
+	_reputation_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_reputation_label.mouse_filter = Control.MOUSE_FILTER_STOP
 	standing_row.add_child(_reputation_label)
 
@@ -292,16 +301,38 @@ func _build_hud() -> void:
 
 	# The working ledger is available without covering the kitchen by default.
 	_details_panel = PanelContainer.new()
+	_details_panel.name = "Ledger"
 	_hud.add_child(_details_panel)
 	_details_panel.position = Vector2(12, 134)
 	_details_panel.custom_minimum_size = Vector2(325, 0)
 	_details_panel.add_theme_stylebox_override("panel", _panel_style())
 	_details_panel.visible = false
+	_details_panel.visibility_changed.connect(func() -> void:
+		if _details_panel.visible:
+			_refresh_ledger())
+	# Scrolls only when the window is too short for it all.
+	_ledger_scroll = ScrollContainer.new()
+	_ledger_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_details_panel.add_child(_ledger_scroll)
+	_ledger = LedgerPanel.new()
+	_ledger.setup(world)
+	_ledger_scroll.add_child(_ledger)
+
+	_dev_panel = PanelContainer.new()
+	_dev_panel.name = "DeveloperFigures"
+	_hud.add_child(_dev_panel)
+	_dev_panel.add_theme_stylebox_override("panel", _panel_style())
+	_dev_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	_dev_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_dev_panel.offset_right = -12
+	_dev_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dev_panel.visible = false
 	_stats_label = Label.new()
 	_stats_label.custom_minimum_size.x = 300
 	_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_stats_label.add_theme_font_size_override("font_size", 13)
-	_details_panel.add_child(_stats_label)
+	_stats_label.add_theme_font_size_override("font_size", 12)
+	_stats_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_dev_panel.add_child(_stats_label)
 
 	var help := Label.new()
 	_hud.add_child(help)
@@ -687,6 +718,25 @@ func toggle_land() -> void:
 	_refresh_land_panel()
 
 
+## Fill the ledger, and keep it on screen: past the bottom it scrolls.
+func _refresh_ledger() -> void:
+	if _ledger == null:
+		return
+	_ledger.refresh()
+	var room: float = get_viewport().get_visible_rect().size.y - _details_panel.position.y - 40.0
+	_ledger_scroll.custom_minimum_size = Vector2(LedgerPanel.WIDTH + 12.0,
+		minf(_ledger.get_combined_minimum_size().y, maxf(160.0, room)))
+	_details_panel.reset_size()
+
+
+## F3 in a debug build: stock, jobs, every worker, frames per second.
+func toggle_developer_figures() -> void:
+	if not OS.is_debug_build() or _dev_panel == null:
+		return
+	_dev_panel.visible = not _dev_panel.visible
+	refresh_stats()
+
+
 func toggle_ledger() -> void:
 	_details_panel.visible = not _details_panel.visible
 	_supply_panel.visible = false
@@ -770,7 +820,7 @@ func _people_line() -> String:
 			if brain.state in [CustomerBrain.State.SEEKING_SEAT, CustomerBrain.State.READY_TO_ORDER,
 					CustomerBrain.State.WAITING_FOR_ORDER, CustomerBrain.State.WAITING_FOR_BILL]:
 				waiting += 1
-	return "%d staff%s  ·  %d guest%s%s" % [world.pawns.size(), ", %d idle" % idle if idle > 0 else "",
+	return "%d staff%s\n%d guest%s%s" % [world.pawns.size(), ", %d idle" % idle if idle > 0 else "",
 		guests, "" if guests == 1 else "s", ", %d waiting" % waiting if waiting > 0 else ""]
 var _help: Label
 
@@ -966,7 +1016,13 @@ func _place_paused_label() -> void:
 	_paused_label.offset_right = centre - width * 0.5 + 160.0
 
 
-func refresh_stats() -> void:
+## The trouble line's last diagnosis; see _physics_process.
+var _trouble_text: String = ""
+
+
+## `diagnose`: work out the trouble line afresh (the periodic tick does that on
+## a frame of its own).
+func refresh_stats(diagnose: bool = true) -> void:
 	if _title_label == null:
 		return
 	_place_paused_label()
@@ -1021,10 +1077,15 @@ func refresh_stats() -> void:
 		if _reputation_stars != null:
 			_reputation_stars.stars = standing.stars()
 			_reputation_stars.tooltip_text = _reputation_label.tooltip_text
-	_stats_label.text = "%s\n\n%d built · %d jobs waiting · %d working\n\n%s\n\n%s\n\n%s" % [
-		_stock_summary(), _built_count(), world.board.open_count(), world.board.active_count(),
-		world.customers.summary() if world.customers != null else "", _worker_summary(),
-		_review_summary()]
+	if _details_panel.visible:
+		_refresh_ledger()
+	# Walking every stack, worker and review: only while someone is reading it.
+	if _dev_panel.visible:
+		_stats_label.text = "%s\n\n%d built · %d jobs waiting · %d working\n\n%s\n\n%s\n\n%s\n\n%d fps · %d draw calls" % [
+			_stock_summary(), _built_count(), world.board.open_count(), world.board.active_count(),
+			world.customers.summary() if world.customers != null else "", _worker_summary(),
+			_review_summary(), Engine.get_frames_per_second(),
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)]
 	# Settings > Tutorial hints: the checklist and the goal line, together. The
 	# tutorial replaces the checklist while it runs.
 	if is_instance_valid(_objectives_panel):
@@ -1046,7 +1107,9 @@ func refresh_stats() -> void:
 	if _goal_label != null:
 		_goal_label.visible = column_free
 	if _trouble_panel != null:
-		var trouble: String = Trouble.diagnose(world)
+		if diagnose:
+			_trouble_text = Trouble.diagnose(world)
+		var trouble: String = _trouble_text
 		_trouble_panel.visible = column_free and not trouble.is_empty()
 		_trouble_label.text = trouble
 		if _trouble_panel.visible:
@@ -1060,9 +1123,6 @@ func refresh_stats() -> void:
 				below = maxf(below, tutorial._panel.offset_top + tutorial._panel.size.y + 10)
 			_trouble_panel.offset_top = below
 			_trouble_panel.offset_bottom = below
-	if OS.is_debug_build():
-		_stats_label.text += "\n\n%d fps · %d draw calls" % [Engine.get_frames_per_second(),
-			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)]
 
 
 ## Transient message near the cursor's side of the screen. The build bar has its
@@ -1141,14 +1201,47 @@ func _worker_summary() -> String:
 	return "\n".join(lines)
 
 
+## Four times a second, in three parts on three frames: the figures, the
+## checklist, the trouble line. Together on one frame they pushed it past the
+## 16.7 ms of a 60 Hz screen, and with vsync a frame that misses shows for two:
+## one in fifteen frames at 33 ms was the whole of the full house's p95.
 func _physics_process(_delta: float) -> void:
-	if _stats_label == null or Engine.get_physics_frames() % 15 != 0:
+	if _stats_label == null:
 		return
-	if _production_panel != null and _production_panel.visible:
-		_production_panel.refresh()
-	if world.objectives != null:
-		world.objectives.refresh(world)
-	refresh_stats()
+	match Engine.get_physics_frames() % 15:
+		0:
+			refresh_stats(false)
+		5:
+			if _production_panel != null and _production_panel.visible:
+				_production_panel.refresh()
+			if world.objectives != null:
+				world.objectives.refresh(world)
+		10:
+			_trouble_text = Trouble.diagnose(world)
+
+
+## True when a panel of the HUD, or the tutorial's, is under this screen point.
+## Godot's hovered control only changes when the mouse moves, so a panel opened
+## from the keyboard under a resting pointer counted as open ground: the card
+## for the field behind it was drawn over the staff list and the ledger.
+func covers_point(point: Vector2) -> bool:
+	if _hud != null and _covers(_hud, point):
+		return true
+	return tutorial != null and tutorial._panel != null and tutorial._panel.is_visible_in_tree() \
+		and tutorial._panel.get_global_rect().has_point(point)
+
+
+## Through containers that let the mouse past, to the panels inside them.
+func _covers(node: Node, point: Vector2) -> bool:
+	for child in node.get_children():
+		if not child is Control or not child.visible:
+			continue
+		if child.mouse_filter == Control.MOUSE_FILTER_IGNORE:
+			if _covers(child, point):
+				return true
+		elif child.get_global_rect().has_point(point):
+			return true
+	return false
 
 
 func _toggle_build_bar() -> void:

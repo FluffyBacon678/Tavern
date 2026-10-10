@@ -20,8 +20,11 @@ const BACKDROP := "res://assets/final/ui/title_backdrop.png"
 
 const GAME_TITLE := "MOBILE TAVERN"
 const GAME_SUBTITLE := "a medieval tavern simulation"
-## Shown in the corner, so screenshots and bug reports say which build.
-const BUILD_LABEL := "demo build 0.9 — readable people, auto-order"
+## Shown in the corner, so screenshots and bug reports say which build. From
+## the project settings (application/config/version), so it cannot go stale
+## the way a typed "demo build 0.9" did, three feature rounds after 0.9.
+static func build_label() -> String:
+	return "build %s" % String(ProjectSettings.get_setting("application/config/version", "dev"))
 
 enum Page { NONE, NEW, LOAD, CREDITS }
 
@@ -44,7 +47,7 @@ var _seed_field: LineEdit
 var _chosen_slot: int = 0
 var _new_warning: Label
 ## New-game choices survive rebuilding the page and opening the creator.
-var _draft_tavern_name: String = "The Drunken Dwarf"
+var _draft_tavern_name: String = ""
 var _draft_seed: String = ""
 var _character_creator: CharacterCreator
 
@@ -202,7 +205,7 @@ func _add_entry(text: String, handler: Callable) -> Button:
 
 
 func _build_footer() -> void:
-	var version := UiKit.caption(BUILD_LABEL, _s, 13.0)
+	var version := UiKit.caption(build_label(), _s, 13.0)
 	version.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	version.offset_left = 72.0 * _s
 	version.offset_top = -40.0 * _s
@@ -342,12 +345,28 @@ func _page_new_game(body: VBoxContainer, footer: HBoxContainer) -> void:
 	body.add_child(UiKit.rule(_s))
 	if _scenario == "sandbox":
 		body.add_child(UiKit.caption("Tavern name", _s, 14.0))
+		# A different name offered for each new tavern, and another on request.
+		if _draft_tavern_name.is_empty():
+			_draft_tavern_name = TavernNames.pick(TavernNames.in_saves())
+		var name_row := HBoxContainer.new()
+		name_row.add_theme_constant_override("separation", int(8.0 * _s))
+		body.add_child(name_row)
 		_name_field = LineEdit.new()
 		_name_field.text = _draft_tavern_name
-		_name_field.placeholder_text = "The Drunken Dwarf"
+		_name_field.placeholder_text = "Name your tavern"
+		_name_field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_name_field.text_changed.connect(func(value: String) -> void: _draft_tavern_name = value)
 		_name_field.text_submitted.connect(func(_t: String) -> void: _on_start())
-		body.add_child(_name_field)
+		name_row.add_child(_name_field)
+		var another: Button = UiKit.button("Another name", _s)
+		another.tooltip_text = "Suggest a different name"
+		another.pressed.connect(func() -> void:
+			var taken: Array = TavernNames.in_saves()
+			taken.append(_name_field.text)
+			_draft_tavern_name = TavernNames.pick(taken)
+			_name_field.text = _draft_tavern_name
+		)
+		name_row.add_child(another)
 		body.add_child(UiKit.caption("World seed", _s, 14.0))
 		_seed_field = LineEdit.new()
 		_seed_field.text = _draft_seed
@@ -549,7 +568,7 @@ func _delete_button(slot: int, what: String) -> Button:
 func _page_credits(body: VBoxContainer, footer: HBoxContainer) -> void:
 	body.add_child(UiKit.heading("Credits", _s, 28.0))
 	var lines: Array = [
-		["Mobile Tavern", BUILD_LABEL + ". Made with Godot 4."],
+		["Mobile Tavern", "Version %s. Made with Godot 4." % String(ProjectSettings.get_setting("application/config/version", "dev"))],
 		["Icons", "Beer stein by Lorc; Bread and Coins by Delapouite. game-icons.net, CC BY 3.0."],
 		["Forest", "Terrain and forest generation after ForestFirewallpaper, MIT licence."],
 		["Art", "Characters, buildings and goods are original procedural models. No RuneScape or Jagex assets are used, and no endorsement is implied."],

@@ -48,6 +48,7 @@ func _ready() -> void:
 		var label: String = "%dx%d full house" % [size.x, size.y]
 		if await _new_world(size, false, label, true):
 			_measure(label, false)
+			await _busiest_header(label)
 	if await _new_world(Vector2i(1920, 1080), false, "live resize source"):
 		_measure("live resize source 1920x1080", false)
 		if await _resize(Vector2i(1024, 768), "live resize 1920x1080 -> 1024x768"):
@@ -103,6 +104,37 @@ func _new_world(size: Vector2i, level: bool, label: String, full_house: bool = f
 
 
 ## Ancestors identify the anonymous header and bar without assuming child order.
+## The header with the longest figures a big tavern reaches stays one row. With
+## the people line and the standing side by side, "3 waiting" at lunchtime
+## pushed the stars onto a second row at 1280 x 720.
+func _busiest_header(label: String) -> void:
+	var hud: WorldHUD = world.hud
+	hud.set_physics_process(false)
+	hud._title_label.text = "The Prancing Pony of the Western Marches"
+	hud._staff_label.text = "120 staff, 99 idle\n120 guests, 99 waiting"
+	hud._gold_label.text = "123456g"
+	hud._today_label.text = "-12345g today"
+	hud._reputation_label.text = "Respectable"
+	for i in range(3):
+		await get_tree().process_frame
+	var rows: Dictionary = {}
+	for child in hud._header.get_child(0).get_children():
+		if child is Control and child.visible:
+			rows[int(child.position.y) / 40] = true
+	check(rows.size() == 1, "%s: the busiest header stays one row (%d rows, %.0f tall)" % [label, rows.size(), hud._header.size.y])
+	hud.set_physics_process(true)
+	hud.refresh_stats()
+
+
+## Some other visible panel of the opening layout sits on this point.
+func _covered_by_other(hud: WorldHUD, point: Vector2) -> bool:
+	for child in hud._hud.get_children():
+		if child is Control and child.is_visible_in_tree() and child.mouse_filter != Control.MOUSE_FILTER_IGNORE \
+				and child != hud._priority_panel and child.get_global_rect().has_point(point):
+			return true
+	return false
+
+
 func _top_control(control: Control, root: Control) -> Control:
 	while control.get_parent() != root and control.get_parent() is Control:
 		control = control.get_parent()
@@ -161,6 +193,22 @@ func _measure(label: String, level: bool) -> void:
 	check(hud._speed_buttons.size() == SimClock.SPEEDS.size(), "%s: every speed control exists (pause and %d speeds)" % [label, SimClock.SPEEDS.size() - 1])
 	for button in hud._speed_buttons:
 		check(_inside(button, view), "%s: '%s' speed control visible and on screen" % [label, _button_name(button)])
+	# The hover card asks the HUD, not Godot's hovered control, which only
+	# changes when the mouse moves: a panel opened from the keyboard under a
+	# resting pointer let the card for the field behind it draw over the panel.
+	if not level:
+		var staff: Control = hud._priority_panel
+		var was_open: bool = staff.visible
+		if not was_open:
+			staff.toggle()
+		var inside: Vector2 = staff.get_global_rect().get_center()
+		check(hud.covers_point(inside), "%s: the open staff window stops the hover card" % label)
+		staff.toggle()
+		check(not staff.visible and (not hud.covers_point(inside) or _covered_by_other(hud, inside)),
+			"%s: closed again, the same spot is open ground" % label)
+		if was_open:
+			staff.toggle()
+		check(hud.covers_point(hud._header.get_global_rect().get_center()), "%s: the header stops the hover card" % label)
 	var panels: Dictionary = {
 		"header": _top_control(hud._clock_label, root),
 		"button bar": _top_control(hud._mode_button, root),

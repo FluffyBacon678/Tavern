@@ -184,9 +184,12 @@ func start_new_run(p_tavern_name: String, p_seed: int = -1, slot: int = -1, repl
 	if chosen < 0 or chosen >= MAX_SLOTS or (has_slot_data(chosen) and not replace_existing):
 		return false
 	tavern_name = p_tavern_name.strip_edges()
-	if tavern_name.is_empty():
-		tavern_name = "The Drunken Dwarf"
 	world_seed = p_seed if p_seed >= 0 else randi() % 1_000_000
+	if tavern_name.is_empty():
+		# The same blank field and seed name the same tavern.
+		var dice := RandomNumberGenerator.new()
+		dice.seed = world_seed
+		tavern_name = TavernNames.pick([], dice)
 	owner_profile = CharacterProfile.default_owner(world_seed)
 	gold = STARTING_GOLD
 	active_slot = chosen

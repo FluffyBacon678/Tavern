@@ -39,11 +39,14 @@ run faces face_smoke
 run wardrobe wardrobe_smoke
 run uniforms staff_uniform_smoke
 run tutorial tutorial_smoke
+run tutahead tutorial_ahead_check
+run uifixes ui_fixes_check
 run soak tutorial_smoke --days 6
 run house house_smoke
 run stores stores_smoke
 run farm farm_polish_smoke
 run saves save_resume_smoke
+run saveedge save_edge_check
 run saveui save_ui_smoke
 run smoke smoke_test
 run chaos81 chaos_test seed=81 seconds=1800
@@ -59,7 +62,7 @@ for f in "$OUT"/*.txt; do
 	name=$(basename "$f" .txt)
 	[ "$name" = "import" ] && continue
 	read -r _ code secs <<< "$(grep '^EXIT' "$f" | tail -1)"
-	total=$(grep -E "REGRESSIONS|SMOKE|TUTORIAL [0-9]|CHAOS TEST|LEVEL SMOKE|^SOAK|HOUSE SMOKE" "$f" | tail -1)
+	total=$(grep -E "REGRESSIONS|SMOKE|TUTORIAL [0-9]|CHAOS TEST|LEVEL SMOKE|^SOAK|HOUSE SMOKE|EDGE CHECK|AHEAD CHECK|FIXES CHECK" "$f" | tail -1)
 	extra=$(grep -E "FINGERPRINT|Purse at the close" "$f" | sed 's/^ *//' | tr '\n' ' ')
 	# A script error fails the suite even when every check passed: a function
 	# that errors returns a default, and the checks after it can still hold.

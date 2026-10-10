@@ -59,6 +59,9 @@ var pawn: Pawn
 var board: JobBoard
 var nav: NavGrid
 var items: ItemWorld
+## (def, count, from) -> Job: where goods already in hand should go. Set by the
+## world; without it, held goods are put down where the worker stands.
+var put_away: Callable = Callable()
 ## The player's order of work, one number per kind. Kept whole even for kinds
 ## the position forbids, so a promotion does not lose the settings.
 var priorities: Dictionary = {}
@@ -174,6 +177,11 @@ func sim_step(delta: float) -> void:
 			_seek_timer -= delta
 			if _seek_timer <= 0.0:
 				_seek_timer = SEEK_INTERVAL
+				# Carried to a shelf if one takes them. Put down where they
+				# stood, a reload left a few stray stacks lying about the floor
+				# that someone then had to come back for.
+				if _carry_to_storage():
+					return
 				_drop_carried_at_feet()
 				if _carried_count == 0:
 					_reset()
@@ -345,6 +353,30 @@ func _deposit() -> bool:
 	if _carried_count > 0:
 		return false
 	_clear_cargo()
+	return true
+
+
+## Take what is in hand to storage as a job of this worker's own.
+func _carry_to_storage() -> bool:
+	if not put_away.is_valid() or _carried_def == null or _carried_count <= 0:
+		return false
+	var job: Job = put_away.call(_carried_def, _carried_count, pawn.tile)
+	if job == null:
+		return false
+	var stand: Vector2i = nav.adjacent_walkable(job.target, pawn.tile)
+	if stand == Vector2i(-1, -1):
+		return false
+	job.claim(self)
+	current = job
+	_stand_tile = stand
+	_stuck_timer = 0.0
+	pawn.autonomous_idle = false
+	if stand != pawn.tile and not pawn.goto(stand):
+		current = null
+		pawn.autonomous_idle = _carried_count == 0
+		return false
+	state = State.GOING
+	job_started.emit(job)
 	return true
 
 

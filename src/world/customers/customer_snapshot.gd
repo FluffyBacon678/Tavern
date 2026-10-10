@@ -21,6 +21,9 @@ static func capture(director: CustomerDirector) -> Dictionary:
 		out[key] = director.get(key)
 	for id in director.consumed:
 		out["consumed"][String(id)] = director.consumed[id]
+	out["consumed_today"] = {}
+	for id in director.consumed_today:
+		out["consumed_today"][String(id)] = director.consumed_today[id]
 	for brain in director.customers:
 		if not is_instance_valid(brain) or brain.state == CustomerBrain.State.GONE:
 			continue
@@ -64,6 +67,10 @@ static func restore(director: CustomerDirector, data: Dictionary) -> void:
 		director.set(key, int(data[key]))
 	for id in data["consumed"]:
 		director.consumed[StringName(id)] = int(data["consumed"][id])
+	# Saves before the day's own tally have none: today starts empty.
+	if data.get("consumed_today") is Dictionary:
+		for id in data["consumed_today"]:
+			director.consumed_today[StringName(id)] = int(data["consumed_today"][id])
 	director._spawn_timer = float(data["spawn_timer"])
 	director.bookings = Bookings.new()
 	if data.get("bookings") is Dictionary:

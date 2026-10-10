@@ -54,7 +54,8 @@ const REVIEWS_SHOWN: int = 3
 
 ## `verdict` is the level's result on the close that settled it -- {won, title,
 ## text} from LevelDef.verdict_for() -- or empty on every other evening.
-func show_day(entry: Dictionary, tavern_name: String, standing: Reputation = null, reviews: Array[Review] = [], verdict: Dictionary = {}) -> void:
+## `sold` is what the guests took today, id -> count, drawn as pictures.
+func show_day(entry: Dictionary, tavern_name: String, standing: Reputation = null, reviews: Array[Review] = [], verdict: Dictionary = {}, sold: Dictionary = {}) -> void:
 	theme = TavernTheme.build(TavernTheme.scale_for_control(self) * 0.95)
 	for child in _rows.get_children():
 		child.queue_free()
@@ -73,6 +74,11 @@ func show_day(entry: Dictionary, tavern_name: String, standing: Reputation = nul
 	trade.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	trade.add_theme_color_override("font_color", TavernTheme.PARCHMENT_DIM)
 	_rows.add_child(trade)
+	# What they ate and drank, as the goods themselves.
+	if not sold.is_empty():
+		var goods: GoodsStrip = GoodsStrip.of(GoodsStrip.entries_from(sold), 28.0, 14, TavernTheme.PARCHMENT, 6)
+		goods.alignment = BoxContainer.ALIGNMENT_CENTER
+		_rows.add_child(goods)
 
 	if standing != null:
 		var rep: HBoxContainer = StarRating.row(standing.stars(), standing.label(), 15.0, TavernTheme.CANDLE, 15)
@@ -89,10 +95,10 @@ func show_day(entry: Dictionary, tavern_name: String, standing: Reputation = nul
 		if amount == 0:
 			continue
 		var income: bool = Ledger.is_income(line)
-		_rows.add_child(_money_row(
+		_rows.add_child(LedgerPanel.money_row(LedgerPanel.line_icon(line),
 			Ledger.line_name(line),
 			("+%dg" % amount) if income else ("-%dg" % amount),
-			TavernTheme.PARCHMENT if income else TavernTheme.PARCHMENT_DIM
+			TavernTheme.PARCHMENT if income else TavernTheme.PARCHMENT_DIM, 15
 		))
 
 	_rows.add_child(_rule())
@@ -106,7 +112,10 @@ func show_day(entry: Dictionary, tavern_name: String, standing: Reputation = nul
 	))
 	# A day of building reads as a heavy loss even when trade went well, and a
 	# new player takes that to mean the tavern is failing. Trade on its own line.
-	var spent_building: int = int(lines.get(Ledger.Line.CONSTRUCTION, lines.get(str(Ledger.Line.CONSTRUCTION), 0))) 		+ int(lines.get(Ledger.Line.LAND, lines.get(str(Ledger.Line.LAND), 0))) 		+ int(lines.get(Ledger.Line.HIRING, lines.get(str(Ledger.Line.HIRING), 0))) 		- int(lines.get(Ledger.Line.REFUNDS, lines.get(str(Ledger.Line.REFUNDS), 0)))
+	var spent_building: int = int(lines.get(Ledger.Line.CONSTRUCTION, lines.get(str(Ledger.Line.CONSTRUCTION), 0))) \
+		+ int(lines.get(Ledger.Line.LAND, lines.get(str(Ledger.Line.LAND), 0))) \
+		+ int(lines.get(Ledger.Line.HIRING, lines.get(str(Ledger.Line.HIRING), 0))) \
+		- int(lines.get(Ledger.Line.REFUNDS, lines.get(str(Ledger.Line.REFUNDS), 0)))
 	if spent_building > 0:
 		var from_trade: int = profit + spent_building
 		_rows.add_child(_money_row("From trade alone", "%s%dg" % ["+" if from_trade >= 0 else "", from_trade],

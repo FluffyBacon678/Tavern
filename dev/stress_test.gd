@@ -67,6 +67,18 @@ func _profile() -> void:
 					node.sim_step(dt)
 		print("STRESS profile %-10s %7.2f ms per game-second (%d nodes)" % [
 			name, float(Time.get_ticks_usec() - t0) / 1000.0, groups[name].size()])
+	# The two passes that re-derive work, warm (the first builds the layout
+	# caches), then ten times each on the same tavern.
+	var passes: Dictionary = {
+		"job scan": func() -> void: world.generator.scan(),
+		"serve pass": func() -> void: world.customers._generate_serve_jobs(),
+	}
+	for name in passes:
+		passes[name].call()
+		var t: int = Time.get_ticks_usec()
+		for i in range(10):
+			passes[name].call()
+		print("STRESS profile %-10s %7.2f ms each" % [name, float(Time.get_ticks_usec() - t) / 10000.0])
 	var t1: int = Time.get_ticks_usec()
 	for i in range(10):
 		world.hud.refresh_stats()
@@ -195,8 +207,14 @@ func _measure() -> void:
 	print("STRESS %d frames: median %.1f ms, p95 %.1f ms, worst %.1f ms; %.0f game-s in %.0f s (%.1fx real, asked 5x)" % [
 		frames.size(), frames[frames.size() / 2], frames[int(frames.size() * 0.95)], frames[frames.size() - 1],
 		game, RUN_SECONDS, game / RUN_SECONDS])
-	print("STRESS peak %d guests, %d jobs on the board; served %d; %s" % [
-		peak_guests, peak_jobs, world.customers.served_count, world.customers.summary()])
+	# The day's tallies reset at midnight: say which day they are for, and what
+	# the closed days served, or a fast run that crossed midnight reads as idle.
+	var closed: PackedStringArray = PackedStringArray()
+	for entry in world.ledger.history:
+		closed.append("day %d served %d" % [int(entry["day"]), int(entry["served"])])
+	print("STRESS peak %d guests, %d jobs on the board; served %d; %s; now %s%s" % [
+		peak_guests, peak_jobs, world.customers.served_count, world.customers.summary(),
+		world.hud._clock_summary(), "; closed: " + ", ".join(closed) if not closed.is_empty() else ""])
 	print("STRESS restocked %d units; storage placements %d" % [_restocked,
 		world.build.grid.placements.filter(func(e) -> bool: return e != null and e["def"].is_storage).size()])
 	print("STRESS made bread %d beer %d dough %d; stock bread %d beer %d flour %d; route: '%s'; staff: %s" % [

@@ -58,6 +58,8 @@ var booked_takings: int = 0
 var takings: int = 0
 ## Includes partial meals even when a patron subsequently leaves dissatisfied.
 var consumed: Dictionary = {}
+## The same, for today only: what the day summary and the ledger picture.
+var consumed_today: Dictionary = {}
 ## Dishes created by departing customers. Counted so the books still balance:
 ## they are goods that came into existence, exactly like a baked loaf.
 var dishes_left: int = 0
@@ -168,15 +170,50 @@ const BILL_WORK: float = 1.5
 ## whatever the keeper put out. Without a counter, waiters fetch from wherever
 ## the stock is, as they always did.
 func pass_tiles() -> Array[Vector2i]:
-	var out: Array[Vector2i] = []
+	_refresh_layout()
+	return _pass_cache
+
+
+## Counters, bars and tills, from the placements, when the grid has changed
+## since they were last read (BuildGrid.revision). Four times a game-second the
+## service pass read all of a big tavern's pieces three times over. Read only.
+var _layout_revision: int = -1
+var _layout_grid: BuildGrid = null
+var _pass_cache: Array[Vector2i] = []
+var _counters_cache: Array = []
+var _walkups_cache: Array = []
+
+
+func _refresh_layout() -> void:
 	if build_grid == null:
-		return out
-	for entry in build_grid.placements:
-		if entry == null or not entry["built"] or not (entry["def"].furniture_role in [&"counter", &"bar"] or entry.get("till", false)):
+		_pass_cache = [] as Array[Vector2i]
+		_counters_cache = []
+		_walkups_cache = []
+		_layout_revision = -1
+		return
+	if build_grid == _layout_grid and build_grid.revision == _layout_revision:
+		return
+	_layout_grid = build_grid
+	_layout_revision = build_grid.revision
+	var pass_list: Array[Vector2i] = []
+	var counters: Array = []
+	var walkup_list: Array = []
+	for i in range(build_grid.placements.size()):
+		var entry = build_grid.placements[i]
+		if entry == null or not entry["built"]:
 			continue
-		for tile in entry["tiles"]:
-			out.append(tile)
-	return out
+		var role: StringName = entry["def"].furniture_role
+		var till: bool = entry.get("till", false)
+		if role == &"counter" or role == &"bar" or till:
+			for tile in entry["tiles"]:
+				pass_list.append(tile)
+		if role == &"counter":
+			counters.append({"index": i, "tiles": entry["tiles"]})
+		if role == &"bar" or till:
+			walkup_list.append({"index": i, "tiles": entry["tiles"]})
+	_pass_cache = pass_list
+	_counters_cache = counters
+	_walkups_cache = walkup_list
 
 
 ## A waiter to every raised hand, and somebody with the bill to every empty
@@ -394,14 +431,8 @@ static func bar_drinks(def: BuildingDef) -> Array[StringName]:
 ## Everywhere a guest can walk up, buy and pay: every bar, and every till the
 ## keeper has made of a bench or a bar. {index, tiles}.
 func walkups() -> Array:
-	var out: Array = []
-	if build_grid == null:
-		return out
-	for i in range(build_grid.placements.size()):
-		var entry = build_grid.placements[i]
-		if entry != null and entry["built"] and (entry["def"].furniture_role == &"bar" or entry.get("till", false)):
-			out.append({"index": i, "tiles": entry["tiles"]})
-	return out
+	_refresh_layout()
+	return _walkups_cache
 
 
 ## What is for sale on the bars' and tills' counters: id -> how many.
@@ -513,14 +544,8 @@ func _makes(tile: Vector2i, id: StringName) -> bool:
 ## Every built serving counter: {index, tiles}. Each plates for the tables
 ## nearest it.
 func _counters() -> Array:
-	var out: Array = []
-	if build_grid == null:
-		return out
-	for i in range(build_grid.placements.size()):
-		var entry = build_grid.placements[i]
-		if entry != null and entry["built"] and entry["def"].furniture_role == &"counter":
-			out.append({"index": i, "tiles": entry["tiles"]})
-	return out
+	_refresh_layout()
+	return _counters_cache
 
 
 static func _nearest_counter(counters: Array, table: Vector2i) -> Dictionary:
@@ -663,7 +688,16 @@ func reset_day_tallies() -> void:
 	lost_no_menu = 0
 	takings = 0
 	booked_takings = 0
+	consumed_today.clear()
 	day_reviews.clear()
+
+
+## Goods a guest took, into both tallies.
+func note_consumed(id: StringName, count: int) -> void:
+	if count <= 0:
+		return
+	consumed[id] = int(consumed.get(id, 0)) + count
+	consumed_today[id] = int(consumed_today.get(id, 0)) + count
 
 
 func remove_customer(brain: CustomerBrain) -> void:

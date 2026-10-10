@@ -243,25 +243,37 @@ static func _require_construction_practice(step: TutorialStep, groups: Array) ->
 
 static func _looking_around() -> Array[TutorialStep]:
 	var L: String = LESSONS[0]
+	var touch: bool = DisplayServer.is_touchscreen_available()
+	var keys: String = KeyBindings.move_keys(0) + (" or " + KeyBindings.move_keys(1) if not KeyBindings.move_keys(1).is_empty() else "")
 	var out: Array[TutorialStep] = []
 	out.append(TutorialStep.make("cam_move", L,
-		"Move the view with %s." % (KeyBindings.move_keys(0) + (" or " + KeyBindings.move_keys(1) if not KeyBindings.move_keys(1).is_empty() else "")),
-		"Time is paused. Nothing happens in the tavern until you run it.",
+		("Move the view: drag it with one finger, or use %s." % keys) if touch
+			else "Move the view with %s, or drag it with the middle mouse button." % keys,
+		"The tavern opens paused, so look around first: nothing happens until you run the clock.",
 		func(w, ctx) -> bool: return w.rig._focus_target.distance_to(ctx["focus"]) >= 4.0,
 		func(w, _ctx) -> void: w.rig.focus_on(w.rig._focus_target + Vector3(6, 0, 0))
-	).starting(func(w, ctx) -> void: ctx["focus"] = w.rig._focus_target))
+	).starting(func(w, ctx) -> void:
+		ctx["focus"] = w.rig._focus_target
+		_note_pieces(w, ctx)
+	).unless(_gone_ahead))
 	out.append(TutorialStep.make("cam_zoom", L,
-		"Zoom in and out with the mouse wheel.",
+		"Zoom in and out with two fingers, or the mouse wheel." if touch else "Zoom in and out with the mouse wheel.",
 		"Close up for detail, far out to see the whole plot.",
 		func(w, ctx) -> bool: return absf(w.rig._distance_target - ctx["distance"]) >= 2.0,
 		func(w, _ctx) -> void: w.rig.zoom_by(3.0)
-	).starting(func(w, ctx) -> void: ctx["distance"] = w.rig._distance_target))
+	).starting(func(w, ctx) -> void:
+		ctx["distance"] = w.rig._distance_target
+		_note_pieces(w, ctx)
+	).unless(_gone_ahead))
 	out.append(TutorialStep.make("cam_turn", L,
 		"Turn the view with %s and %s, or the arrow buttons at the top." % [KeyBindings.first("cam_turn_left"), KeyBindings.first("cam_turn_right")],
 		"Walls between you and the room fade so you can see inside.",
 		func(w, ctx) -> bool: return absf(w.rig._yaw_target - ctx["yaw"]) >= 10.0,
 		func(w, _ctx) -> void: w.rig.rotate_step(1)
-	).starting(func(w, ctx) -> void: ctx["yaw"] = w.rig._yaw_target).pointing_at({"button": "↷"}))
+	).starting(func(w, ctx) -> void:
+		ctx["yaw"] = w.rig._yaw_target
+		_note_pieces(w, ctx)
+	).pointing_at({"button": "↷"}).unless(_gone_ahead))
 	out.append(TutorialStep.make("time_speed", L,
 		"Run time with %s, speed it up with %s, %s or %s (5x), then pause again with %s." % [KeyBindings.first("speed_1"), KeyBindings.first("speed_2"), KeyBindings.first("speed_3"), KeyBindings.first("speed_4"), KeyBindings.first("pause")],
 		"The clock and speed buttons are at the top left. Pause whenever you want to plan.",
@@ -282,10 +294,28 @@ static func _looking_around() -> Array[TutorialStep]:
 	return out
 
 
+## How many pieces stood when looking around began, once.
+static func _note_pieces(w, ctx: Dictionary) -> void:
+	if not ctx.has("pieces_when_looking"):
+		ctx["pieces_when_looking"] = w.build.grid.live_count()
+
+
+## Past the camera lessons already: building, or running the clock. The camera
+## is still explained by the help line and the settings; holding a player who
+## is laying walls on "Move the view" only made the tutorial look stuck.
+static func _gone_ahead(w, ctx: Dictionary) -> bool:
+	if w.sim.speed > 0:
+		return true
+	if w.hud._build_bar != null and w.hud._build_bar.visible:
+		return true
+	return w.build.grid.live_count() > int(ctx.get("pieces_when_looking", 1 << 30))
+
+
 ## Remember whether time has been run since the step began: the step is done
-## when it has, and is paused again.
+## when it has, and is paused again. Time already running when it begins (the
+## player went ahead of the camera lessons) counts as run.
 static func _watch_speed(w, ctx: Dictionary) -> void:
-	ctx["ran"] = false
+	ctx["ran"] = w.sim.speed > 0
 	if ctx.has("watching_speed"):
 		return
 	ctx["watching_speed"] = true

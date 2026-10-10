@@ -93,6 +93,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			hud._build_bar.next_style()
 			get_viewport().set_input_as_handled()
 			return
+		# F3, debug builds only: the developer's figures, kept off the Ledger.
+		if not event.echo and event.keycode == KEY_F3 and OS.is_debug_build():
+			hud.toggle_developer_figures()
+			get_viewport().set_input_as_handled()
+			return
 		# Zoom keys repeat while held, like the wheel; everything else fires once.
 		if event.is_action_pressed("cam_zoom_in", true):
 			world.rig.zoom_by(-1.0)
@@ -273,6 +278,8 @@ func _hover_allowed() -> bool:
 	# so the world used to take the screen's edge as hovered and leave a card
 	# up over the top bar after the mouse had gone to another program.
 	if not _pointer_inside or not _pointer_over_window():
+		return false
+	if world.hud.covers_point(get_viewport().get_mouse_position()):
 		return false
 	return get_viewport().gui_get_hovered_control() == null
 

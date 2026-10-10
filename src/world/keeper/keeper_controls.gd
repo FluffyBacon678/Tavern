@@ -56,7 +56,8 @@ func toggle() -> void:
 
 ## Step in as the keeper, calling them into the world the first time.
 func start() -> bool:
-	if world.keeper == null and not world.spawn_keeper():
+	# spawn_keeper keeps a keeper who is there and replaces one whose body is gone.
+	if not world.spawn_keeper():
 		world.hud.flash("There's nowhere for your keeper to stand.")
 		return false
 	if playing:
@@ -301,6 +302,7 @@ func options_for(tile: Vector2i, person: Pawn = null) -> Array:
 	var rest: Array = []
 	var walk := {"text": "Walk here", "run": func() -> void: keeper.walk_to(tile), "tile": tile}
 	var holding: String = keeper.carry_def.display_name if keeper.carry_def != null else ""
+	var held_picture: Texture2D = IconStudio.item(keeper.carry_def.id) if keeper.carry_def != null else null
 
 	var index: int = world.build.grid.object_index_at(tile)
 	var entry = world.build.grid.placements[index] if index >= 0 else null
@@ -311,42 +313,51 @@ func options_for(tile: Vector2i, person: Pawn = null) -> Array:
 	if goods != null and world.items.count_at(tile) > 0:
 		if on_table and refuse:
 			# A guest's own plate is theirs; the dirty dishes they left are not.
-			first.append({"text": "Clear the table", "run": func() -> void: keeper.take(tile), "tile": tile})
+			first.append({"text": "Clear the table", "run": func() -> void: keeper.take(tile), "tile": tile,
+				"icon": IconStudio.item(goods.id)})
 		elif not on_table:
-			first.append({"text": "Take %s" % goods.display_name, "run": func() -> void: keeper.take(tile), "tile": tile})
+			first.append({"text": "Take %s" % goods.display_name, "run": func() -> void: keeper.take(tile), "tile": tile,
+				"icon": IconStudio.item(goods.id)})
 	# Dirty dishes standing in a basin can be washed up there.
 	if entry != null and entry["built"] and entry["def"].id == &"sink":
 		for t in entry["tiles"]:
 			var in_basin: ItemDef = world.items.def_at(t)
 			if in_basin != null and in_basin.category == ItemDef.Category.REFUSE:
 				var basin: Vector2i = t
-				first.push_front({"text": "Wash up", "run": func() -> void: keeper.wash(basin), "tile": basin})
+				first.push_front({"text": "Wash up", "run": func() -> void: keeper.wash(basin), "tile": basin,
+					"icon": ThoughtBubble.icon("clean")})
 				break
 
 	if entry != null and entry["built"]:
 		var def: BuildingDef = entry["def"]
 		if not holding.is_empty() and not on_table:
-			first.push_front({"text": "Put %s on %s" % [holding, def.display_name], "run": func() -> void: keeper.put(tile), "tile": tile})
+			first.push_front({"text": "Put %s on %s" % [holding, def.display_name], "run": func() -> void: keeper.put(tile), "tile": tile,
+				"icon": held_picture})
 		for recipe in RecipeCatalog.for_station(def.id):
 			var label: String = "Fish (basic rod)" if not recipe.pick_from.is_empty() else recipe.display_name
 			var chosen: Recipe = recipe
-			first.append({"text": label, "run": func() -> void: keeper.work(index, chosen), "tile": tile})
+			first.append({"text": label, "run": func() -> void: keeper.work(index, chosen), "tile": tile,
+				"icon": IconStudio.recipe(recipe)})
 		if def.takes_payments:
 			var till: bool = bool(entry.get("till", false))
 			rest.append({"text": "Stop taking payments here" if till else "Take payments here",
-				"run": func() -> void: world.set_till(index, not till), "tile": tile})
-		rest.append({"text": "Examine %s" % def.display_name, "run": func() -> void: _examine({"kind": WorldStats.Kind.BUILDING, "index": index, "tile": tile})})
+				"run": func() -> void: world.set_till(index, not till), "tile": tile, "icon": ThoughtBubble.icon("coin")})
+		rest.append({"text": "Examine %s" % def.display_name, "run": func() -> void: _examine({"kind": WorldStats.Kind.BUILDING, "index": index, "tile": tile}),
+			"icon": IconStudio.building(def)})
 	else:
 		# Open ground, or a floor: walking comes first, unless there are goods
 		# lying there, which a click picks up -- as in RuneScape.
 		if first.is_empty():
 			first.append(walk)
 		if not holding.is_empty():
-			rest.append({"text": "Put %s down here" % holding, "run": func() -> void: keeper.put(tile), "tile": tile})
+			rest.append({"text": "Put %s down here" % holding, "run": func() -> void: keeper.put(tile), "tile": tile,
+				"icon": held_picture})
 	if goods != null:
-		rest.append({"text": "Examine %s" % goods.display_name, "run": func() -> void: _examine({"kind": WorldStats.Kind.ITEMS, "tile": tile})})
+		rest.append({"text": "Examine %s" % goods.display_name, "run": func() -> void: _examine({"kind": WorldStats.Kind.ITEMS, "tile": tile}),
+			"icon": IconStudio.item(goods.id)})
 	if person != null and person != keeper.pawn and is_instance_valid(person):
-		rest.append({"text": "Examine %s" % person.pawn_name, "run": func() -> void: _examine({"kind": WorldStats.Kind.PAWN, "pawn": person})})
+		rest.append({"text": "Examine %s" % person.pawn_name, "run": func() -> void: _examine({"kind": WorldStats.Kind.PAWN, "pawn": person}),
+			"icon": ThoughtBubble.icon("hand")})
 	if not first.has(walk):
 		rest.append(walk)
 	return first + rest

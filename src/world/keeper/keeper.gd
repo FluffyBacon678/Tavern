@@ -54,8 +54,7 @@ func spawn(p_world, at: Vector2i) -> void:
 	name = "Keeper"
 	pawn = Pawn.new()
 	pawn.name = "KeeperBody"
-	var holder: Node = world._find("Pawns")
-	(holder if holder != null else world).add_child(pawn)
+	world.pawn_holder().add_child(pawn)
 	# Its own fixed seed: calling the keeper in takes nothing from the dice the
 	# simulation runs on.
 	pawn.setup(world.nav, world.terrain, at, world._pawn_material, 0x6b656570)

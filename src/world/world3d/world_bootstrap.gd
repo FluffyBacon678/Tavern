@@ -432,8 +432,10 @@ func _spawn_pawns(rng: RandomNumberGenerator, crew: Array[StringName]) -> void:
 	world.pawns.clear()
 	world.workers.clear()
 
+	# Out of the tree first, so the replacement keeps the name (see SaveGame).
 	var holder: Node = world._find("Pawns")
 	if holder != null:
+		world.remove_child(holder)
 		holder.queue_free()
 	holder = Node3D.new()
 	holder.name = "Pawns"
@@ -466,6 +468,7 @@ func _add_pawn(holder: Node, rng_seed: int, role: StaffRole = null) -> void:
 	worker.name = "Worker"
 	pawn.add_child(worker)
 	worker.setup(pawn, world.board, world.nav, world.items)
+	worker.put_away = world.generator.put_away_job
 	worker.set_role(role)
 	world.workers.append(worker)
 	world.sim.attach(worker)

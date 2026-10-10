@@ -3,7 +3,8 @@ extends Control
 
 ## RuneScape's "Choose option": a small box at the pointer listing what can be
 ## done with the thing clicked, the first being what a left-click would have
-## done. Clicking anywhere else closes it. Rows are big enough for a finger.
+## done. Clicking anywhere else closes it. Rows are big enough for a finger,
+## and each has the picture of what it is about: the goods, the dish, a coin.
 
 const ROW_HEIGHT: float = 48.0
 
@@ -56,8 +57,11 @@ func open(options: Array, at: Vector2, runner: Callable) -> void:
 	for child in _list.get_children():
 		_list.remove_child(child)
 		child.queue_free()
+	var pictured: bool = options.any(func(o: Dictionary) -> bool: return o.get("icon") is Texture2D)
 	for i in range(options.size()):
 		var b: Button = UiKit.menu_button(String(options[i]["text"]), s)
+		if pictured:
+			_picture(b, options[i].get("icon") as Texture2D, s)
 		b.add_theme_font_size_override("font_size", int(round(17.0 * s)))
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		var screen_scale: float = maxf(get_global_transform_with_canvas().x.length(), 0.01)
@@ -72,6 +76,35 @@ func open(options: Array, at: Vector2, runner: Callable) -> void:
 	_scroll.scroll_vertical = 0
 	_layout()
 	_layout.call_deferred()
+
+
+## The option's picture at the left of its row, and the text moved clear of
+## it. Rows without one keep the same indent, so the words line up.
+func _picture(b: Button, icon: Texture2D, s: float) -> void:
+	var side: float = round(30.0 * s)
+	var left: float = round(10.0 * s)
+	if icon != null:
+		var pic := TextureRect.new()
+		pic.texture = icon
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# The eleven-pixel icons stay crisp; the rendered goods are smoothed.
+		pic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST if icon.get_width() <= 16 \
+			else CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		pic.anchor_top = 0.5
+		pic.anchor_bottom = 0.5
+		pic.offset_left = left
+		pic.offset_right = left + side
+		pic.offset_top = -side * 0.5
+		pic.offset_bottom = side * 0.5
+		if icon.get_width() <= 16:
+			pic.modulate = Color("d7b568")
+		b.add_child(pic)
+	for state in ["normal", "disabled", "hover", "focus", "pressed", "hover_pressed"]:
+		var box: StyleBox = b.get_theme_stylebox(state).duplicate()
+		box.content_margin_left = left + side + round(10.0 * s)
+		b.add_theme_stylebox_override(state, box)
 
 
 func _layout() -> void:

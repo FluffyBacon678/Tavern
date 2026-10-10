@@ -7,6 +7,7 @@ config_version=5
 
 config/name="Mobile Tavern"
 config/description="A medieval tavern management and colony simulation."
+config/version="0.10.0"
 run/main_scene="res://scenes/boot.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
@@ -20,6 +21,7 @@ GameState="*res://src/autoload/game_state.gd"
 AudioDirector="*res://src/autoload/audio_director.gd"
 SceneRouter="*res://src/autoload/scene_router.gd"
 IconStudio="*res://src/autoload/icon_studio.gd"
+TouchTips="*res://src/autoload/touch_tips.gd"
 
 [display]
 

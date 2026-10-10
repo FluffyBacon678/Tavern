@@ -21,6 +21,8 @@ const MAX_VISUAL_COPIES: int = 3
 const BASE_QUALITY: float = 0.5
 ## Passed to take() to mean "this is not a job collecting reserved goods".
 const IGNORE_CLAIMS: int = -1
+## Room in a sort key for a position in a list: far more stacks than a map holds.
+const ORDER_SPAN: int = 1 << 24
 
 var terrain: TerrainMeshBuilder
 
@@ -436,13 +438,27 @@ func make_carry_node(def: ItemDef) -> Node3D:
 
 ## Tiles holding a given kind, nearest first.
 func tiles_with(def_id: StringName, from: Vector2i) -> Array[Vector2i]:
-	var out: Array[Vector2i] = []
+	var found: Array[Vector2i] = []
 	for tile in _stacks:
 		if _stacks[tile]["def"].id == def_id:
-			out.append(tile)
-	out.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
-		return _chebyshev(a, from) < _chebyshev(b, from)
-	)
+			found.append(tile)
+	return nearest_first(found, from)
+
+
+## Nearest first, and equally near in the order given. Sorted by the engine as
+## packed numbers rather than by a script comparator: the script sort was most
+## of what feeding a bench and plating an order cost in a big tavern
+## (2026-10-07), and its order among equally near stacks was arbitrary.
+static func nearest_first(tiles: Array[Vector2i], from: Vector2i) -> Array[Vector2i]:
+	var keys := PackedInt64Array()
+	keys.resize(tiles.size())
+	for i in range(tiles.size()):
+		keys[i] = _chebyshev(tiles[i], from) * ORDER_SPAN + i
+	keys.sort()
+	var out: Array[Vector2i] = []
+	out.resize(tiles.size())
+	for i in range(keys.size()):
+		out[i] = tiles[keys[i] % ORDER_SPAN]
 	return out
 
 

@@ -138,7 +138,35 @@ func _check_trouble(world: TavernWorld, scenario: Node) -> void:
 			"the day's biggest loss is the one named: '%s'" % said_menu)
 		world.customers.lost_no_menu = no_menu
 	world.customers.lost_no_service = unserved
+	_check_missing_positions(world)
 	check(scenario.reconcile(), "diagnosing trouble moves no goods")
+
+
+## Work nobody on the books may do, more than one kind of it: every position
+## that would cover it is named, not just the first. A keeper alone lost forty
+## guests a day waiting for a waiter while the advice only asked for a cook.
+func _check_missing_positions(world: TavernWorld) -> void:
+	var roles: Array = []
+	var priorities: Array = []
+	for worker in world.workers:
+		roles.append(worker.role)
+		priorities.append(worker.priorities.duplicate())
+		worker.set_role(StaffRole.of(&"host"))
+	var posted: Array[Job] = []
+	for kind in [WorkType.Kind.COOK, WorkType.Kind.SERVE]:
+		var job := Job.new()
+		job.kind = kind
+		job.key = "test:unstaffed:%d" % kind
+		posted.append(world.board.post(job))
+	var said: String = Trouble.diagnose(world)
+	check(said.contains("waiter") and said.contains("cook"), "unstaffed serving and cooking name a waiter and a cook: '%s'" % said)
+	check(said.find("a waiter") >= 0 and said.find("a waiter") < said.find("a cook"), "the one guests notice first comes first")
+	for job in posted:
+		world.board.cancel_key(job.key)
+	# set_role starts a position's own priorities: put the fixture's back.
+	for i in range(world.workers.size()):
+		world.workers[i].set_role(roles[i])
+		world.workers[i].priorities = priorities[i]
 
 
 ## The opening checklist has to answer to the world, not to a counter.
@@ -592,6 +620,23 @@ func _check_new_run_slots(scratch: int) -> void:
 	check(GameState.active_slot == scratch, "the run owns the slot it asked for")
 	check(GameState.gold == GameState.STARTING_GOLD, "a new run starts with the opening purse")
 	check(GameState.world_seed == 7, "and the seed it was given")
+
+	# Blank names: every sandbox was "The Drunken Dwarf", so the slot list read
+	# as one tavern several times. Named from the seed's own dice, not the sim's.
+	var sim_dice: int = fixture_world.sim_rng.state
+	check(GameState.start_new_run("  ", 7, scratch, true) and GameState.tavern_name.begins_with("The "),
+		"a blank name gets a tavern name (%s)" % GameState.tavern_name)
+	var first_name: String = GameState.tavern_name
+	GameState.start_new_run("", 7, scratch, true)
+	check(GameState.tavern_name == first_name, "the same seed names the same tavern")
+	var names: Dictionary = {}
+	for seed in range(1, 9):
+		GameState.start_new_run("", seed, scratch, true)
+		names[GameState.tavern_name] = true
+	check(names.size() >= 5, "different seeds give different names (%d of 8)" % names.size())
+	check(not TavernNames.pick([first_name]).is_empty() and TavernNames.pick([first_name]) != first_name,
+		"a suggestion avoids names already taken")
+	check(fixture_world.sim_rng.state == sim_dice, "naming a tavern rolls none of the simulation's dice")
 
 	GameState.gold = gold_before
 	GameState.tavern_name = name_before

@@ -87,6 +87,41 @@ func _ready() -> void:
 			await _settle()
 			await _shot("card_guest", "A guest's order")
 			break
+	world.hud.inspector.clear()
+
+	# The Ledger, the day's close, the keeper's options and a finger's tip.
+	world.hud.toggle_ledger()
+	await _settle()
+	await _shot("ledger", "The Ledger: money, sales, guests and the larder in pictures")
+	world.hud.toggle_ledger()
+	var entry: Dictionary = {"day": world.clock.day, "served": world.customers.served_count,
+		"lost": world.customers.lost_count, "purse": GameState.gold, "profit": world.ledger.profit(),
+		"lines": world.ledger.today.duplicate()}
+	world.hud._day_summary.show_day(entry, world.hud._tavern_name(), world.customers.reputation,
+		world.customers.day_reviews, {}, world.customers.consumed_today)
+	await _settle()
+	await _shot("day_summary", "The day's close, with what sold")
+	world.hud._day_summary.visible = false
+	world.spawn_keeper()
+	var bar: int = _first(&"bar_table")
+	if bar >= 0:
+		var menu := KeeperMenu.new()
+		world.hud._hud.add_child(menu)
+		menu.open(world.keeper_controls.options_for(world.build.grid.placements[bar]["origin"]),
+			get_viewport().get_visible_rect().size * 0.5, func(_o: Dictionary) -> void: pass)
+		await _settle()
+		await _shot("keeper_menu", "The keeper's options at the bar, with pictures")
+		menu.queue_free()
+	world.hud.toggle_supplies()
+	world.hud._supply_panel.show_manual()
+	world.hud._supply_panel.order.clear()
+	world.hud._supply_panel.add_ware(&"flour", 1)
+	await _settle()
+	var flour: Control = world.hud._supply_panel._wares[&"flour"]["minus"].get_parent()
+	TouchTips.show_at(flour.get_global_rect().get_center())
+	await _frames(3)
+	await _shot("touch_tip", "A finger held on the flour: its name, and the cart's minus button")
+	world.hud.toggle_supplies()
 	print("PICTURE UI CHECK: done")
 	get_tree().quit()
 

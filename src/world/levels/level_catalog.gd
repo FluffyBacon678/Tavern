@@ -85,9 +85,13 @@ static func _the_wayfarers_rest() -> LevelDef:
 	# -- and one who only restocks cannot.
 	# Re-measured after per-counter plating and the service scan (2026-09-28):
 	# 1821g / 1229g / -124g. 1200 left a day-3 repairer 29g; 1100 leaves ~130g.
-	level.goal_gold = 1100
+	# Bulk goods, auto restock and a crew of two waiters and a cook made the
+	# repaired tavern far richer (2026-10-07): 4430g / 2659g / -80g, so 1100 was
+	# met by day 3 and taught nothing. 2500 leaves a day-3 repairer ~160g, the
+	# same margin the goal was first set to give.
+	level.goal_gold = 2500
 	level.goal_days = 6
-	level.goal_text = "Take the tavern to 1100g by the end of day 6"
+	level.goal_text = "Take the tavern to 2500g by the end of day 6"
 
 	var pieces: Array[LevelDef.Piece] = []
 	# Near the road, whatever the plot's size: the new land is behind the

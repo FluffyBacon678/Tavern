@@ -400,7 +400,7 @@ func _process_waiting(delta: float) -> void:
 			_food_quality_sum += was * float(eaten)
 			_food_eaten += eaten
 			line["served"] += eaten
-			director.consumed[on_table.id] = director.consumed.get(on_table.id, 0) + eaten
+			director.note_consumed(on_table.id, eaten)
 			break
 
 	if _order_complete():
@@ -720,7 +720,7 @@ func _process_going_to_bar() -> void:
 			_food_eaten += taken
 			line["served"] = int(line["served"]) + taken
 			got += taken
-			director.consumed[line["id"]] = int(director.consumed.get(line["id"], 0)) + taken
+			director.note_consumed(StringName(line["id"]), taken)
 	# The bill is what they carried away.
 	var kept: Array = []
 	for line in order:

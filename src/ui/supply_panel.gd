@@ -278,7 +278,7 @@ func _build_merchant(column: VBoxContainer) -> void:
 		b.set_pressed_no_signal(q == quantity)
 		_quantity_buttons.append(b)
 		buy_row.add_child(b)
-	var take_off := _inline("· right-click takes off")
+	var take_off := _inline("· − takes off")
 	take_off.add_theme_color_override("font_color", TavernTheme.IRON.lightened(0.3))
 	buy_row.add_child(take_off)
 
@@ -363,6 +363,31 @@ func _ware(def: ItemDef) -> Button:
 	ordered.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	b.add_child(ordered)
 	var id: StringName = def.id
+	# Taking one off without a right mouse button, which a phone has not got.
+	var minus := Button.new()
+	minus.text = "−"
+	minus.focus_mode = Control.FOCUS_NONE
+	minus.tooltip_text = "Take %s off the cart" % def.display_name.to_lower()
+	minus.add_theme_font_size_override("font_size", 14)
+	# Tight margins: the theme's padding made it twice as wide, over the picture.
+	_compact_style(minus, TavernTheme.CANDLE_DIM)
+	for state in ["normal", "hover", "pressed"]:
+		var tight: StyleBoxFlat = minus.get_theme_stylebox(state)
+		tight.content_margin_left = 0
+		tight.content_margin_right = 0
+		tight.content_margin_top = 0
+		tight.content_margin_bottom = 0
+	# Under the gold count, beside the picture: clear of the price below it.
+	minus.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	minus.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	minus.custom_minimum_size = Vector2(22, 22)
+	minus.offset_left = -24
+	minus.offset_right = -2
+	minus.offset_top = 22
+	minus.offset_bottom = 44
+	minus.visible = false
+	minus.pressed.connect(func() -> void: add_ware(id, -1))
+	b.add_child(minus)
 	b.pressed.connect(func() -> void: add_ware(id, 1))
 	b.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
@@ -370,7 +395,7 @@ func _ware(def: ItemDef) -> Button:
 			b.accept_event()
 	)
 	b.mouse_entered.connect(func() -> void: _ware_info.text = _describe_ware(def))
-	_wares[id] = {"have": have, "ordered": ordered}
+	_wares[id] = {"have": have, "ordered": ordered, "minus": minus}
 	return b
 
 
@@ -728,6 +753,7 @@ func _refresh_merchant() -> void:
 		badges["have"].text = str(world.stock_of(id))
 		var n: int = int(order.get(id, 0))
 		badges["ordered"].text = "+%d" % n if n > 0 else ""
+		badges["minus"].visible = n > 0
 	for b in _quantity_buttons:
 		b.set_pressed_no_signal(b.text == ("Stack" if quantity == 0 else str(quantity)))
 	if not _manual.visible:

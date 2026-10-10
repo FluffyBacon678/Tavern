@@ -72,6 +72,26 @@ var rng: RandomNumberGenerator
 var _pass_tiles_this_scan: Dictionary = {}
 ## Every item's total during a scan; see _in_stock().
 var _stock_this_scan: Dictionary = {}
+## During a scan: each item's stacks, in the item world's own order, and the
+## benches each tile feeds. Feeding a bench asked "where is the flour?" by
+## walking every stack in the tavern, and "is that some other bench's?" of
+## every bench, for each ingredient each bench lacked: in the biggest tavern
+## that was half of every scan (2026-10-07). Nothing moves during a scan, so
+## the answers are the same ones, asked once.
+var _tiles_this_scan: Dictionary = {}
+var _owners_this_scan: Dictionary = {}
+var _in_scan: bool = false
+## The layout as the scans see it: benches, shelves and serving counters,
+## worked out again only when BuildGrid.revision moves or the reach is
+## invalidated (land bought, which also reshapes the ground). Walking all of a
+## big tavern's pieces three times a scan cost a fifth of it. Read only.
+var _layout_revision: int = -1
+var _layout_grid: BuildGrid = null
+var _stations_cache: Array = []
+var _storage_cache: Array[Vector2i] = []
+var _pass_cache: Dictionary = {}
+var _table_tiles_cache: Dictionary = {}
+var _bars_cache: Array = []
 ## Round the fishing spots. Goods picked up here are the catch, and carrying
 ## it in is the fisherman's job: cooks and porters stay in the tavern.
 var _bank_tiles_this_scan: Dictionary = {}
@@ -123,11 +143,8 @@ func scan() -> void:
 			if recipe.work_kind == WorkType.Kind.FISH:
 				for tile in station["input_tiles"]:
 					_bank_tiles_this_scan[tile] = true
-	_pass_tiles_this_scan.clear()
-	for entry in build.grid.placements:
-		if entry != null and entry["built"] and (entry["def"].furniture_role in [&"counter", &"bar"] or entry.get("till", false)):
-			for tile in entry["tiles"]:
-				_pass_tiles_this_scan[tile] = true
+	_refresh_layout()
+	_pass_tiles_this_scan = _pass_cache
 	if _reach_dirty:
 		_reach_dirty = false
 		_reach = nav.reachable_from(road_tile) if nav != null and road_tile.x >= 0 else {}
@@ -136,10 +153,22 @@ func scan() -> void:
 	board.release_orphans()
 	dead_pickups_withdrawn += board.withdraw_dead_pickups()
 	_stock_this_scan.clear()
+	_tiles_this_scan.clear()
 	for tile in items.all_tiles():
 		var def: ItemDef = items.def_at(tile)
 		if def != null:
 			_stock_this_scan[def.id] = int(_stock_this_scan.get(def.id, 0)) + items.count_at(tile)
+			if not _tiles_this_scan.has(def.id):
+				var list: Array[Vector2i] = []
+				_tiles_this_scan[def.id] = list
+			_tiles_this_scan[def.id].append(tile)
+	_owners_this_scan.clear()
+	for station in stations:
+		for tile in station["input_tiles"]:
+			if not _owners_this_scan.has(tile):
+				_owners_this_scan[tile] = []
+			_owners_this_scan[tile].append(station)
+	_in_scan = true
 	_generate_production(stations)
 	_generate_bar_stock()
 	# Cleaning before hauling, for the same reason production comes first: a
@@ -147,7 +176,10 @@ func scan() -> void:
 	_generate_cleaning()
 	_generate_hauls(storage)
 	_cancel_stale_jobs()
+	_in_scan = false
 	_stock_this_scan.clear()
+	_tiles_this_scan.clear()
+	_owners_this_scan.clear()
 
 
 ## Take off the board anything this generator posted that the world no longer
@@ -182,19 +214,80 @@ func _cancel_stale_jobs() -> void:
 
 # --- world queries -------------------------------------------------------
 
-func _storage_tiles() -> Array[Vector2i]:
-	var out: Array[Vector2i] = []
-	for entry in build.grid.placements:
-		if entry == null or not entry["built"] or not entry["def"].is_storage:
+## Goods already in somebody's hands, with no job to take them anywhere: a
+## worker restored mid-haul by a load. The nearest storage that takes them, as
+## a job for that worker alone (never posted). Null when nothing takes them,
+## and refuse has its own way to the wash.
+func put_away_job(def: ItemDef, count: int, from: Vector2i) -> Job:
+	if def == null or count <= 0 or def.category == ItemDef.Category.REFUSE:
+		return null
+	var destination := Vector2i(-1, -1)
+	var best: int = 1 << 30
+	for candidate in _storage_tiles():
+		if not items.accepts(candidate, def) or not _standable(candidate):
 			continue
-		for tile in entry["tiles"]:
-			out.append(tile)
-	return out
+		var distance: int = ItemWorld._chebyshev(candidate, from)
+		if distance < best:
+			best = distance
+			destination = candidate
+	if destination == Vector2i(-1, -1):
+		return null
+	var job := Job.new()
+	job.kind = WorkType.Kind.HAUL
+	job.target = destination
+	job.carry_def = def
+	job.carry_count = count
+	job.work_amount = 0.0
+	job.label = "Store %s" % def.display_name
+	return job
+
+
+func _storage_tiles() -> Array[Vector2i]:
+	_refresh_layout()
+	return _storage_cache
+
+
+## Benches, shelves and serving counters, from the placements, if the grid has
+## changed since they were last worked out.
+func _refresh_layout() -> void:
+	if build.grid == _layout_grid and build.grid.revision == _layout_revision:
+		return
+	_layout_grid = build.grid
+	_layout_revision = build.grid.revision
+	var storage: Array[Vector2i] = []
+	var pass_tiles: Dictionary = {}
+	var tables: Dictionary = {}
+	var bars: Array = []
+	for entry in build.grid.placements:
+		if entry == null or not entry["built"]:
+			continue
+		var role: StringName = entry["def"].furniture_role
+		if entry["def"].is_storage:
+			for tile in entry["tiles"]:
+				storage.append(tile)
+		if role == &"counter" or role == &"bar" or entry.get("till", false):
+			for tile in entry["tiles"]:
+				pass_tiles[tile] = true
+		if role == &"table":
+			for tile in entry["tiles"]:
+				tables[tile] = true
+		if role == &"bar":
+			bars.append(entry)
+	_storage_cache = storage
+	_pass_cache = pass_tiles
+	_table_tiles_cache = tables
+	_bars_cache = bars
+	_stations_cache = _find_stations()
 
 
 ## Built pieces that have at least one recipe, with the tiles their ingredients
 ## may sit on: their own footprint plus the walkable tiles around it.
 func built_stations() -> Array:
+	_refresh_layout()
+	return _stations_cache
+
+
+func _find_stations() -> Array:
 	var out: Array = []
 	for i in range(build.grid.placements.size()):
 		var entry = build.grid.placements[i]
@@ -352,16 +445,18 @@ func _claim_working_set(station: Dictionary, id: StringName, required: int) -> v
 
 ## How much of a recipe's product already exists, counted across the whole
 ## tavern. Multi-output recipes are judged on their first product, which is the
-## one the bill is really about.
+## one the bill is really about. From the scan's count, like the ingredients:
+## counted live, every bench walked every stack for every recipe, and in the
+## biggest tavern that was a third of the scan.
 func _output_stock(recipe: Recipe) -> int:
 	if not recipe.pick_from.is_empty():
 		var n: int = 0
 		for id in recipe.pick_from:
-			n += items.total_of(id)
+			n += _in_stock(id)
 		return n
 	if recipe.outputs.is_empty():
 		return 0
-	return items.total_of(recipe.outputs[0]["id"])
+	return _in_stock(recipe.outputs[0]["id"])
 
 
 func _post_cook_job(station: Dictionary, recipe: Recipe) -> void:
@@ -488,13 +583,14 @@ func _standable(tile: Vector2i) -> bool:
 ## where. Either way the reach has to be measured again.
 func invalidate_reach() -> void:
 	_reach_dirty = true
+	_layout_revision = -1
 
 
 ## `take`: withdraw an idle haul in the way. False for diagnostics, which only
 ## look: a report must never change the board, or what the screen showed would
 ## change how the game plays.
 func _feed_source(station: Dictionary, id: StringName, take: bool = true) -> Vector2i:
-	for tile in items.tiles_with(id, station["centre"]):
+	for tile in _tiles_nearest(id, station["centre"]):
 		if station["input_tiles"].has(tile):
 			continue
 		if items.available_at(tile) <= 0 or not _standable(tile):
@@ -520,9 +616,20 @@ func _only_idle_hauls(tile: Vector2i) -> bool:
 	return true
 
 
+## Stacks of one thing, nearest first: ItemWorld.tiles_with(), from the scan's
+## own index when there is one (same stacks, same order, so the same answer).
+func _tiles_nearest(id: StringName, from: Vector2i) -> Array[Vector2i]:
+	if not _in_scan:
+		return items.tiles_with(id, from)
+	if not _tiles_this_scan.has(id):
+		return [] as Array[Vector2i]
+	return ItemWorld.nearest_first(_tiles_this_scan[id], from)
+
+
 ## Is this stack an ingredient some other bench is standing ready to use?
 func _is_working_stock(tile: Vector2i, id: StringName, asking: Dictionary) -> bool:
-	for other in _stations_this_scan:
+	# Only the benches this tile is beside: during a scan, from the index.
+	for other in (_owners_this_scan.get(tile, []) if _in_scan else _stations_this_scan):
 		if int(other["index"]) == int(asking["index"]):
 			continue
 		if not other["input_tiles"].has(tile):
@@ -642,14 +749,9 @@ const BAR_STOCK: int = 6
 
 
 func _generate_bar_stock() -> void:
-	var tables: Dictionary = {}
-	for entry in build.grid.placements:
-		if entry != null and entry["built"] and entry["def"].furniture_role == &"table":
-			for tile in entry["tiles"]:
-				tables[tile] = true
-	for entry in build.grid.placements:
-		if entry == null or not entry["built"] or entry["def"].furniture_role != &"bar":
-			continue
+	_refresh_layout()
+	var tables: Dictionary = _table_tiles_cache
+	for entry in _bars_cache:
 		var made: Array = []
 		for recipe in RecipeCatalog.for_station(entry["def"].id):
 			for output in recipe.outputs:
@@ -671,7 +773,7 @@ func _generate_bar_stock() -> void:
 			if board.has_key(key):
 				continue
 			var source := Vector2i(-1, -1)
-			for from in items.tiles_with(def.id, tile):
+			for from in _tiles_nearest(def.id, tile):
 				if _pass_tiles_this_scan.has(from) or tables.has(from) or items.available_at(from) <= 0:
 					continue
 				if not _standable(from) or (board.has_pickup(from) and not board.yield_hauls(from)):

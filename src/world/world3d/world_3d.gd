@@ -438,7 +438,8 @@ func _show_closed_day(entry: Dictionary) -> void:
 
 	if hud._day_summary != null:
 		var verdict: Dictionary = level.verdict_for(self, int(entry["day"])) if level != null else {}
-		hud._day_summary.show_day(entry, hud._tavern_name(), customers.reputation, customers.day_reviews, verdict)
+		hud._day_summary.show_day(entry, hud._tavern_name(), customers.reputation, customers.day_reviews, verdict,
+			customers.consumed_today)
 	else:
 		_begin_next_day()
 
@@ -644,8 +645,10 @@ func _open_level() -> void:
 	GameState.gold = level.starting_gold
 	hud.show_briefing(level)
 	if level.is_tutorial:
-		# The tutorial teaches ordering by hand first, then switches this on.
-		auto_supply.enabled = false
+		# Auto restock stays on: it waits for the first delivery anyway, so
+		# ordering by hand is still taught first. Switched off here, a newcomer
+		# who bought one cart and opened ran out of everything by the afternoon
+		# of day 1, before the lesson that turns it back on.
 		var room: Rect2i = TutorialPlan.room(self)
 		var middle: Vector2 = Vector2(room.position) + Vector2(room.size) * 0.5
 		if rig != null:
@@ -761,8 +764,11 @@ func stock_of(id: StringName) -> int:
 ## Call the player's keeper into the world. They appear where the player is
 ## looking, on open ground inside the plot. Returns false if there is nowhere.
 func spawn_keeper(at: Vector2i = Vector2i(-1, -1)) -> bool:
-	if keeper != null:
+	if keeper != null and is_instance_valid(keeper.pawn):
 		return true
+	# A keeper whose body has gone (freed with the node it stood in) is no
+	# keeper at all: Tab would act on a freed pawn. Start again.
+	clear_keeper()
 	if at.x < 0 or not nav.is_walkable(at):
 		at = _keeper_spot()
 	if at.x < 0:
@@ -774,6 +780,16 @@ func spawn_keeper(at: Vector2i = Vector2i(-1, -1)) -> bool:
 		if hud != null:
 			hud.flash(text, 2.2))
 	return true
+
+
+## The node the staff and the keeper live under, made again if it is missing.
+func pawn_holder() -> Node:
+	var holder: Node = _find("Pawns")
+	if holder == null:
+		holder = Node3D.new()
+		holder.name = "Pawns"
+		add_child(holder)
+	return holder
 
 
 ## Remove the keeper without putting anything down: a load restores the goods
@@ -872,7 +888,7 @@ func hire(role_id: StringName) -> String:
 	if not ledger.spend(Ledger.Line.HIRING, role.fee):
 		return "A %s costs %dg to take on; the purse has %dg" % [role.title.to_lower(), role.fee, GameState.gold]
 	var before: int = workers.size()
-	bootstrap._add_pawn(_find("Pawns"), sim_rng.randi(), role)
+	bootstrap._add_pawn(pawn_holder(), sim_rng.randi(), role)
 	if workers.size() == before:
 		# Nowhere on the plot to stand. Give the fee back rather than keep it.
 		ledger.today[Ledger.Line.HIRING] = int(ledger.today.get(Ledger.Line.HIRING, 0)) - role.fee
